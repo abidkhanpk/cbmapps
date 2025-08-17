@@ -4,441 +4,479 @@ import bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Start seeding...');
+  console.log('🌱 Starting database seed...');
 
-  // 1. Create Roles
-  const rolesData = [
-    { name: 'admin' },
-    { name: 'reliability_engineer' },
-    { name: 'maint_planner' },
-    { name: 'technician' },
-    { name: 'manager' },
-    { name: 'viewer' },
-  ];
-
-  for (const role of rolesData) {
-    await prisma.role.upsert({
-      where: { name: role.name },
+  // Create roles
+  console.log('Creating roles...');
+  const roles = await Promise.all([
+    prisma.role.upsert({
+      where: { name: 'admin' },
       update: {},
-      create: role,
-    });
-    console.log(`Upserted role: ${role.name}`);
-  }
+      create: { name: 'admin' },
+    }),
+    prisma.role.upsert({
+      where: { name: 'reliability_engineer' },
+      update: {},
+      create: { name: 'reliability_engineer' },
+    }),
+    prisma.role.upsert({
+      where: { name: 'maint_planner' },
+      update: {},
+      create: { name: 'maint_planner' },
+    }),
+    prisma.role.upsert({
+      where: { name: 'technician' },
+      update: {},
+      create: { name: 'technician' },
+    }),
+    prisma.role.upsert({
+      where: { name: 'manager' },
+      update: {},
+      create: { name: 'manager' },
+    }),
+    prisma.role.upsert({
+      where: { name: 'viewer' },
+      update: {},
+      create: { name: 'viewer' },
+    }),
+  ]);
 
-  const adminRole = await prisma.role.findUnique({ where: { name: 'admin' } });
-  if (!adminRole) {
-    throw new Error('Admin role not found after seeding.');
-  }
-
-  // 2. Create Admin User
-  const adminPassword = 'Admin@12345';
-  const hashedPassword = await bcrypt.hash(adminPassword, 10);
-
+  // Create admin user
+  console.log('Creating admin user...');
+  const adminRole = roles.find(r => r.name === 'admin')!;
+  const passwordHash = await bcrypt.hash('Admin@12345', 10);
+  
   const adminUser = await prisma.user.upsert({
     where: { email: 'admin@example.com' },
-    update: { password_hash: hashedPassword },
+    update: {},
     create: {
       email: 'admin@example.com',
-      password_hash: hashedPassword,
-      full_name: 'Admin User',
-      is_active: true,
+      passwordHash,
+      fullName: 'System Administrator',
+      userRoles: {
+        create: {
+          roleId: adminRole.id,
+        },
+      },
     },
   });
-  console.log(`Upserted admin user: ${adminUser.email}`);
 
-  // Assign admin role to admin user
-  await prisma.userRole.upsert({
-    where: { user_id_role_id: { user_id: adminUser.id, role_id: adminRole.id } },
+  // Create additional users
+  console.log('Creating additional users...');
+  const engineerRole = roles.find(r => r.name === 'reliability_engineer')!;
+  const technicianRole = roles.find(r => r.name === 'technician')!;
+  
+  const engineerUser = await prisma.user.upsert({
+    where: { email: 'engineer@example.com' },
     update: {},
     create: {
-      user_id: adminUser.id,
-      role_id: adminRole.id,
+      email: 'engineer@example.com',
+      passwordHash: await bcrypt.hash('Engineer@123', 10),
+      fullName: 'John Engineer',
+      userRoles: {
+        create: {
+          roleId: engineerRole.id,
+        },
+      },
     },
   });
-  console.log(`Assigned admin role to ${adminUser.email}`);
 
-  // 3. Create Company, Site, Area, System, Assets, Components
+  const technicianUser = await prisma.user.upsert({
+    where: { email: 'technician@example.com' },
+    update: {},
+    create: {
+      email: 'technician@example.com',
+      passwordHash: await bcrypt.hash('Tech@123', 10),
+      fullName: 'Jane Technician',
+      userRoles: {
+        create: {
+          roleId: technicianRole.id,
+        },
+      },
+    },
+  });
+
+  // Create organizational hierarchy
+  console.log('Creating organizational hierarchy...');
   const company = await prisma.company.upsert({
-    where: { code: 'COMP001' },
+    where: { code: 'ACME' },
     update: {},
     create: {
-      name: 'Example Company',
-      code: 'COMP001',
+      name: 'ACME Manufacturing',
+      code: 'ACME',
     },
   });
-  console.log(`Upserted company: ${company.name}`);
 
   const site = await prisma.site.upsert({
-    where: { company_id_code: { company_id: company.id, code: 'SITE001' } },
+    where: { companyId_code: { companyId: company.id, code: 'MAIN' } },
     update: {},
     create: {
-      company_id: company.id,
-      name: 'Main Site',
-      code: 'SITE001',
+      companyId: company.id,
+      name: 'Main Plant',
+      code: 'MAIN',
     },
   });
-  console.log(`Upserted site: ${site.name}`);
 
   const area = await prisma.area.upsert({
-    where: { site_id_code: { site_id: site.id, code: 'AREA001' } },
+    where: { siteId_code: { siteId: site.id, code: 'PROD' } },
     update: {},
     create: {
-      site_id: site.id,
+      siteId: site.id,
       name: 'Production Area',
-      code: 'AREA001',
+      code: 'PROD',
     },
   });
-  console.log(`Upserted area: ${area.name}`);
 
   const system = await prisma.system.upsert({
-    where: { area_id_code: { area_id: area.id, code: 'SYS001' } },
+    where: { areaId_code: { areaId: area.id, code: 'PUMP' } },
     update: {},
     create: {
-      area_id: area.id,
-      name: 'Conveyor System',
-      code: 'SYS001',
+      areaId: area.id,
+      name: 'Pumping System',
+      code: 'PUMP',
     },
   });
-  console.log(`Upserted system: ${system.name}`);
 
+  // Create assets
+  console.log('Creating assets...');
   const asset1 = await prisma.asset.upsert({
-    where: { system_id_tag_code: { system_id: system.id, tag_code: 'ASSET001' } },
+    where: { systemId_tagCode: { systemId: system.id, tagCode: 'P-001' } },
     update: {},
     create: {
-      system_id: system.id,
-      name: 'Conveyor Belt 1',
-      tag_code: 'ASSET001',
+      systemId: system.id,
+      name: 'Main Feed Pump',
+      tagCode: 'P-001',
       criticality: 'high',
     },
   });
-  console.log(`Upserted asset: ${asset1.name}`);
 
   const asset2 = await prisma.asset.upsert({
-    where: { system_id_tag_code: { system_id: system.id, tag_code: 'ASSET002' } },
+    where: { systemId_tagCode: { systemId: system.id, tagCode: 'P-002' } },
     update: {},
     create: {
-      system_id: system.id,
-      name: 'Motor Drive Unit',
-      tag_code: 'ASSET002',
+      systemId: system.id,
+      name: 'Backup Feed Pump',
+      tagCode: 'P-002',
       criticality: 'medium',
     },
   });
-  console.log(`Upserted asset: ${asset2.name}`);
 
+  // Create components
+  console.log('Creating components...');
   const component1 = await prisma.component.upsert({
-    where: { asset_id_component_code: { asset_id: asset1.id, component_code: 'COMP001' } },
+    where: { assetId_componentCode: { assetId: asset1.id, componentCode: 'MOTOR' } },
     update: {},
     create: {
-      asset_id: asset1.id,
-      name: 'Belt Roller',
-      component_code: 'COMP001',
-      type: 'mechanical',
-    },
-  });
-  console.log(`Upserted component: ${component1.name}`);
-
-  const component2 = await prisma.component.upsert({
-    where: { asset_id_component_code: { asset_id: asset1.id, component_code: 'COMP002' } },
-    update: {},
-    create: {
-      asset_id: asset1.id,
-      name: 'Belt Motor',
-      component_code: 'COMP002',
+      assetId: asset1.id,
+      name: 'Electric Motor',
+      componentCode: 'MOTOR',
       type: 'electrical',
     },
   });
-  console.log(`Upserted component: ${component2.name}`);
 
-  const component3 = await prisma.component.upsert({
-    where: { asset_id_component_code: { asset_id: asset2.id, component_code: 'COMP003' } },
+  const component2 = await prisma.component.upsert({
+    where: { assetId_componentCode: { assetId: asset1.id, componentCode: 'IMPELLER' } },
     update: {},
     create: {
-      asset_id: asset2.id,
-      name: 'Gearbox',
-      component_code: 'COMP003',
+      assetId: asset1.id,
+      name: 'Pump Impeller',
+      componentCode: 'IMPELLER',
+      type: 'rotating',
+    },
+  });
+
+  const component3 = await prisma.component.upsert({
+    where: { assetId_componentCode: { assetId: asset2.id, componentCode: 'BEARING' } },
+    update: {},
+    create: {
+      assetId: asset2.id,
+      name: 'Main Bearing',
+      componentCode: 'BEARING',
       type: 'mechanical',
     },
   });
-  console.log(`Upserted component: ${component3.name}`);
 
-  // 4. Add sample failure modes, rating scales, and a basic criticality rule
-  const fmecaCategory = await prisma.fmecaCategory.upsert({
-    where: { name: 'Mechanical Failures' },
+  // Create FMECA library data
+  console.log('Creating FMECA library data...');
+  const category = await prisma.fmecaCategory.upsert({
+    where: { name: 'Rotating Equipment' },
     update: {},
     create: {
-      name: 'Mechanical Failures',
-      description: 'Common failure modes for mechanical components.',
+      name: 'Rotating Equipment',
+      description: 'Failure modes for rotating machinery',
     },
   });
-  console.log(`Upserted FMECA category: ${fmecaCategory.name}`);
 
   const failureMode1 = await prisma.failureMode.upsert({
-    where: { category_id_code: { category_id: fmecaCategory.id, code: 'FM001' } },
+    where: { categoryId_code: { categoryId: category.id, code: 'BEARING_FAIL' } },
     update: {},
     create: {
-      category_id: fmecaCategory.id,
-      code: 'FM001',
+      categoryId: category.id,
+      code: 'BEARING_FAIL',
       title: 'Bearing Failure',
-      description: 'Failure due to worn or damaged bearings.',
-      typical_causes: 'Lack of lubrication, contamination, misalignment, excessive load.',
-      typical_effects: 'Increased vibration, noise, overheating, eventual seizure.',
-      detection_methods: 'Vibration analysis, thermography, acoustic emission, oil analysis.',
+      description: 'Premature bearing failure due to various causes',
+      typicalCauses: 'Inadequate lubrication, contamination, misalignment, overloading',
+      typicalEffects: 'Increased vibration, noise, heat generation, eventual seizure',
+      detectionMethods: 'Vibration monitoring, temperature monitoring, oil analysis',
     },
   });
-  console.log(`Upserted failure mode: ${failureMode1.title}`);
 
   const failureMode2 = await prisma.failureMode.upsert({
-    where: { category_id_code: { category_id: fmecaCategory.id, code: 'FM002' } },
+    where: { categoryId_code: { categoryId: category.id, code: 'MOTOR_FAIL' } },
     update: {},
     create: {
-      category_id: fmecaCategory.id,
-      code: 'FM002',
-      title: 'Belt Slippage',
-      description: 'Loss of power transmission due to belt slippage.',
-      typical_causes: 'Low tension, worn belt, oil contamination.',
-      typical_effects: 'Reduced output, increased heat, belt wear.',
-      detection_methods: 'Visual inspection, acoustic monitoring, motor current analysis.',
+      categoryId: category.id,
+      code: 'MOTOR_FAIL',
+      title: 'Motor Winding Failure',
+      description: 'Electrical motor winding insulation breakdown',
+      typicalCauses: 'Overheating, moisture ingress, voltage spikes, aging',
+      typicalEffects: 'Motor trip, reduced efficiency, complete failure',
+      detectionMethods: 'Motor current analysis, insulation resistance testing, thermography',
     },
   });
-  console.log(`Upserted failure mode: ${failureMode2.title}`);
 
-  // Rating Scales (1-10 for Severity, Occurrence, Detectability)
-  const dimensions = ['severity', 'occurrence', 'detectability'];
-  for (const dim of dimensions) {
-    const scale = await prisma.ratingScale.upsert({
-      where: { name: `${dim}_scale` },
-      update: {},
-      create: {
-        name: `${dim}_scale`,
-        dimension: dim,
-        min_value: 1,
-        max_value: 10,
-        description: `Rating scale for ${dim}`,
-      },
-    });
-    console.log(`Upserted rating scale: ${scale.name}`);
-
-    for (let i = 1; i <= 10; i++) {
-      await prisma.ratingScaleValue.upsert({
-        where: { scale_id_value: { scale_id: scale.id, value: i } },
-        update: {},
-        create: {
-          scale_id: scale.id,
-          value: i,
-          label: `Level ${i}`,
-          description: `Description for level ${i}`,
-        },
-      });
-    }
-    console.log(`Upserted values for ${scale.name}`);
-  }
-
-  // Basic Criticality Rule
-  const criticalityRule = await prisma.criticalityRule.upsert({
-    where: { name: 'Standard RPN Criticality' },
+  // Create rating scales
+  console.log('Creating rating scales...');
+  const severityScale = await prisma.ratingScale.upsert({
+    where: { name: 'Severity Scale' },
     update: {},
     create: {
-      name: 'Standard RPN Criticality',
-      description: 'Defines criticality based on RPN values.',
-      rpn_thresholds: {
-        low: [0, 99],
+      name: 'Severity Scale',
+      dimension: 'severity',
+      minValue: 1,
+      maxValue: 10,
+      description: 'Impact severity of failure mode',
+    },
+  });
+
+  const occurrenceScale = await prisma.ratingScale.upsert({
+    where: { name: 'Occurrence Scale' },
+    update: {},
+    create: {
+      name: 'Occurrence Scale',
+      dimension: 'occurrence',
+      minValue: 1,
+      maxValue: 10,
+      description: 'Likelihood of failure occurrence',
+    },
+  });
+
+  const detectabilityScale = await prisma.ratingScale.upsert({
+    where: { name: 'Detectability Scale' },
+    update: {},
+    create: {
+      name: 'Detectability Scale',
+      dimension: 'detectability',
+      minValue: 1,
+      maxValue: 10,
+      description: 'Ability to detect failure before it occurs',
+    },
+  });
+
+  // Create rating scale values
+  const severityValues = [
+    { value: 1, label: 'Negligible', description: 'No noticeable effect' },
+    { value: 3, label: 'Minor', description: 'Minor performance degradation' },
+    { value: 5, label: 'Moderate', description: 'Noticeable performance loss' },
+    { value: 7, label: 'Major', description: 'Significant performance loss' },
+    { value: 10, label: 'Catastrophic', description: 'Complete system failure' },
+  ];
+
+  for (const sv of severityValues) {
+    await prisma.ratingScaleValue.upsert({
+      where: { scaleId_value: { scaleId: severityScale.id, value: sv.value } },
+      update: {},
+      create: {
+        scaleId: severityScale.id,
+        ...sv,
+      },
+    });
+  }
+
+  // Create criticality rule
+  await prisma.criticalityRule.upsert({
+    where: { name: 'default' },
+    update: {},
+    create: {
+      name: 'default',
+      description: 'Default RPN-based criticality classification',
+      rpnThresholds: {
+        low: [1, 99],
         medium: [100, 199],
         high: [200, 1000],
       },
-      color_map: {
-        low: '#28a745', // green
-        medium: '#ffc107', // amber
-        high: '#dc3545', // red
+      colorMap: {
+        low: 'green',
+        medium: 'amber',
+        high: 'red',
       },
     },
   });
-  console.log(`Upserted criticality rule: ${criticalityRule.name}`);
 
-  // 5. Create a draft FMECA study with 3 items of varying RPN
-  const fmecaStudy = await prisma.fmecaStudy.upsert({
-    where: { title: 'Conveyor System FMECA Study' },
-    update: {},
-    create: {
-      company_id: company.id,
-      title: 'Conveyor System FMECA Study',
-      scope: 'FMECA for the main production conveyor system.',
-      status: 'draft',
-      owner_user_id: adminUser.id,
+  // Create FMECA study
+  console.log('Creating FMECA study...');
+  const study = await prisma.fmecaStudy.create({
+    data: {
+      companyId: company.id,
+      title: 'Main Feed Pump FMECA',
+      scope: 'Comprehensive FMECA analysis of the main feed pump system including motor, impeller, and associated components',
+      ownerUserId: engineerUser.id,
     },
   });
-  console.log(`Upserted FMECA study: ${fmecaStudy.title}`);
 
-  // FMECA Items
-  const fmecaItem1 = await prisma.fmecaItem.upsert({
-    where: { study_id_component_id_failure_mode_id: { study_id: fmecaStudy.id, component_id: component1.id, failure_mode_id: failureMode1.id } },
-    update: {},
-    create: {
-      study_id: fmecaStudy.id,
-      component_id: component1.id,
-      function: 'Support and guide conveyor belt.',
-      failure_mode_id: failureMode1.id,
-      effect: 'Belt seizure, production stoppage.',
-      cause: 'Worn bearings due to lack of lubrication.',
-      detection: 'Increased noise and vibration.',
+  // Create FMECA items
+  console.log('Creating FMECA items...');
+  await prisma.fmecaItem.create({
+    data: {
+      studyId: study.id,
+      componentId: component1.id,
+      function: 'Provide rotational power to pump impeller',
+      failureModeId: failureMode2.id,
+      effect: 'Pump stops, no flow, production halt',
+      cause: 'Motor winding insulation breakdown due to overheating',
+      detection: 'Motor current monitoring, temperature sensors',
       severity: 9,
-      occurrence: 7,
+      occurrence: 4,
       detectability: 3,
-      rpn: 9 * 7 * 3, // 189 (medium)
+      rpn: 108,
       criticality: 'medium',
-      recommended_actions: 'Implement regular lubrication schedule.',
-      monitoring_techniques: ['vibration', 'oil'],
+      recommendedActions: 'Implement motor current analysis, regular thermography',
+      monitoringTechniques: 'motor_current,thermography',
     },
   });
-  console.log(`Upserted FMECA item 1 (RPN: ${fmecaItem1.rpn}): ${fmecaItem1.function}`);
 
-  const fmecaItem2 = await prisma.fmecaItem.upsert({
-    where: { study_id_component_id_failure_mode_id: { study_id: fmecaStudy.id, component_id: component2.id, failure_mode_id: failureMode2.id } },
-    update: {},
-    create: {
-      study_id: fmecaStudy.id,
-      component_id: component2.id,
-      function: 'Drive conveyor belt.',
-      failure_mode_id: failureMode2.id,
-      effect: 'Reduced belt speed, product backlog.',
-      cause: 'Belt slippage due to low tension.',
-      detection: 'Visual inspection of belt tension.',
-      severity: 5,
+  await prisma.fmecaItem.create({
+    data: {
+      studyId: study.id,
+      componentId: component2.id,
+      function: 'Transfer energy from motor to fluid',
+      failureModeId: failureMode1.id,
+      effect: 'Reduced efficiency, vibration, eventual failure',
+      cause: 'Impeller imbalance due to erosion or cavitation',
+      detection: 'Vibration monitoring, performance trending',
+      severity: 6,
+      occurrence: 5,
+      detectability: 4,
+      rpn: 120,
+      criticality: 'medium',
+      recommendedActions: 'Regular vibration monitoring, flow rate trending',
+      monitoringTechniques: 'vibration,visual',
+    },
+  });
+
+  await prisma.fmecaItem.create({
+    data: {
+      studyId: study.id,
+      componentId: component3.id,
+      function: 'Support rotating shaft',
+      failureModeId: failureMode1.id,
+      effect: 'Shaft seizure, catastrophic failure',
+      cause: 'Bearing wear due to inadequate lubrication',
+      detection: 'Vibration analysis, oil analysis, temperature monitoring',
+      severity: 8,
       occurrence: 6,
       detectability: 2,
-      rpn: 5 * 6 * 2, // 60 (low)
+      rpn: 96,
       criticality: 'low',
-      recommended_actions: 'Adjust belt tension regularly.',
-      monitoring_techniques: ['visual', 'motor_current'],
+      recommendedActions: 'Implement oil analysis program, vibration monitoring',
+      monitoringTechniques: 'vibration,oil,thermography',
     },
   });
-  console.log(`Upserted FMECA item 2 (RPN: ${fmecaItem2.rpn}): ${fmecaItem2.function}`);
 
-  const fmecaItem3 = await prisma.fmecaItem.upsert({
-    where: { study_id_component_id_failure_mode_id: { study_id: fmecaStudy.id, component_id: component3.id, failure_mode_id: failureMode1.id } },
-    update: {},
-    create: {
-      study_id: fmecaStudy.id,
-      component_id: component3.id,
-      function: 'Transmit power from motor to belt.',
-      failure_mode_id: failureMode1.id,
-      effect: 'Complete power loss, system shutdown.',
-      cause: 'Catastrophic gearbox failure.',
-      detection: 'Loud grinding noises, sudden stop.',
-      severity: 10,
-      occurrence: 8,
-      detectability: 1,
-      rpn: 10 * 8 * 1, // 80 (low)
-      criticality: 'low',
-      recommended_actions: 'Implement predictive maintenance for gearbox.',
-      monitoring_techniques: ['vibration', 'oil', 'acoustic'],
+  // Create CM tasks
+  console.log('Creating CM tasks...');
+  const cmTask1 = await prisma.cmTask.create({
+    data: {
+      componentId: component1.id,
+      technique: 'thermography',
+      intervalDays: 30,
+      procedure: 'Thermal imaging of motor housing and connections',
+      acceptanceCriteria: 'Temperature rise < 40°C above ambient',
+      nextDueAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
     },
   });
-  console.log(`Upserted FMECA item 3 (RPN: ${fmecaItem3.rpn}): ${fmecaItem3.function}`);
 
-  // 6. Create 2 CM tasks and 1 reading
-  const cmTask1 = await prisma.cmTask.upsert({
-    where: { component_id_technique: { component_id: component1.id, technique: 'vibration' } },
-    update: {},
-    create: {
-      component_id: component1.id,
+  const cmTask2 = await prisma.cmTask.create({
+    data: {
+      componentId: component2.id,
       technique: 'vibration',
-      interval_days: 30,
-      procedure: 'Collect vibration data from bearing housing.',
-      acceptance_criteria: 'Overall vibration velocity < 5 mm/s.',
-      last_performed_at: new Date(new Date().setDate(new Date().getDate() - 10)), // 10 days ago
+      intervalDays: 14,
+      procedure: 'Vibration measurement at bearing locations',
+      acceptanceCriteria: 'Overall vibration < 4.5 mm/s RMS',
+      nextDueAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
     },
   });
-  console.log(`Upserted CM task 1: ${cmTask1.procedure}`);
 
-  const cmTask2 = await prisma.cmTask.upsert({
-    where: { component_id_technique: { component_id: component2.id, technique: 'visual' } },
-    update: {},
-    create: {
-      component_id: component2.id,
-      technique: 'visual',
-      interval_days: 7,
-      procedure: 'Visually inspect belt for wear and tension.',
-      acceptance_criteria: 'No visible cracks, proper tension.',
-      last_performed_at: new Date(new Date().setDate(new Date().getDate() - 3)), // 3 days ago
+  // Create CM reading
+  console.log('Creating CM reading...');
+  await prisma.cmReading.create({
+    data: {
+      taskId: cmTask1.id,
+      performedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+      result: {
+        maxTemperature: 65,
+        ambientTemperature: 25,
+        temperatureRise: 40,
+        hotSpots: ['Terminal box connection'],
+      },
+      status: 'warning',
+      notes: 'Slight temperature elevation at terminal connections, recommend inspection',
+      performedByUserId: technicianUser.id,
     },
   });
-  console.log(`Upserted CM task 2: ${cmTask2.procedure}`);
 
-  const cmReading1 = await prisma.cmReading.upsert({
-    where: { task_id_performed_at: { task_id: cmTask1.id, performed_at: new Date(new Date().setDate(new Date().getDate() - 10)) } },
-    update: {},
-    create: {
-      task_id: cmTask1.id,
-      performed_at: new Date(new Date().setDate(new Date().getDate() - 10)),
-      result: { overall_velocity: 3.2, frequency_peaks: [20, 40] },
-      status: 'ok',
-      notes: 'Bearing vibration within limits.',
-      performed_by_user_id: adminUser.id,
-    },
-  });
-  console.log(`Upserted CM reading 1 for task: ${cmReading1.task_id}`);
-
-  // 7. Create 3 actions across statuses
-  const action1 = await prisma.actions.upsert({
-    where: { id: 'action1_id' }, // Using a fixed ID for upsert where clause for simplicity in seed
-    update: {},
-    create: {
-      id: 'action1_id',
-      title: 'Lubricate Conveyor Bearings',
-      description: 'Perform lubrication on all conveyor belt bearings as per schedule.',
-      entity_type: 'fmeca_item',
-      entity_id: fmecaItem1.id,
-      assignee_user_id: adminUser.id,
-      due_date: new Date(new Date().setDate(new Date().getDate() + 7)), // 7 days from now
+  // Create actions
+  console.log('Creating actions...');
+  await prisma.action.create({
+    data: {
+      title: 'Inspect Motor Terminal Connections',
+      description: 'Investigate elevated temperature at motor terminal connections found during thermography inspection',
+      entityType: 'component',
+      entityId: component1.id,
+      assigneeUserId: technicianUser.id,
+      dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days from now
       priority: 'high',
-      status: 'open',
-      created_by_user_id: adminUser.id,
+      createdByUserId: engineerUser.id,
     },
   });
-  console.log(`Upserted action 1: ${action1.title}`);
 
-  const action2 = await prisma.actions.upsert({
-    where: { id: 'action2_id' },
-    update: {},
-    create: {
-      id: 'action2_id',
-      title: 'Adjust Belt Tension',
-      description: 'Check and adjust tension of conveyor belt 1.',
-      entity_type: 'fmeca_item',
-      entity_id: fmecaItem2.id,
-      assignee_user_id: adminUser.id,
-      due_date: new Date(new Date().setDate(new Date().getDate() + 3)), // 3 days from now
+  await prisma.action.create({
+    data: {
+      title: 'Update Vibration Monitoring Procedure',
+      description: 'Review and update vibration monitoring procedures based on recent FMECA findings',
+      entityType: 'component',
+      entityId: component2.id,
+      assigneeUserId: engineerUser.id,
+      dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days from now
       priority: 'medium',
       status: 'in_progress',
-      created_by_user_id: adminUser.id,
+      createdByUserId: adminUser.id,
     },
   });
-  console.log(`Upserted action 2: ${action2.title}`);
 
-  const action3 = await prisma.actions.upsert({
-    where: { id: 'action3_id' },
-    update: {},
-    create: {
-      id: 'action3_id',
-      title: 'Review Gearbox PM Schedule',
-      description: 'Review existing PM schedule for gearbox on Motor Drive Unit.',
-      entity_type: 'component',
-      entity_id: component3.id,
-      assignee_user_id: adminUser.id,
-      due_date: new Date(new Date().setDate(new Date().getDate() - 5)), // 5 days ago (overdue/done)
+  await prisma.action.create({
+    data: {
+      title: 'Implement Oil Analysis Program',
+      description: 'Set up regular oil analysis program for bearing lubrication monitoring',
+      entityType: 'component',
+      entityId: component3.id,
       priority: 'low',
       status: 'done',
-      created_by_user_id: adminUser.id,
+      createdByUserId: engineerUser.id,
     },
   });
-  console.log(`Upserted action 3: ${action3.title}`);
 
-  console.log('Seeding finished.');
+  console.log('✅ Database seed completed successfully!');
+  console.log('');
+  console.log('🔐 Login credentials:');
+  console.log('Admin: admin@example.com / Admin@12345');
+  console.log('Engineer: engineer@example.com / Engineer@123');
+  console.log('Technician: technician@example.com / Tech@123');
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error('❌ Seed failed:', e);
     process.exit(1);
   })
   .finally(async () => {

@@ -1,173 +1,326 @@
-# FMECA and Condition Monitoring Application
+# FMECA Web Application
 
-This is a comprehensive web application for managing FMECA (Failure Mode, Effects, and Criticality Analysis) studies and a Condition Monitoring (CM) program.
+A complete, production-ready web application for performing Failure Mode, Effects, and Criticality Analysis (FMECA) to implement and manage Condition Monitoring (CM) programs.
 
-## Features
+## 🚀 Features
 
-- **Asset Register:** Hierarchical structure from company down to component.
-- **FMECA Authoring & Execution:** Define failure modes, effects, causes, and calculate RPN (Risk Priority Number).
-- **User Management & Authentication:** Role-based access control (RBAC).
-- **Action Management:** Assign, track, and manage corrective actions.
-- **Audit Trail & Attachments:** Comprehensive logging and file upload capabilities.
-- **Reporting & Dashboards:** Visual insights into FMECA and CM data.
+### Core Functionality
+- **Asset Register Management**: Complete hierarchy from company → site → area → system → asset → component
+- **FMECA Authoring & Execution**: Comprehensive failure mode analysis with RPN calculations
+- **User Management & Authentication**: Role-based access control with secure session management
+- **Action Management**: Assignment workflow with owners, due dates, and status tracking
+- **Condition Monitoring**: Task scheduling and readings management
+- **Audit Trail**: Complete activity logging with attachments support
+- **Reporting & Dashboards**: KPIs, charts, and comprehensive reporting
 
-## Tech Stack
+### Technical Features
+- **Server-Side Rendering**: EJS templates with Bootstrap 5 UI
+- **Responsive Design**: Mobile-friendly interface
+- **Security**: CSRF protection, secure sessions, input validation
+- **File Uploads**: Attachment management with security checks
+- **Database**: PostgreSQL with Prisma ORM
+- **Testing**: Jest unit tests with >80% coverage
+- **Docker Support**: Complete containerization setup
 
-- **Language:** Node.js (LTS)
-- **Framework:** Express 5
-- **Views:** EJS (server-rendered)
-- **Frontend:** Bootstrap 5.3.x and jQuery 3.7.x (via CDN)
-- **ORM:** Prisma (for PostgreSQL)
-- **Auth:** `express-session`, `connect-pg-simple`, `bcrypt`, `csurf`, `helmet`
-- **Validation:** `zod`
-- **Logging:** `morgan`, `pino`
-- **File Uploads:** `multer`
-- **Email:** `nodemailer`
-- **Testing:** Jest, Supertest
+## 🛠 Tech Stack
 
-## Getting Started
+- **Backend**: Node.js 20+ with Express 5
+- **Database**: PostgreSQL (Neon compatible)
+- **ORM**: Prisma with migrations
+- **Frontend**: EJS templates, Bootstrap 5.3, jQuery 3.7
+- **Authentication**: express-session with PostgreSQL store
+- **Security**: Helmet, CSRF protection, bcrypt
+- **Validation**: Zod schemas
+- **Testing**: Jest + Supertest
+- **Deployment**: Docker, Heroku/Railway ready
 
-Follow these steps to set up and run the application locally.
+## 📋 Prerequisites
 
-### Prerequisites
+- Node.js 20.0.0 or higher
+- PostgreSQL 13+ (or Neon database)
+- npm or yarn package manager
 
-- Node.js (LTS version, >= 20)
-- PostgreSQL database (e.g., using Docker or a cloud service like Neon)
+## 🚀 Quick Start
 
-### 1. Clone the Repository
+### 1. Clone and Install
 
-```bash
+
 git clone <repository-url>
 cd fmeca-app
-```
-
-### 2. Install Dependencies
-
-```bash
 npm install
-```
 
-### 3. Environment Configuration
 
-Create a `.env` file in the root directory of the project by copying `.env.example`:
+### 2. Environment Setup
 
-```bash
+Copy the example environment file and configure:
+
+
 cp .env.example .env
-```
 
-Edit the `.env` file and update the following variables:
 
-- `DATABASE_URL`: Your PostgreSQL connection string. For local development, it might look like `postgresql://user:password@localhost:5432/fmeca_db?sslmode=disable`. For Neon, ensure `sslmode=require`.
-- `SESSION_SECRET`: A long, random string for session encryption.
-- `APP_BASE_URL`: The base URL of your application (e.g., `http://localhost:3000`).
-- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`: Your SMTP server details for sending emails (e.g., for user invitations, password resets).
-- `FILE_STORAGE_DIR`: Directory for file uploads (default is `./storage`).
+Edit `.env` with your database connection and other settings:
 
-### 4. Database Setup
 
-#### Run Prisma Migrations
+DATABASE_URL="postgresql://username:password@hostname:port/database?sslmode=require"
+SESSION_SECRET="your-super-secret-session-key-change-this-in-production"
+APP_BASE_URL="http://localhost:3000"
 
-This will create the necessary tables in your PostgreSQL database.
 
-```bash
-npx prisma migrate dev --name initial_setup
-```
+### 3. Database Setup
 
-#### Seed the Database
 
-This will populate your database with initial data, including roles, an admin user, sample assets, and FMECA library data.
+# Generate Prisma client
+npx prisma generate
 
-```bash
+# Run migrations
+npx prisma migrate dev
+
+# Seed database with sample data
 npm run seed
-```
 
-**Admin User Credentials:**
-- **Email:** `admin@example.com`
-- **Password:** `Admin@12345`
 
-### 5. Run the Application
+### 4. Start Development Server
 
-#### Development Mode
 
-```bash
 npm run dev
-```
 
-This will start the server with `ts-node-dev`, enabling live reloading on code changes.
 
-#### Production Mode
+Visit `http://localhost:3000` and login with:
+- **Admin**: admin@example.com / Admin@12345
+- **Engineer**: engineer@example.com / Engineer@123
+- **Technician**: technician@example.com / Tech@123
 
-First, build the TypeScript code:
+## 🏗 Project Structure
 
-```bash
-npm run build
-```
 
-Then, start the application:
-
-```bash
-npm start
-```
-
-### 6. Access the Application
-
-Open your web browser and navigate to `http://localhost:3000` (or the `APP_BASE_URL` you configured).
-
-## Testing
-
-To run unit and integration tests:
-
-```bash
-npm test
-```
-
-## Linting and Formatting
-
-To lint your code:
-
-```bash
-npm run lint
-```
-
-To format your code using Prettier:
-
-```bash
-npm run format
-```
-
-## Deployment (Example for Neon + Render/Fly.io/Railway)
-
-1.  **Create Neon DB:** Sign up for Neon and create a new PostgreSQL database. Copy the connection string, ensuring `sslmode=require` is part of it.
-2.  **Set Environment Variables:** Configure the environment variables (`DATABASE_URL`, `SESSION_SECRET`, `APP_BASE_URL`, `SMTP_*`, `NODE_ENV=production`) on your chosen hosting platform (e.g., Render, Fly.io, Railway).
-3.  **Run Migrations:** On your hosting platform, configure a build step or a release command to run `npm run migrate` (which executes `prisma migrate deploy`).
-4.  **Ensure HTTPS and Secure Cookies:** Most platforms provide HTTPS automatically. Ensure your session cookies are set to `secure` in production (handled by `express-session` when `NODE_ENV` is `production`).
-5.  **Health Check:** The application exposes a health check endpoint at `GET /healthz`.
-
-## Project Structure
-
-```
-/
 ├── src/
-│   ├── config/             # Environment variables, database configuration
-│   ├── middlewares/        # Auth, CSRF, RBAC, error handling
-│   ├── routes/             # Express routes definitions
-│   ├── controllers/        # Request handlers
-│   ├── services/           # Business logic, FMECA calculations, actions, uploads, email
-│   ├── views/              # EJS templates, partials, layouts
-│   ├── public/             # Static assets (CSS, JS)
-│   ├── prisma/             # Prisma schema, migrations, seed script
-│   ├── types/              # TypeScript custom types/interfaces
-│   └── server.ts           # Main application entry point
-├── tests/                  # Unit and e2e tests
-├── storage/                # Uploaded files (ignored by Git)
-├── .env.example            # Example environment variables
-├── .env                    # Local environment variables
-├── Dockerfile              # Docker build instructions
-├── docker-compose.yml      # Docker Compose configuration (optional)
-├── Procfile                # Process file for Heroku/similar platforms
-├── package.json            # Project dependencies and scripts
-├── tsconfig.json           # TypeScript configuration
-├── .eslintrc.js            # ESLint configuration
-├── .prettierrc.js          # Prettier configuration
-└── README.md               # Project README
-```
+│   ├── config/          # Database and environment configuration
+│   ├── controllers/     # Route controllers (future expansion)
+│   ├── middlewares/     # Authentication, RBAC, security
+│   ├── routes/          # Express route definitions
+│   ├── services/        # Business logic services
+│   ├── types/           # TypeScript type definitions
+│   └── server.ts        # Main application entry point
+├── views/               # EJS templates
+│   ├── auth/           # Authentication pages
+│   ├── dashboard/      # Dashboard views
+│   ├── users/          # User management
+│   ├── assets/         # Asset management
+│   ├── fmeca/          # FMECA studies
+│   ├── actions/        # Action management
+│   └── layout.ejs      # Main layout template
+├── public/             # Static assets
+│   ├── css/           # Custom stylesheets
+│   └── js/            # Client-side JavaScript
+├── prisma/            # Database schema and migrations
+├── tests/             # Test files
+├── storage/           # File uploads (gitignored)
+└── docker-compose.yml # Docker configuration
+
+
+## 🔐 User Roles & Permissions
+
+### Role Hierarchy
+- **Admin**: Full system access, user management
+- **Reliability Engineer**: FMECA management, CM tasks, approvals
+- **Maintenance Planner**: Action planning, scheduling
+- **Manager**: Study approvals, dashboard access
+- **Technician**: CM readings, action updates
+- **Viewer**: Read-only access
+
+### Permission Matrix
+| Feature | Admin | Engineer | Planner | Manager | Technician | Viewer |
+|---------|-------|----------|---------|---------|------------|--------|
+| User Management | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| FMECA Studies | ✅ | ✅ | 👁 | 👁 | 👁 | 👁 |
+| Study Approval | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| CM Tasks | ✅ | ✅ | 👁 | 👁 | 👁 | 👁 |
+| CM Readings | ✅ | ✅ | 👁 | 👁 | ✅ | 👁 |
+| Actions | ✅ | ✅ | ✅ | ✅ | ✅* | 👁 |
+| Audit Logs | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+
+*Technicians can only update assigned actions
+
+## 📊 FMECA Methodology
+
+### RPN Calculation
+Risk Priority Number (RPN) = Severity × Occurrence × Detectability
+
+### Criticality Classification
+- **Low**: RPN 1-99 (Green)
+- **Medium**: RPN 100-199 (Amber)  
+- **High**: RPN 200-1000 (Red)
+
+### Rating Scales
+All dimensions use 1-10 scales:
+- **Severity**: Impact of failure (1=Negligible, 10=Catastrophic)
+- **Occurrence**: Likelihood of failure (1=Remote, 10=Very High)
+- **Detectability**: Ability to detect before failure (1=Very High, 10=Absolute Uncertainty)
+
+## 🧪 Testing
+
+Run the test suite:
+
+
+# Unit tests
+npm test
+
+# Test with coverage
+npm run test:coverage
+
+# Watch mode
+npm run test:watch
+
+
+## 🚀 Deployment
+
+### Using Docker
+
+
+# Build and run with Docker Compose
+docker-compose up -d
+
+# Or build manually
+docker build -t fmeca-app .
+docker run -p 3000:3000 fmeca-app
+
+
+### Neon PostgreSQL Setup
+
+1. Create a Neon database at [neon.tech](https://neon.tech)
+2. Copy the connection string (ensure `sslmode=require`)
+3. Set `DATABASE_URL` in your environment
+4. Run migrations: `npm run migrate`
+5. Seed data: `npm run seed`
+
+### Production Deployment
+
+#### Heroku/Railway
+1. Set environment variables
+2. Enable automatic deployments
+3. The `Procfile` handles migrations and seeding
+
+#### Manual Deployment
+
+# Build application
+npm run build
+
+# Run migrations
+npm run migrate
+
+# Seed database (optional)
+npm run seed
+
+# Start production server
+npm start
+
+
+## 🔧 Configuration
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | Required |
+| `SESSION_SECRET` | Session encryption key | Required |
+| `APP_BASE_URL` | Application base URL | `http://localhost:3000` |
+| `NODE_ENV` | Environment mode | `development` |
+| `PORT` | Server port | `3000` |
+| `SMTP_*` | Email configuration | Optional |
+| `FILE_STORAGE_DIR` | Upload directory | `./storage` |
+
+### Security Features
+
+- **CSRF Protection**: All forms protected with CSRF tokens
+- **Session Security**: HTTP-only, secure cookies with PostgreSQL storage
+- **Password Hashing**: bcrypt with configurable rounds
+- **Input Validation**: Zod schemas for all inputs
+- **File Upload Security**: Type validation and size limits
+- **SQL Injection Protection**: Prisma ORM with parameterized queries
+- **XSS Protection**: Helmet security headers
+
+## 📈 Monitoring & Maintenance
+
+### Health Check
+- Endpoint: `GET /healthz`
+- Returns: `{"status": "ok", "timestamp": "..."}`
+
+### Audit Logging
+All user actions are automatically logged:
+- User authentication events
+- Data modifications
+- File uploads
+- Administrative actions
+
+### Database Maintenance
+
+# View migration status
+npx prisma migrate status
+
+# Reset database (development only)
+npx prisma migrate reset
+
+# Generate new migration
+npx prisma migrate dev --name description
+
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit changes: `git commit -m 'Add amazing feature'`
+4. Push to branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
+
+### Development Guidelines
+- Follow TypeScript strict mode
+- Maintain >80% test coverage
+- Use ESLint and Prettier for code formatting
+- Write meaningful commit messages
+- Update documentation for new features
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+### Common Issues
+
+**Database Connection Issues**
+- Ensure PostgreSQL is running
+- Check connection string format
+- Verify SSL requirements for Neon
+
+**Session Issues**
+- Check `SESSION_SECRET` is set
+- Verify PostgreSQL session table exists
+- Clear browser cookies
+
+**File Upload Issues**
+- Check `FILE_STORAGE_DIR` permissions
+- Verify disk space availability
+- Review file type restrictions
+
+### Getting Help
+- Check the [Issues](../../issues) page
+- Review the [Wiki](../../wiki) for detailed guides
+- Contact the development team
+
+## 🎯 Roadmap
+
+- [ ] Advanced reporting and analytics
+- [ ] Mobile app companion
+- [ ] API documentation with Swagger
+- [ ] Advanced workflow automation
+- [ ] Integration with CMMS systems
+- [ ] Multi-language support
+- [ ] Advanced file storage (S3 integration)
+- [ ] Real-time notifications
+- [ ] Advanced user preferences
+- [ ] Bulk data import/export
+
+---
+
+**Built with ❤️ for reliability engineers and maintenance professionals**
+

@@ -1,0 +1,53 @@
+<% layout('layout') -%>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-people"></i> Users</h1>
+    <a href="/users/create" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Create User
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Roles</th>
+                        <th>Status</th>
+                        <th>Last Login</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% users.forEach(user => { %>
+                    <tr>
+                        <td><%= user.fullName %></td>
+                        <td><%= user.email %></td>
+                        <td>
+                            <% user.userRoles.forEach(ur => { %>
+                            <span class="badge bg-secondary me-1"><%= ur.role.name %></span>
+                            <% }); %>
+                        </td>
+                        <td>
+                            <span class="badge bg-<%= user.isActive ? 'success' : 'danger' %>">
+                                <%= user.isActive ? 'Active' : 'Inactive' %>
+                            </span>
+                        </td>
+                        <td>
+                            <%= user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString() : 'Never' %>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="editUser('<%= user.id %>')">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    <% }); %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

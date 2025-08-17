@@ -1,0 +1,39 @@
+<% layout('layout') -%>
+
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-4">
+        <div class="card shadow">
+            <div class="card-body">
+                <div class="text-center mb-4">
+                    <i class="bi bi-gear-fill text-primary" style="font-size: 3rem;"></i>
+                    <h2 class="mt-2">FMECA App</h2>
+                    <p class="text-muted">Sign in to your account</p>
+                </div>
+
+                <% if (error) { %>
+                <div class="alert alert-danger" role="alert">
+                    <%= error %>
+                </div>
+                <% } %>
+
+                <form method="POST" action="/auth/login">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-box-arrow-in-right"></i> Sign In
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

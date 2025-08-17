@@ -1,0 +1,113 @@
+<% layout('layout') -%>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-list-task"></i> Actions</h1>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createActionModal">
+        <i class="bi bi-plus-circle"></i> Create Action
+    </button>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-3">
+                <label for="status" class="form-label">Status</label>
+                <select class="form-select" id="status" name="status">
+                    <option value="">All Statuses</option>
+                    <option value="open" <%= filters.status === 'open' ? 'selected' : '' %>>Open</option>
+                    <option value="in_progress" <%= filters.status === 'in_progress' ? 'selected' : '' %>>In Progress</option>
+                    <option value="blocked" <%= filters.status === 'blocked' ? 'selected' : '' %>>Blocked</option>
+                    <option value="done" <%= filters.status === 'done' ? 'selected' : '' %>>Done</option>
+                    <option value="cancelled" <%= filters.status === 'cancelled' ? 'selected' : '' %>>Cancelled</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="priority" class="form-label">Priority</label>
+                <select class="form-select" id="priority" name="priority">
+                    <option value="">All Priorities</option>
+                    <option value="low" <%= filters.priority === 'low' ? 'selected' : '' %>>Low</option>
+                    <option value="medium" <%= filters.priority === 'medium' ? 'selected' : '' %>>Medium</option>
+                    <option value="high" <%= filters.priority === 'high' ? 'selected' : '' %>>High</option>
+                    <option value="urgent" <%= filters.priority === 'urgent' ? 'selected' : '' %>>Urgent</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="assignee" class="form-label">Assignee</label>
+                <select class="form-select" id="assignee" name="assignee">
+                    <option value="">All Users</option>
+                    <% users.forEach(user => { %>
+                    <option value="<%= user.id %>" <%= filters.assignee === user.id ? 'selected' : '' %>>
+                        <%= user.fullName %>
+                    </option>
+                    <% }); %>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">&nbsp;</label>
+                <div>
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="bi bi-funnel"></i> Filter
+                    </button>
+                    <a href="/actions" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-circle"></i> Clear
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Actions Table -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Assignee</th>
+                        <th>Due Date</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% actions.forEach(action => { %>
+                    <tr>
+                        <td>
+                            <strong><%= action.title %></strong>
+                            <br>
+                            <small class="text-muted"><%= action.description.substring(0, 100) %>...</small>
+                        </td>
+                        <td>
+                            <span class="badge bg-<%= action.priority === 'urgent' ? 'danger' : action.priority === 'high' ? 'warning' : action.priority === 'medium' ? 'info' : 'secondary' %>">
+                                <%= action.priority.toUpperCase() %>
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge bg-<%= action.status === 'done' ? 'success' : action.status === 'in_progress' ? 'primary' : action.status === 'blocked' ? 'danger' : 'secondary' %>">
+                                <%= action.status.replace('_', ' ').toUpperCase() %>
+                            </span>
+                        </td>
+                        <td>
+                            <%= action.assignee ? action.assignee.fullName : 'Unassigned' %>
+                        </td>
+                        <td>
+                            <%= action.dueDate ? new Date(action.dueDate).toLocaleDateString() : '-' %>
+                        </td>
+                        <td><%= new Date(action.createdAt).toLocaleDateString() %></td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="viewAction('<%= action.id %>')">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    <% }); %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

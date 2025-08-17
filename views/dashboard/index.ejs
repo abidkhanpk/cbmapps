@@ -1,0 +1,148 @@
+<% layout('layout') -%>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-speedometer2"></i> Dashboard</h1>
+</div>
+
+<!-- KPI Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4><%= stats.totalAssets %></h4>
+                        <p class="mb-0">Total Assets</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-building" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4><%= stats.totalComponents %></h4>
+                        <p class="mb-0">Components</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-gear" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4><%= stats.activeFmecaStudies %></h4>
+                        <p class="mb-0">Active Studies</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-clipboard-data" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4><%= stats.openActions %></h4>
+                        <p class="mb-0">Open Actions</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-list-task" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-bar-chart"></i> Actions by Priority</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="priorityChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-pie-chart"></i> Actions by Status</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="statusChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Priority Chart
+const priorityCtx = document.getElementById('priorityChart').getContext('2d');
+new Chart(priorityCtx, {
+    type: 'bar',
+    data: {
+        labels: ['Low', 'Medium', 'High', 'Urgent'],
+        datasets: [{
+            label: 'Actions',
+            data: [
+                <%= stats.actionsByPriority.low || 0 %>,
+                <%= stats.actionsByPriority.medium || 0 %>,
+                <%= stats.actionsByPriority.high || 0 %>,
+                <%= stats.actionsByPriority.urgent || 0 %>
+            ],
+            backgroundColor: ['#28a745', '#ffc107', '#fd7e14', '#dc3545']
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                display: false
+            }
+        }
+    }
+});
+
+// Status Chart
+const statusCtx = document.getElementById('statusChart').getContext('2d');
+new Chart(statusCtx, {
+    type: 'doughnut',
+    data: {
+        labels: ['Open', 'In Progress', 'Blocked', 'Done', 'Cancelled'],
+        datasets: [{
+            data: [
+                <%= stats.actionsByStatus.open || 0 %>,
+                <%= stats.actionsByStatus.in_progress || 0 %>,
+                <%= stats.actionsByStatus.blocked || 0 %>,
+                <%= stats.actionsByStatus.done || 0 %>,
+                <%= stats.actionsByStatus.cancelled || 0 %>
+            ],
+            backgroundColor: ['#6c757d', '#007bff', '#dc3545', '#28a745', '#6f42c1']
+        }]
+    },
+    options: {
+        responsive: true
+    }
+});
+</script>
