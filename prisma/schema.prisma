@@ -1,3 +1,6 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,10 +10,473 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// NextAuth models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
 // User & RBAC
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
-  passwordHash  String    @map("password_hash")
-  fullName      String    @map("full_name")
-  isActive      Boolean   @default
+  password_hash String?
+  full_name     String
+  is_active     Boolean   @default(true)
+  last_login_at DateTime?
+  created_at    DateTime  @default(now())
+
+  // NextAuth relations
+  accounts Account[]
+  sessions Session[]
+
+  // RBAC
+  user_roles UserRole[]
+
+  // Relations
+  owned_studies        FmecaStudy[]      @relation("StudyOwner")
+  approvals           FmecaApproval[]
+  cm_readings         CmReading[]
+  uploaded_attachments Attachment[]
+  created_actions     Action[]          @relation("ActionCreator")
+  assigned_actions    Action[]          @relation("ActionAssignee")
+  action_comments     ActionComment[]
+  audit_logs          AuditLog[]
+
+  @@map("users")
+}
+
+model Role {
+  id   String @id @default(cuid())
+  name String @unique
+
+  user_roles UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  user_id String
+  role_id String
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, role_id])
+  @@map("user_roles")
+}
+
+// Org & Asset Hierarchy
+model Company {
+  id         String   @id @default(cuid())
+  name       String   @unique
+  code       String   @unique
+  created_at DateTime @default(now())
+
+  sites          Site[]
+  fmeca_studies  FmecaStudy[]
+
+  @@map("companies")
+}
+
+model Site {
+  id         String   @id @default(cuid())
+  company_id String
+  name       String
+  code       String
+  created_at DateTime @default(now())
+
+  company Company @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  areas   Area[]
+
+  @@unique([company_id, code])
+  @@map("sites")
+}
+
+model Area {
+  id         String   @id @default(cuid())
+  site_id    String
+  name       String
+  code       String
+  created_at DateTime @default(now())
+
+  site    Site     @relation(fields: [site_id], references: [id], onDelete: Cascade)
+  systems System[]
+
+  @@unique([site_id, code])
+  @@map("areas")
+}
+
+model System {
+  id         String   @id @default(cuid())
+  area_id    String
+  name       String
+  code       String
+  created_at DateTime @default(now())
+
+  area   Area    @relation(fields: [area_id], references: [id], onDelete: Cascade)
+  assets Asset[]
+
+  @@unique([area_id, code])
+  @@map("systems")
+}
+
+enum Criticality {
+  low
+  medium
+  high
+}
+
+model Asset {
+  id          String      @id @default(cuid())
+  system_id   String
+  name        String
+  tag_code    String
+  criticality Criticality @default(low)
+  created_at  DateTime    @default(now())
+
+  system     System      @relation(fields: [system_id], references: [id], onDelete: Cascade)
+  components Component[]
+
+  @@unique([system_id, tag_code])
+  @@map("assets")
+}
+
+enum ComponentType {
+  mechanical
+  electrical
+  instrumentation
+  rotating
+  static
+  other
+}
+
+model Component {
+  id             String        @id @default(cuid())
+  asset_id       String
+  name           String
+  component_code String
+  type           ComponentType @default(other)
+  created_at     DateTime      @default(now())
+
+  asset        Asset       @relation(fields: [asset_id], references: [id], onDelete: Cascade)
+  fmeca_items  FmecaItem[]
+  cm_tasks     CmTask[]
+
+  @@unique([asset_id, component_code])
+  @@map("components")
+}
+
+// FMECA Library
+model FmecaCategory {
+  id          String @id @default(cuid())
+  name        String @unique
+  description String
+
+  failure_modes FailureMode[]
+
+  @@map("fmeca_categories")
+}
+
+model FailureMode {
+  id               String @id @default(cuid())
+  category_id      String
+  code             String
+  title            String
+  description      String
+  typical_causes   String?
+  typical_effects  String?
+  detection_methods String?
+
+  category    FmecaCategory @relation(fields: [category_id], references: [id], onDelete: Cascade)
+  fmeca_items FmecaItem[]
+
+  @@unique([category_id, code])
+  @@map("failure_modes")
+}
+
+enum RatingDimension {
+  severity
+  occurrence
+  detectability
+}
+
+model RatingScale {
+  id          String          @id @default(cuid())
+  name        String          @unique
+  dimension   RatingDimension
+  min_value   Int
+  max_value   Int
+  description String
+
+  values RatingScaleValue[]
+
+  @@map("rating_scales")
+}
+
+model RatingScaleValue {
+  id          String @id @default(cuid())
+  scale_id    String
+  value       Int
+  label       String
+  description String
+
+  scale RatingScale @relation(fields: [scale_id], references: [id], onDelete: Cascade)
+
+  @@unique([scale_id, value])
+  @@map("rating_scale_values")
+}
+
+model CriticalityRule {
+  id             String @id @default(cuid())
+  name           String @unique
+  description    String
+  rpn_thresholds Json
+  color_map      Json
+
+  @@map("criticality_rules")
+}
+
+// FMECA Execution
+enum StudyStatus {
+  draft
+  in_review
+  approved
+  archived
+}
+
+model FmecaStudy {
+  id             String      @id @default(cuid())
+  company_id     String
+  title          String
+  scope          String?
+  status         StudyStatus @default(draft)
+  owner_user_id  String
+  created_at     DateTime    @default(now())
+  updated_at     DateTime    @updatedAt
+
+  company   Company         @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  owner     User            @relation("StudyOwner", fields: [owner_user_id], references: [id])
+  items     FmecaItem[]
+  approvals FmecaApproval[]
+
+  @@map("fmeca_studies")
+}
+
+model FmecaItem {
+  id                    String      @id @default(cuid())
+  study_id              String
+  component_id          String
+  function              String
+  failure_mode_id       String
+  effect                String
+  cause                 String
+  detection             String
+  severity              Int
+  occurrence            Int
+  detectability         Int
+  rpn                   Int // This will be calculated in application logic
+  criticality           Criticality @default(low)
+  recommended_actions   String?
+  monitoring_techniques Json?
+
+  study        FmecaStudy  @relation(fields: [study_id], references: [id], onDelete: Cascade)
+  component    Component   @relation(fields: [component_id], references: [id])
+  failure_mode FailureMode @relation(fields: [failure_mode_id], references: [id])
+
+  @@map("fmeca_items")
+}
+
+enum ApprovalStatus {
+  pending
+  approved
+  rejected
+}
+
+model FmecaApproval {
+  id               String         @id @default(cuid())
+  study_id         String
+  approver_user_id String
+  status           ApprovalStatus @default(pending)
+  comment          String?
+  decided_at       DateTime?
+
+  study    FmecaStudy @relation(fields: [study_id], references: [id], onDelete: Cascade)
+  approver User       @relation(fields: [approver_user_id], references: [id])
+
+  @@map("fmeca_approvals")
+}
+
+// Condition Monitoring Program
+enum CmTechnique {
+  vibration
+  thermography
+  ultrasound
+  oil
+  visual
+  motor_current
+  acoustic
+  other
+}
+
+model CmTask {
+  id                   String      @id @default(cuid())
+  component_id         String
+  technique            CmTechnique
+  interval_days        Int
+  procedure            String
+  acceptance_criteria  String
+  last_performed_at    DateTime?
+  next_due_at          DateTime?
+
+  component Component   @relation(fields: [component_id], references: [id], onDelete: Cascade)
+  readings  CmReading[]
+
+  @@map("cm_tasks")
+}
+
+enum ReadingStatus {
+  ok
+  warning
+  alarm
+}
+
+model CmReading {
+  id                   String        @id @default(cuid())
+  task_id              String
+  performed_at         DateTime      @default(now())
+  result               Json
+  status               ReadingStatus @default(ok)
+  notes                String?
+  performed_by_user_id String
+
+  task         CmTask @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  performed_by User   @relation(fields: [performed_by_user_id], references: [id])
+
+  @@map("cm_readings")
+}
+
+// Attachments & Audit
+enum EntityType {
+  fmeca_item
+  cm_reading
+  action
+  asset
+  component
+}
+
+model Attachment {
+  id                   String     @id @default(cuid())
+  entity_type          EntityType
+  entity_id            String
+  file_path            String
+  original_name        String
+  mime_type            String
+  size_bytes           Int
+  uploaded_by_user_id  String
+  uploaded_at          DateTime   @default(now())
+
+  uploaded_by User @relation(fields: [uploaded_by_user_id], references: [id])
+
+  @@map("attachments")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  user_id     String?
+  action      String
+  entity_type String
+  entity_id   String
+  details     Json
+  created_at  DateTime @default(now())
+
+  user User? @relation(fields: [user_id], references: [id])
+
+  @@map("audit_logs")
+}
+
+// Action Management
+enum ActionEntityType {
+  fmeca_item
+  cm_reading
+  component
+}
+
+enum ActionPriority {
+  low
+  medium
+  high
+  urgent
+}
+
+enum ActionStatus {
+  open
+  in_progress
+  blocked
+  done
+  cancelled
+}
+
+model Action {
+  id                  String            @id @default(cuid())
+  title               String
+  description         String
+  entity_type         ActionEntityType
+  entity_id           String
+  assignee_user_id    String
+  due_date            DateTime?
+  priority            ActionPriority    @default(medium)
+  status              ActionStatus      @default(open)
+  created_by_user_id  String
+  created_at          DateTime          @default(now())
+  updated_at          DateTime          @updatedAt
+
+  assignee   User            @relation("ActionAssignee", fields: [assignee_user_id], references: [id])
+  created_by User            @relation("ActionCreator", fields: [created_by_user_id], references: [id])
+  comments   ActionComment[]
+
+  @@map("actions")
+}
+
+model ActionComment {
+  id               String   @id @default(cuid())
+  action_id        String
+  author_user_id   String
+  note             String
+  created_at       DateTime @default(now())
+
+  action Action @relation(fields: [action_id], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [author_user_id], references: [id])
+
+  @@map("action_comments")
+}

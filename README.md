@@ -1,326 +1,290 @@
-# FMECA Web Application
+# FMECA - Failure Mode, Effects, and Criticality Analysis System
 
-A complete, production-ready web application for performing Failure Mode, Effects, and Criticality Analysis (FMECA) to implement and manage Condition Monitoring (CM) programs.
+A comprehensive web application for managing FMECA studies and Condition Monitoring (CM) programs built with Next.js 14, TypeScript, and PostgreSQL.
 
 ## 🚀 Features
 
 ### Core Functionality
-- **Asset Register Management**: Complete hierarchy from company → site → area → system → asset → component
-- **FMECA Authoring & Execution**: Comprehensive failure mode analysis with RPN calculations
-- **User Management & Authentication**: Role-based access control with secure session management
-- **Action Management**: Assignment workflow with owners, due dates, and status tracking
-- **Condition Monitoring**: Task scheduling and readings management
-- **Audit Trail**: Complete activity logging with attachments support
-- **Reporting & Dashboards**: KPIs, charts, and comprehensive reporting
+- **Asset Register Management**: Complete hierarchical asset management (Company → Site → Area → System → Asset → Component)
+- **FMECA Studies**: Create, manage, and execute FMECA studies with automated RPN calculation
+- **Condition Monitoring**: Schedule and track CM tasks with multiple techniques (vibration, thermography, oil analysis, etc.)
+- **Action Management**: Create, assign, and track corrective actions with due dates and priorities
+- **User Management**: Role-based access control with 6 predefined roles
+- **Audit Trail**: Comprehensive logging of all system activities
+- **File Attachments**: Upload and manage files for various entities
+- **Dashboard & Reporting**: Real-time KPIs and visual analytics
 
 ### Technical Features
-- **Server-Side Rendering**: EJS templates with Bootstrap 5 UI
-- **Responsive Design**: Mobile-friendly interface
+- **Responsive Design**: Mobile-first Bootstrap 5 interface
+- **Real-time Updates**: Progressive enhancement with jQuery
 - **Security**: CSRF protection, secure sessions, input validation
-- **File Uploads**: Attachment management with security checks
-- **Database**: PostgreSQL with Prisma ORM
-- **Testing**: Jest unit tests with >80% coverage
-- **Docker Support**: Complete containerization setup
+- **Performance**: Prisma with Accelerate for optimized database queries
+- **Scalability**: Modular architecture ready for additional reliability modules
 
 ## 🛠 Tech Stack
 
-- **Backend**: Node.js 20+ with Express 5
-- **Database**: PostgreSQL (Neon compatible)
-- **ORM**: Prisma with migrations
-- **Frontend**: EJS templates, Bootstrap 5.3, jQuery 3.7
-- **Authentication**: express-session with PostgreSQL store
-- **Security**: Helmet, CSRF protection, bcrypt
+- **Framework**: Next.js 14 (App Router)
+- **Language**: TypeScript
+- **Database**: PostgreSQL with Prisma ORM + Accelerate
+- **Authentication**: NextAuth.js with database sessions
+- **Frontend**: Bootstrap 5.3, jQuery 3.7, Chart.js
 - **Validation**: Zod schemas
-- **Testing**: Jest + Supertest
-- **Deployment**: Docker, Heroku/Railway ready
+- **Styling**: CSS custom properties with Bootstrap customization
+- **Security**: bcrypt password hashing, CSRF protection
 
 ## 📋 Prerequisites
 
-- Node.js 20.0.0 or higher
-- PostgreSQL 13+ (or Neon database)
+- Node.js 20+ LTS
+- PostgreSQL database (Neon recommended)
 - npm or yarn package manager
 
 ## 🚀 Quick Start
 
 ### 1. Clone and Install
 
-
+```bash
 git clone <repository-url>
 cd fmeca-app
 npm install
-
+```
 
 ### 2. Environment Setup
 
-Copy the example environment file and configure:
+Copy the example environment file and configure your settings:
 
-
+```bash
 cp .env.example .env
+```
 
+Update `.env` with your configuration:
 
-Edit `.env` with your database connection and other settings:
-
-
+```env
+# Database (Required - Do not change the key name)
 DATABASE_URL="postgresql://username:password@hostname:port/database?sslmode=require"
-SESSION_SECRET="your-super-secret-session-key-change-this-in-production"
-APP_BASE_URL="http://localhost:3000"
 
+# Prisma Accelerate (Optional but recommended)
+PRISMA_ACCELERATE_URL="prisma://accelerate.prisma-data.net/?api_key=your_api_key"
+
+# NextAuth Configuration
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="your-super-secret-key-change-this-in-production"
+SESSION_MAX_AGE_DAYS="7"
+
+# Application
+APP_BASE_URL="http://localhost:3000"
+NODE_ENV="development"
+
+# Email Configuration (Optional)
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT=587
+SMTP_USER="your-email@gmail.com"
+SMTP_PASS="your-app-password"
+SMTP_FROM="FMECA App <noreply@yourcompany.com>"
+
+# File Storage
+FILE_STORAGE_DIR="./storage"
+```
 
 ### 3. Database Setup
 
+Generate Prisma client and run migrations:
 
-# Generate Prisma client
+```bash
 npx prisma generate
-
-# Run migrations
 npx prisma migrate dev
+```
 
-# Seed database with sample data
+Seed the database with sample data:
+
+```bash
 npm run seed
-
+```
 
 ### 4. Start Development Server
 
-
+```bash
 npm run dev
+```
 
+Visit [http://localhost:3000](http://localhost:3000) and login with:
 
-Visit `http://localhost:3000` and login with:
 - **Admin**: admin@example.com / Admin@12345
-- **Engineer**: engineer@example.com / Engineer@123
+- **Engineer**: engineer@example.com / Engineer@123  
 - **Technician**: technician@example.com / Tech@123
 
 ## 🏗 Project Structure
 
-
-├── src/
-│   ├── config/          # Database and environment configuration
-│   ├── controllers/     # Route controllers (future expansion)
-│   ├── middlewares/     # Authentication, RBAC, security
-│   ├── routes/          # Express route definitions
-│   ├── services/        # Business logic services
-│   ├── types/           # TypeScript type definitions
-│   └── server.ts        # Main application entry point
-├── views/               # EJS templates
-│   ├── auth/           # Authentication pages
-│   ├── dashboard/      # Dashboard views
-│   ├── users/          # User management
-│   ├── assets/         # Asset management
-│   ├── fmeca/          # FMECA studies
-│   ├── actions/        # Action management
-│   └── layout.ejs      # Main layout template
-├── public/             # Static assets
-│   ├── css/           # Custom stylesheets
-│   └── js/            # Client-side JavaScript
-├── prisma/            # Database schema and migrations
-├── tests/             # Test files
-├── storage/           # File uploads (gitignored)
-└── docker-compose.yml # Docker configuration
-
+```
+├── app/                          # Next.js App Router
+│   ├── (auth)/                   # Authentication pages
+│   ├── (dashboard)/              # Main application pages
+│   ├── api/                      # API route handlers
+│   ├── components/               # Shared React components
+│   ├── globals.css               # Global styles
+│   └── layout.tsx                # Root layout
+├── lib/                          # Shared utilities
+│   ├── auth/                     # NextAuth configuration
+│   ├── db/                       # Prisma client (with Accelerate)
+│   ├── rbac/                     # Role-based access control
+│   ├── services/                 # Business logic services
+│   └── validation/               # Zod schemas
+├── prisma/                       # Database schema and migrations
+│   ├── schema.prisma             # Database schema
+│   └── seed.ts                   # Database seeding script
+├── public/                       # Static assets
+│   └── js/                       # Client-side JavaScript
+└── storage/                      # File uploads (gitignored)
+```
 
 ## 🔐 User Roles & Permissions
 
-### Role Hierarchy
-- **Admin**: Full system access, user management
-- **Reliability Engineer**: FMECA management, CM tasks, approvals
-- **Maintenance Planner**: Action planning, scheduling
-- **Manager**: Study approvals, dashboard access
-- **Technician**: CM readings, action updates
-- **Viewer**: Read-only access
+| Role | Permissions |
+|------|-------------|
+| **Admin** | Full system access, user management |
+| **Reliability Engineer** | Create/edit FMECA studies, manage CM tasks, approve studies |
+| **Maintenance Planner** | Plan actions, view FMECA studies, manage due dates |
+| **Technician** | Log CM readings, update assigned actions, upload attachments |
+| **Manager** | Approve studies, view dashboards, assign actions |
+| **Viewer** | Read-only access to all modules |
 
-### Permission Matrix
-| Feature | Admin | Engineer | Planner | Manager | Technician | Viewer |
-|---------|-------|----------|---------|---------|------------|--------|
-| User Management | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| FMECA Studies | ✅ | ✅ | 👁 | 👁 | 👁 | 👁 |
-| Study Approval | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| CM Tasks | ✅ | ✅ | 👁 | 👁 | 👁 | 👁 |
-| CM Readings | ✅ | ✅ | 👁 | 👁 | ✅ | 👁 |
-| Actions | ✅ | ✅ | ✅ | ✅ | ✅* | 👁 |
-| Audit Logs | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+## 📊 FMECA Workflow
 
-*Technicians can only update assigned actions
+1. **Create Study**: Define scope and assign owner
+2. **Add Components**: Select assets and components for analysis
+3. **Define Failure Modes**: Use library or create custom failure modes
+4. **Rate Items**: Assign severity, occurrence, and detectability ratings (1-10)
+5. **Calculate RPN**: Automatic calculation (Severity × Occurrence × Detectability)
+6. **Determine Criticality**: Auto-assigned based on configurable thresholds
+7. **Recommend Actions**: Suggest CM techniques and corrective actions
+8. **Submit for Approval**: Multi-user approval workflow
+9. **Generate CM Tasks**: Create scheduled monitoring tasks
 
-## 📊 FMECA Methodology
+## 🔧 Condition Monitoring
 
-### RPN Calculation
-Risk Priority Number (RPN) = Severity × Occurrence × Detectability
+### Supported Techniques
+- **Vibration Analysis**: Accelerometer-based monitoring
+- **Thermography**: Infrared temperature monitoring  
+- **Ultrasound**: High-frequency acoustic monitoring
+- **Oil Analysis**: Lubricant condition monitoring
+- **Visual Inspection**: Manual visual checks
+- **Motor Current Analysis**: Electrical signature analysis
+- **Acoustic Monitoring**: Sound-based fault detection
 
-### Criticality Classification
-- **Low**: RPN 1-99 (Green)
-- **Medium**: RPN 100-199 (Amber)  
-- **High**: RPN 200-1000 (Red)
+### CM Workflow
+1. **Create Tasks**: Define monitoring procedures and intervals
+2. **Schedule Execution**: Automatic due date calculation
+3. **Log Readings**: Record measurement results and status
+4. **Trend Analysis**: Track performance over time
+5. **Generate Actions**: Create corrective actions for anomalies
 
-### Rating Scales
-All dimensions use 1-10 scales:
-- **Severity**: Impact of failure (1=Negligible, 10=Catastrophic)
-- **Occurrence**: Likelihood of failure (1=Remote, 10=Very High)
-- **Detectability**: Ability to detect before failure (1=Very High, 10=Absolute Uncertainty)
+## 🚀 Production Deployment
+
+### Database Setup (Neon)
+1. Create a Neon PostgreSQL database
+2. Copy the connection string to `DATABASE_URL` in your environment
+3. Ensure `sslmode=require` is included in the connection string
+
+### Prisma Accelerate (Recommended)
+1. Set up Prisma Accelerate in your Prisma Cloud account
+2. Add the `PRISMA_ACCELERATE_URL` to your environment variables
+3. The application will automatically use the accelerated client
+
+### Environment Variables
+Set all required environment variables in your hosting platform:
+
+```bash
+DATABASE_URL="postgresql://..."
+PRISMA_ACCELERATE_URL="prisma://..."
+NEXTAUTH_URL="https://your-domain.com"
+NEXTAUTH_SECRET="production-secret-key"
+# ... other variables
+```
+
+### Build and Deploy
+
+```bash
+npm run build
+npm run migrate
+npm run seed
+npm start
+```
+
+### Health Check
+The application includes a health check endpoint at `/api/healthz` that returns `{"status":"ok"}`.
 
 ## 🧪 Testing
 
-Run the test suite:
-
-
-# Unit tests
+Run unit tests:
+```bash
 npm test
+```
 
-# Test with coverage
-npm run test:coverage
+Run end-to-end tests:
+```bash
+npm run test:e2e
+```
 
-# Watch mode
-npm run test:watch
+## 📝 API Documentation
 
+### Authentication
+- `POST /api/auth/signin` - User login
+- `POST /api/auth/signout` - User logout
 
-## 🚀 Deployment
+### Companies & Assets
+- `GET/POST /api/companies` - Manage companies
+- `GET/POST /api/sites` - Manage sites
+- `GET/POST /api/assets` - Manage assets
+- `GET/POST /api/components` - Manage components
 
-### Using Docker
+### FMECA
+- `GET/POST /api/fmeca/studies` - Manage studies
+- `GET/POST /api/fmeca/studies/:id/items` - Manage study items
+- `POST /api/fmeca/studies/:id/submit` - Submit for approval
+- `POST /api/fmeca/studies/:id/approve` - Approve study
 
+### Condition Monitoring
+- `GET/POST /api/cm/tasks` - Manage CM tasks
+- `GET/POST /api/cm/readings` - Manage readings
 
-# Build and run with Docker Compose
-docker-compose up -d
+### Actions
+- `GET/POST /api/actions` - Manage actions
+- `POST /api/actions/:id/status` - Update action status
+- `POST /api/actions/:id/comment` - Add comment
 
-# Or build manually
-docker build -t fmeca-app .
-docker run -p 3000:3000 fmeca-app
-
-
-### Neon PostgreSQL Setup
-
-1. Create a Neon database at [neon.tech](https://neon.tech)
-2. Copy the connection string (ensure `sslmode=require`)
-3. Set `DATABASE_URL` in your environment
-4. Run migrations: `npm run migrate`
-5. Seed data: `npm run seed`
-
-### Production Deployment
-
-#### Heroku/Railway
-1. Set environment variables
-2. Enable automatic deployments
-3. The `Procfile` handles migrations and seeding
-
-#### Manual Deployment
-
-# Build application
-npm run build
-
-# Run migrations
-npm run migrate
-
-# Seed database (optional)
-npm run seed
-
-# Start production server
-npm start
-
-
-## 🔧 Configuration
-
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | Required |
-| `SESSION_SECRET` | Session encryption key | Required |
-| `APP_BASE_URL` | Application base URL | `http://localhost:3000` |
-| `NODE_ENV` | Environment mode | `development` |
-| `PORT` | Server port | `3000` |
-| `SMTP_*` | Email configuration | Optional |
-| `FILE_STORAGE_DIR` | Upload directory | `./storage` |
-
-### Security Features
-
-- **CSRF Protection**: All forms protected with CSRF tokens
-- **Session Security**: HTTP-only, secure cookies with PostgreSQL storage
-- **Password Hashing**: bcrypt with configurable rounds
-- **Input Validation**: Zod schemas for all inputs
-- **File Upload Security**: Type validation and size limits
-- **SQL Injection Protection**: Prisma ORM with parameterized queries
-- **XSS Protection**: Helmet security headers
-
-## 📈 Monitoring & Maintenance
-
-### Health Check
-- Endpoint: `GET /healthz`
-- Returns: `{"status": "ok", "timestamp": "..."}`
-
-### Audit Logging
-All user actions are automatically logged:
-- User authentication events
-- Data modifications
-- File uploads
-- Administrative actions
-
-### Database Maintenance
-
-# View migration status
-npx prisma migrate status
-
-# Reset database (development only)
-npx prisma migrate reset
-
-# Generate new migration
-npx prisma migrate dev --name description
-
+### File Management
+- `POST /api/upload` - Upload files
+- `GET /api/file/:id` - Download files
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Commit changes: `git commit -m 'Add amazing feature'`
-4. Push to branch: `git push origin feature/amazing-feature`
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-### Development Guidelines
-- Follow TypeScript strict mode
-- Maintain >80% test coverage
-- Use ESLint and Prettier for code formatting
-- Write meaningful commit messages
-- Update documentation for new features
-
-## 📝 License
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🆘 Support
 
-### Common Issues
+For support and questions:
+- Create an issue in the GitHub repository
+- Check the documentation in the `/docs` folder
+- Review the API endpoints and examples
 
-**Database Connection Issues**
-- Ensure PostgreSQL is running
-- Check connection string format
-- Verify SSL requirements for Neon
+## 🔮 Roadmap
 
-**Session Issues**
-- Check `SESSION_SECRET` is set
-- Verify PostgreSQL session table exists
-- Clear browser cookies
-
-**File Upload Issues**
-- Check `FILE_STORAGE_DIR` permissions
-- Verify disk space availability
-- Review file type restrictions
-
-### Getting Help
-- Check the [Issues](../../issues) page
-- Review the [Wiki](../../wiki) for detailed guides
-- Contact the development team
-
-## 🎯 Roadmap
-
-- [ ] Advanced reporting and analytics
-- [ ] Mobile app companion
-- [ ] API documentation with Swagger
-- [ ] Advanced workflow automation
-- [ ] Integration with CMMS systems
-- [ ] Multi-language support
-- [ ] Advanced file storage (S3 integration)
-- [ ] Real-time notifications
-- [ ] Advanced user preferences
-- [ ] Bulk data import/export
+Future enhancements planned:
+- **RCM (Reliability Centered Maintenance)** module
+- **RBI (Risk Based Inspection)** integration  
+- **Predictive Maintenance Analytics** with ML
+- **Vibration Diagnostics** advanced analysis
+- **Mobile Application** for field technicians
+- **Advanced Reporting** with custom dashboards
+- **Integration APIs** for CMMS/EAM systems
 
 ---
 
 **Built with ❤️ for reliability engineers and maintenance professionals**
-
