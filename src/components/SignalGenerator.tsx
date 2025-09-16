@@ -2,6 +2,7 @@
 import ControlPanel from './ControlPanel';
 import SignalPlot from './SignalPlot';
 import { useState } from 'react';
+import { Layout, Data } from 'plotly.js';
 
 export default function SignalGenerator() {
   type SignalParams = {
@@ -14,7 +15,6 @@ export default function SignalGenerator() {
     averaging: string;
     type: string;
   };
-  import { Layout, Data } from 'plotly.js';
   type PlotData = {
     data: Data[];
     layout: Partial<Layout>;

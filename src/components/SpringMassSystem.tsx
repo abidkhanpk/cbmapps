@@ -13,7 +13,6 @@ export default function SpringMassSystem() {
     excitationFreq: number;
     excitationAmp: number;
   };
-  import { Layout, Data } from 'plotly.js';
   type PlotData = {
     data: Data[];
     layout: Partial<Layout>;

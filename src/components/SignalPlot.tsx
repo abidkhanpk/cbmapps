@@ -1,4 +1,5 @@
 "use client";
+"use client";
 import Plot from 'react-plotly.js';
 
 import { Layout, Data } from 'plotly.js';
