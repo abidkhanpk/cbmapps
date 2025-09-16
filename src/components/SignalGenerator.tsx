@@ -35,6 +35,7 @@ export default function SignalGenerator() {
     type: 'Sine',
   });
   const [data, setData] = useState<SignalData | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const handleChange = (newParams: SignalParams) => {
     setParams(newParams);
@@ -48,18 +49,35 @@ export default function SignalGenerator() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto py-8">
-      <h1 className="text-2xl font-bold mb-4">Signal Generator & FFT</h1>
-  <ControlPanel params={params as Record<string, string | number>} onChange={(p: Record<string, string | number>) => handleChange(p as SignalParams)} />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
-        <SignalPlot title="Time Domain" data={data?.timePlot} />
-        <SignalPlot title="Frequency Spectrum" data={data?.fftPlot} />
+    <div className="flex min-h-screen bg-gray-50">
+      {/* Collapsible Sidebar */}
+      <div className={`transition-all duration-300 bg-white shadow-lg ${sidebarOpen ? 'w-80' : 'w-16'} flex flex-col`}>
+        <button
+          className="p-2 focus:outline-none text-gray-500 hover:text-blue-600"
+          onClick={() => setSidebarOpen((open) => !open)}
+        >
+          {sidebarOpen ? '⏴' : '⏵'}
+        </button>
+        {sidebarOpen && (
+          <div className="p-4">
+            <h2 className="text-lg font-semibold mb-4">Signal Generator Controls</h2>
+            <ControlPanel params={params as Record<string, string | number>} onChange={(p: Record<string, string | number>) => handleChange(p as SignalParams)} />
+          </div>
+        )}
       </div>
-      {data?.comparisonPlot && (
-        <div className="mt-8">
-          <SignalPlot title="Comparison" data={data.comparisonPlot} />
+      {/* Main Simulator Area */}
+      <div className="flex-1 flex flex-col items-center justify-center p-8">
+        <h1 className="text-2xl font-bold mb-4">Signal Generator & FFT</h1>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
+          <SignalPlot title="Time Domain" data={data?.timePlot} />
+          <SignalPlot title="Frequency Spectrum" data={data?.fftPlot} />
         </div>
-      )}
+        {data?.comparisonPlot && (
+          <div className="mt-8 w-full">
+            <SignalPlot title="Comparison" data={data.comparisonPlot} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

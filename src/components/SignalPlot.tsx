@@ -1,8 +1,8 @@
 "use client";
-"use client";
-import Plot from 'react-plotly.js';
-
+import dynamic from 'next/dynamic';
 import { Layout, Data } from 'plotly.js';
+
+const Plot = dynamic(() => import('react-plotly.js'), { ssr: false });
 
 interface SignalPlotProps {
   title: string;
