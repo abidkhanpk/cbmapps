@@ -1,6 +1,5 @@
 'use client';
 import { useMemo } from 'react';
-// @ts-ignore - types provided at runtime
 import FFT from 'fft.js';
 import { WindowType, getWindow, applyWindow, detrendMean, segmentSignal, isPowerOfTwo, nearestPowerOfTwo } from '@/lib/dsp';
 

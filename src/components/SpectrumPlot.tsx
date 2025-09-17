@@ -1,8 +1,10 @@
 'use client';
 import React from 'react';
 import dynamic from 'next/dynamic';
+import type { PlotParams } from 'react-plotly.js';
+import type { Data, Layout, Config } from 'plotly.js';
 
-const Plot = dynamic(() => import('react-plotly.js'), { ssr: false }) as any;
+const Plot = dynamic<PlotParams>(() => import('react-plotly.js'), { ssr: false });
 
 export interface SpectrumPlotProps {
   freq: ArrayLike<number>;
@@ -12,7 +14,7 @@ export interface SpectrumPlotProps {
 }
 
 export const SpectrumPlot: React.FC<SpectrumPlotProps> = ({ freq, magSingle, magAveraged, fs }) => {
-  const traces: any[] = [
+  const traces: Data[] = [
     {
       x: Array.from(freq),
       y: Array.from(magSingle),
@@ -34,7 +36,7 @@ export const SpectrumPlot: React.FC<SpectrumPlotProps> = ({ freq, magSingle, mag
   }
 
   const nyquist = fs / 2;
-  const layout: any = {
+  const layout: Partial<Layout> = {
     title: 'Magnitude Spectrum',
     margin: { l: 60, r: 20, t: 40, b: 40 },
     xaxis: { title: 'Frequency (Hz)', gridcolor: '#eee' },
@@ -57,7 +59,7 @@ export const SpectrumPlot: React.FC<SpectrumPlotProps> = ({ freq, magSingle, mag
     paper_bgcolor: 'transparent',
     plot_bgcolor: 'transparent',
   };
-  const config: any = { responsive: true, displaylogo: false };
+  const config: Partial<Config> = { responsive: true, displaylogo: false };
 
   return (
     <div className="w-full">
