@@ -8,34 +8,39 @@ import { SpectrumPlot } from '@/components/SpectrumPlot';
 import { useSignal, SignalType } from '@/hooks/useSignal';
 import { useSpectrum, AveragingMode } from '@/hooks/useSpectrum';
 import type { WindowType } from '@/lib/dsp';
-
+import type { SingleSignalParams } from '@/hooks/useSignal';
 export default function Home() {
-  // Defaults: sine, 10 Hz, 1 amplitude, 0 phase, 1000 Hz sampling, 1024 samples
-  const [signalType, setSignalType] = useState<SignalType>('sine');
-  const [amplitude, setAmplitude] = useState<number>(1);
-  const [frequency, setFrequency] = useState<number>(10);
-  const [phaseDeg, setPhaseDeg] = useState<number>(0);
+  // Multi-signal state: array of signal parameter objects
+  const [signals, setSignals] = useState<SingleSignalParams[]>([
+    {
+      type: 'sine' as SignalType,
+      amplitude: 1,
+      frequency: 10,
+      phaseDeg: 0,
+      chirpStartFreq: undefined,
+      chirpEndFreq: undefined,
+    },
+  ]);
+  // Signal visibility state
+  const [showAnalog, setShowAnalog] = useState(true);
+  const [showDigitized, setShowDigitized] = useState(true);
+  const [showIndividuals, setShowIndividuals] = useState(false);
+  // Shared parameters
   const [fs, setFs] = useState<number>(1000);
   const [noiseLevel, setNoiseLevel] = useState<number>(0);
   const [numSamples, setNumSamples] = useState<number>(1024);
-  const [chirpStartFreq, setChirpStartFreq] = useState<number>(5);
-  const [chirpEndFreq, setChirpEndFreq] = useState<number>(100);
 
   const [windowType, setWindowType] = useState<WindowType>('hanning');
   const [averagingMode, setAveragingMode] = useState<AveragingMode>('none');
   const [segmentLength, setSegmentLength] = useState<number>(256);
   const [overlapPercent, setOverlapPercent] = useState<number>(50);
 
-  const { tSamples, noisySamples, cleanSamples, tAnalog, analog } = useSignal({
-    type: signalType,
-    amplitude,
-    frequency,
-    phaseDeg,
+  // Use new multi-signal hook signature
+  const { tSamples, noisySamples, cleanSamples, tAnalog, analog, individualSignals } = useSignal({
+    signals,
     fs,
     noiseLevel,
     numSamples,
-    chirpStartFreq,
-    chirpEndFreq,
   });
 
   const { single, averaged } = useSpectrum({
@@ -53,25 +58,16 @@ export default function Home() {
         {/* Controls Sidebar */}
         <aside className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-5 space-y-6 h-fit">
           <h1 className="text-lg font-semibold">Signal Simulator</h1>
+          {/* Will replace with multi-signal controls in next step */}
           <SignalControls
-            signalType={signalType}
-            setSignalType={setSignalType}
-            amplitude={amplitude}
-            setAmplitude={setAmplitude}
-            frequency={frequency}
-            setFrequency={setFrequency}
-            phaseDeg={phaseDeg}
-            setPhaseDeg={setPhaseDeg}
+            signals={signals}
+            setSignals={setSignals}
             fs={fs}
             setFs={setFs}
             noiseLevel={noiseLevel}
             setNoiseLevel={setNoiseLevel}
             numSamples={numSamples}
             setNumSamples={setNumSamples}
-            chirpStartFreq={chirpStartFreq}
-            setChirpStartFreq={setChirpStartFreq}
-            chirpEndFreq={chirpEndFreq}
-            setChirpEndFreq={setChirpEndFreq}
           />
           <div className="border-t pt-4">
             <WindowingControls windowType={windowType} setWindowType={setWindowType} />
@@ -94,7 +90,21 @@ export default function Home() {
         {/* Plots Panel */}
         <main className="space-y-6">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 md:p-4">
-            <TimePlot tAnalog={tAnalog} yAnalog={analog} tSamples={tSamples} ySamples={cleanSamples} title="Time-Domain Signal" />
+            <div className="flex gap-4 mb-2">
+              <label><input type="checkbox" checked={showAnalog} onChange={e => setShowAnalog(e.target.checked)} /> Analog</label>
+              <label><input type="checkbox" checked={showDigitized} onChange={e => setShowDigitized(e.target.checked)} /> Digitized</label>
+              <label><input type="checkbox" checked={showIndividuals} onChange={e => setShowIndividuals(e.target.checked)} /> Individual Signals</label>
+            </div>
+            <TimePlot
+              tAnalog={tAnalog}
+              yAnalog={analog}
+              tSamples={tSamples}
+              ySamples={cleanSamples}
+              individualSignals={showIndividuals ? individualSignals : []}
+              showAnalog={showAnalog}
+              showDigitized={showDigitized}
+              title="Time-Domain Signal"
+            />
           </div>
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 md:p-4">
             <SpectrumPlot freq={single.freq} magSingle={single.mag} magAveraged={averaged?.mag} fs={fs} />
