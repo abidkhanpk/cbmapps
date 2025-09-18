@@ -7,38 +7,38 @@ import type { Data, Layout, Config } from 'plotly.js';
 const Plot = dynamic<PlotParams>(() => import('react-plotly.js'), { ssr: false });
 
 export interface TimePlotProps {
-  t: ArrayLike<number>;
-  y: ArrayLike<number>;
-  yOverlay?: { data: ArrayLike<number>; name?: string; color?: string };
+  tAnalog: ArrayLike<number>;
+  yAnalog: ArrayLike<number>;
+  tSamples: ArrayLike<number>;
+  ySamples: ArrayLike<number>;
   title?: string;
 }
 
-export const TimePlot: React.FC<TimePlotProps> = ({ t, y, yOverlay, title = 'Time Domain' }) => {
+export const TimePlot: React.FC<TimePlotProps> = ({ tAnalog, yAnalog, tSamples, ySamples, title = 'Time Domain' }) => {
   const traces: Data[] = [
     {
-      x: Array.from(t),
-      y: Array.from(y),
+      x: Array.from(tAnalog),
+      y: Array.from(yAnalog),
       type: 'scatter',
       mode: 'lines',
-      line: { color: '#2563eb', width: 2 },
-      name: 'Signal',
+      line: { color: '#6b7280', width: 1.5 },
+      name: 'Analog (reference)',
+    },
+    {
+      x: Array.from(tSamples),
+      y: Array.from(ySamples),
+      type: 'scatter',
+      mode: 'markers',
+      marker: { color: '#2563eb', size: 6 },
+      name: 'Sampled points',
     },
   ];
-  if (yOverlay) {
-    traces.push({
-      x: Array.from(t),
-      y: Array.from(yOverlay.data),
-      type: 'scatter',
-      mode: 'lines',
-      line: { color: yOverlay.color ?? '#9ca3af', width: 1.5, dash: 'dot' },
-      name: yOverlay.name ?? 'Overlay',
-    });
-  }
   const layout: Partial<Layout> = {
     title,
     margin: { l: 60, r: 20, t: 40, b: 40 },
     xaxis: { title: 'Time (s)', gridcolor: '#eee' },
     yaxis: { title: 'Amplitude', gridcolor: '#eee' },
+    legend: { orientation: 'h' },
     paper_bgcolor: 'transparent',
     plot_bgcolor: 'transparent',
   };

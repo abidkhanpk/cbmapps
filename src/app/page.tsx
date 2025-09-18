@@ -26,7 +26,7 @@ export default function Home() {
   const [segmentLength, setSegmentLength] = useState<number>(256);
   const [overlapPercent, setOverlapPercent] = useState<number>(50);
 
-  const { t, signal, clean } = useSignal({
+  const { tSamples, noisySamples, cleanSamples, tAnalog, analog } = useSignal({
     type: signalType,
     amplitude,
     frequency,
@@ -39,7 +39,7 @@ export default function Home() {
   });
 
   const { single, averaged } = useSpectrum({
-    signal,
+    signal: noisySamples,
     fs,
     windowType,
     averagingMode,
@@ -94,7 +94,7 @@ export default function Home() {
         {/* Plots Panel */}
         <main className="space-y-6">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 md:p-4">
-            <TimePlot t={t} y={signal} yOverlay={{ data: clean, name: 'Clean', color: '#6b7280' }} title="Time-Domain Signal" />
+            <TimePlot tAnalog={tAnalog} yAnalog={analog} tSamples={tSamples} ySamples={noisySamples} title="Time-Domain Signal" />
           </div>
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 md:p-4">
             <SpectrumPlot freq={single.freq} magSingle={single.mag} magAveraged={averaged?.mag} fs={fs} />

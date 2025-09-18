@@ -5,6 +5,7 @@ declare module 'plotly.js' {
     type: string;
     mode?: string;
     line?: Partial<{ color?: string; width?: number; dash?: string }>;
+    marker?: Partial<{ color?: string; size?: number; symbol?: string }>;
     name?: string;
   }>;
 
@@ -15,6 +16,7 @@ declare module 'plotly.js' {
     yaxis?: unknown;
     shapes?: unknown[];
     annotations?: unknown[];
+    legend?: unknown;
     paper_bgcolor?: string;
     plot_bgcolor?: string;
   }>;
