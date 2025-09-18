@@ -17,6 +17,7 @@ declare module 'plotly.js' {
     shapes?: unknown[];
     annotations?: unknown[];
     legend?: unknown;
+    uirevision?: string | number;
     paper_bgcolor?: string;
     plot_bgcolor?: string;
   }>;

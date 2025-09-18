@@ -94,7 +94,7 @@ export default function Home() {
         {/* Plots Panel */}
         <main className="space-y-6">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 md:p-4">
-            <TimePlot tAnalog={tAnalog} yAnalog={analog} tSamples={tSamples} ySamples={noisySamples} title="Time-Domain Signal" />
+            <TimePlot tAnalog={tAnalog} yAnalog={analog} tSamples={tSamples} ySamples={cleanSamples} title="Time-Domain Signal" />
           </div>
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 md:p-4">
             <SpectrumPlot freq={single.freq} magSingle={single.mag} magAveraged={averaged?.mag} fs={fs} />

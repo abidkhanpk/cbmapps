@@ -38,6 +38,7 @@ export const SpectrumPlot: React.FC<SpectrumPlotProps> = ({ freq, magSingle, mag
   const nyquist = fs / 2;
   const layout: Partial<Layout> = {
     title: 'Magnitude Spectrum',
+    uirevision: 'spectrumplot',
     margin: { l: 60, r: 20, t: 40, b: 40 },
     xaxis: { title: 'Frequency (Hz)', gridcolor: '#eee' },
     yaxis: { title: 'Magnitude', gridcolor: '#eee' },
