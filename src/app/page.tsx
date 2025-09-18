@@ -1,4 +1,4 @@
-'use client';
+"use client";
 import React, { useState } from 'react';
 import { SignalControls } from '@/components/SignalControls';
 import { WindowingControls } from '@/components/WindowingControls';
@@ -9,7 +9,9 @@ import { useSignal, SignalType } from '@/hooks/useSignal';
 import { useSpectrum, AveragingMode } from '@/hooks/useSpectrum';
 import type { WindowType } from '@/lib/dsp';
 import type { SingleSignalParams } from '@/hooks/useSignal';
+
 export default function Home() {
+  const [maxRevolutions, setMaxRevolutions] = useState(2);
   // Multi-signal state: array of signal parameter objects
   const [signals, setSignals] = useState<SingleSignalParams[]>([
     {
@@ -41,6 +43,23 @@ export default function Home() {
     fs,
     noiseLevel,
     numSamples,
+  });
+
+  // Compute max frequency for revolution calculation
+  const maxFreq = signals.reduce((max, sig) => Math.max(max, sig.frequency), 0);
+  const period = maxFreq > 0 ? 1 / maxFreq : 1;
+  const maxTime = maxRevolutions * period;
+  // Filter time waveform data
+  const filterByTime = (tArr: Float64Array | number[], yArr: Float64Array | number[]) => {
+    const idx = tArr.findIndex(t => t > maxTime);
+    const endIdx = idx === -1 ? tArr.length : idx;
+    return [Array.from(tArr).slice(0, endIdx), Array.from(yArr).slice(0, endIdx)];
+  };
+  const [tAnalogPlot, yAnalogPlot] = filterByTime(tAnalog, analog);
+  const [tSamplesPlot, ySamplesPlot] = filterByTime(tSamples, cleanSamples);
+  const individualSignalsPlot = individualSignals.map(sig => {
+    const [tS, yS] = filterByTime(sig.tSamples, sig.cleanSamples);
+    return { ...sig, tSamples: tS, cleanSamples: yS };
   });
 
   const { single, averaged } = useSpectrum({
@@ -94,13 +113,14 @@ export default function Home() {
               <label><input type="checkbox" checked={showAnalog} onChange={e => setShowAnalog(e.target.checked)} /> Analog</label>
               <label><input type="checkbox" checked={showDigitized} onChange={e => setShowDigitized(e.target.checked)} /> Digitized</label>
               <label><input type="checkbox" checked={showIndividuals} onChange={e => setShowIndividuals(e.target.checked)} /> Individual Signals</label>
+              <label className="ml-4">Max Revolutions: <input type="number" min={1} max={20} value={maxRevolutions} onChange={e => setMaxRevolutions(Number(e.target.value))} className="w-16 ml-1 border rounded px-1" /></label>
             </div>
             <TimePlot
-              tAnalog={tAnalog}
-              yAnalog={analog}
-              tSamples={tSamples}
-              ySamples={cleanSamples}
-              individualSignals={showIndividuals ? individualSignals : []}
+              tAnalog={tAnalogPlot}
+              yAnalog={yAnalogPlot}
+              tSamples={tSamplesPlot}
+              ySamples={ySamplesPlot}
+              individualSignals={showIndividuals ? individualSignalsPlot : []}
               showAnalog={showAnalog}
               showDigitized={showDigitized}
               title="Time-Domain Signal"
