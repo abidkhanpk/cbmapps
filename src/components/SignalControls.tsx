@@ -93,16 +93,24 @@ export const SignalControls: React.FC<SignalControlsProps> = ({ signals, setSign
           </div>
         </div>
       ))}
-      <div>
-        <label className="block text-sm font-medium">Sampling frequency (Hz)</label>
-        <input type="number" value={fs} onChange={e => setFs(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" min={1} step={1} />
-      </div>
+      
       <div>
         <label className="block text-sm font-medium">Noise level (0-1)</label>
         <input type="range" min={0} max={1} step={0.01} value={noiseLevel} onChange={e => setNoiseLevel(Number(e.target.value))} className="mt-2 w-full" />
         <div className="text-xs text-gray-600">{noiseLevel.toFixed(2)}</div>
       </div>
       <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="block text-sm font-medium">Sampling frequency (Hz)</label>
+          <input type="number" value={fs} onChange={e => setFs(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" min={1} step={1} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Fmax (Hz)</label>
+          <input type="number" value={Math.round(fmax ?? (fs / 2.56))} onChange={e => setFmax && setFmax(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" min={1} step={1} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 mt-2">
         <div>
           <label className="block text-sm font-medium">Samples (N)</label>
           <select value={numSamples} onChange={e => setNumSamples(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800">
@@ -120,25 +128,43 @@ export const SignalControls: React.FC<SignalControlsProps> = ({ signals, setSign
           </select>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-2 mt-2">
+
+      <div className="grid grid-cols-2 gap-4 mt-3">
         <div>
-          <label className="block text-sm font-medium">Fmax (Hz)</label>
-          <input type="number" value={fmax ?? (fs / 2.56)} onChange={e => setFmax && setFmax(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" min={0.0001} step={0.0001} />
+          <div className="text-[11px] text-gray-500">Delta F (df)</div>
+          <div className="text-[13px] font-mono font-medium text-gray-800">{(() => {
+            const L = lor ?? Math.round(numSamples / 2.56);
+            const fm = fmax ?? (fs / 2.56);
+            const mult = (windowType === 'hanning') ? 1.5 : 1.0;
+            const df = fm / Math.max(1, L) * mult;
+            return df.toFixed(6);
+          })()}</div>
         </div>
+
         <div>
-          <label className="block text-sm font-medium">Delta F / T</label>
-          <div className="mt-1 text-xs text-gray-600">
-            {(() => {
-              const L = lor ?? Math.round(numSamples / 2.56);
-              const fm = fmax ?? (fs / 2.56);
-              const mult = (windowType === 'hanning') ? 1.5 : 1.0;
-              const df = fm / Math.max(1, L) * mult;
-              const T = L / Math.max(1e-12, fm);
-              return `${df.toFixed(6)} Hz  /  ${T.toFixed(6)} s`;
-            })()}
-          </div>
+          <div className="text-[11px] text-gray-500">Time period T (s)</div>
+          <div className="text-[13px] font-mono font-medium text-gray-800">{(() => {
+            const L = lor ?? Math.round(numSamples / 2.56);
+            const fm = fmax ?? (fs / 2.56);
+            const T = L / Math.max(1e-12, fm);
+            return T.toFixed(6);
+          })()}</div>
         </div>
       </div>
+
+      <div className="mt-2 text-xs text-gray-500 col-span-2">{(() => {
+        const map: Record<string, number> = {
+          rectangular: 1.0,
+          hanning: 1.5,
+          hamming: 1.36,
+          blackman: 1.73,
+        };
+        const name = (windowType ?? 'rectangular');
+        const factor = map[name] ?? 1.0;
+        const displayName = name.charAt(0).toUpperCase() + name.slice(1);
+        if (factor === 1.0) return `Window: ${displayName} (factor ${factor.toFixed(2)}×) — no effective df increase.`;
+        return `Window: ${displayName} (factor ${factor.toFixed(2)}×) — effective df scaled by ~${factor.toFixed(2)}×.`;
+      })()}</div>
     </div>
   );
 };

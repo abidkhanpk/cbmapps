@@ -11,7 +11,7 @@ import type { WindowType } from '@/lib/dsp';
 import type { SingleSignalParams } from '@/hooks/useSignal';
 
 export default function Home() {
-  const [maxRevolutions, setMaxRevolutions] = useState(2);
+  const [maxRevolutions, setMaxRevolutions] = useState(5);
   // Multi-signal state: array of signal parameter objects
   const [signals, setSignals] = useState<SingleSignalParams[]>([
     {
@@ -71,13 +71,16 @@ export default function Home() {
   const handleSetFs = (f: number) => {
     if (isNaN(f) || f <= 0) return;
     setFs(f);
-    setFmax(f / 2.56);
+    // keep Fmax as integer (rounded)
+    setFmax(Math.round(f / 2.56));
   };
 
   const handleSetFmax = (fm: number) => {
     if (isNaN(fm) || fm <= 0) return;
-    setFmax(fm);
-    setFs(fm * 2.56);
+    const fmInt = Math.round(fm);
+    setFmax(fmInt);
+    // keep fs integer as well (rounded)
+    setFs(Math.round(fmInt * 2.56));
   };
 
   // Compute max frequency for revolution calculation
@@ -128,6 +131,7 @@ export default function Home() {
             setFmax={handleSetFmax}
             pow2Options={pow2Options}
             lorOptions={lorOptions}
+            windowType={windowType}
           />
           <div className="border-t pt-4">
             <WindowingControls windowType={windowType} setWindowType={setWindowType} />
@@ -142,39 +146,7 @@ export default function Home() {
               setOverlapPercent={setOverlapPercent}
             />
           </div>
-          <div className="border-t pt-4 space-y-2">
-            <label className="block text-sm font-medium">FFT / Spectrum info</label>
-            <div className="grid grid-cols-2 gap-2 text-xs text-gray-700">
-              <div>
-                <div className="text-xs text-gray-500">Lines (LOR)</div>
-                <div className="font-medium">{lor}</div>
-              </div>
-              <div>
-                <div className="text-xs text-gray-500">Fmax (Hz)</div>
-                <div className="font-medium">{fmax.toFixed(3)}</div>
-              </div>
-              <div>
-                <div className="text-xs text-gray-500">Delta F (df)</div>
-                <div className="font-medium">
-                  {(() => {
-                    const mult = windowType === 'hanning' ? 1.5 : 1.0;
-                    const df = (fmax / lor) * mult;
-                    return df.toFixed(6);
-                  })()}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-gray-500">Time period T (s)</div>
-                <div className="font-medium">
-                  {(() => {
-                    const T = lor / Math.max(1e-12, fmax);
-                    return T.toFixed(6);
-                  })()}
-                </div>
-              </div>
-            </div>
-            <div className="text-xs text-gray-500">Note: Hanning window increases effective resolution by ~1.5× for df.</div>
-          </div>
+          
           <div className="text-xs text-gray-500 border-t pt-3">
             Tip: Use the camera icon on each plot to export as PNG.
           </div>
