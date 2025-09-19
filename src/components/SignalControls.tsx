@@ -18,11 +18,12 @@ export interface SignalControlsProps {
   setFmax?: (v: number) => void;
   pow2Options?: number[];
   lorOptions?: number[];
+  windowType?: string;
 }
 
 const defaultPow2 = [256, 512, 1024, 2048, 4096];
 
-export const SignalControls: React.FC<SignalControlsProps> = ({ signals, setSignals, fs, setFs, noiseLevel, setNoiseLevel, numSamples, setNumSamples, lor, setLor, fmax, setFmax, pow2Options, lorOptions }) => {
+export const SignalControls: React.FC<SignalControlsProps> = ({ signals, setSignals, fs, setFs, noiseLevel, setNoiseLevel, numSamples, setNumSamples, lor, setLor, fmax, setFmax, pow2Options, lorOptions, windowType }) => {
   // Add new signal
   const addSignal = () => {
     setSignals([...signals, {
@@ -125,8 +126,17 @@ export const SignalControls: React.FC<SignalControlsProps> = ({ signals, setSign
           <input type="number" value={fmax ?? (fs / 2.56)} onChange={e => setFmax && setFmax(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" min={0.0001} step={0.0001} />
         </div>
         <div>
-          <label className="block text-sm font-medium">(Derived)</label>
-          <div className="mt-2 text-xs text-gray-600">Delta F and T shown in sidebar</div>
+          <label className="block text-sm font-medium">Delta F / T</label>
+          <div className="mt-1 text-xs text-gray-600">
+            {(() => {
+              const L = lor ?? Math.round(numSamples / 2.56);
+              const fm = fmax ?? (fs / 2.56);
+              const mult = (windowType === 'hanning') ? 1.5 : 1.0;
+              const df = fm / Math.max(1, L) * mult;
+              const T = L / Math.max(1e-12, fm);
+              return `${df.toFixed(6)} Hz  /  ${T.toFixed(6)} s`;
+            })()}
+          </div>
         </div>
       </div>
     </div>
