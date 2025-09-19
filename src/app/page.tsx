@@ -32,6 +32,12 @@ export default function Home() {
   const [noiseLevel, setNoiseLevel] = useState<number>(0);
   const [numSamples, setNumSamples] = useState<number>(1024);
 
+  // Spectrum / FFT controls: allow selecting number of samples (power of two) and LOR (lines)
+  const pow2Options = [256, 512, 1024, 2048, 4096, 8192, 16384, 32768];
+  const lorOptions = pow2Options.map(n => Math.round(n / 2.56));
+  const [lor, setLor] = useState<number>(Math.round(numSamples / 2.56));
+  const [fmax, setFmax] = useState<number>(fs / 2.56);
+
   const [windowType, setWindowType] = useState<WindowType>('hanning');
   const [averagingMode, setAveragingMode] = useState<AveragingMode>('none');
   const [segmentLength, setSegmentLength] = useState<number>(256);
@@ -44,6 +50,35 @@ export default function Home() {
     noiseLevel,
     numSamples,
   });
+
+  // Sync handlers between samples <-> LOR and fs <-> fmax
+  const handleSetNumSamples = (n: number) => {
+    // ensure n is one of pow2Options
+    if (!pow2Options.includes(n)) n = pow2Options[0];
+    setNumSamples(n);
+    const idx = pow2Options.indexOf(n);
+    setLor(lorOptions[idx]);
+  };
+
+  const handleSetLor = (l: number) => {
+    const idx = lorOptions.indexOf(l);
+    if (idx === -1) return; // ignore invalid
+    const n = pow2Options[idx];
+    setLor(l);
+    setNumSamples(n);
+  };
+
+  const handleSetFs = (f: number) => {
+    if (isNaN(f) || f <= 0) return;
+    setFs(f);
+    setFmax(f / 2.56);
+  };
+
+  const handleSetFmax = (fm: number) => {
+    if (isNaN(fm) || fm <= 0) return;
+    setFmax(fm);
+    setFs(fm * 2.56);
+  };
 
   // Compute max frequency for revolution calculation
   const maxFreq = signals.reduce((max, sig) => Math.max(max, sig.frequency), 0);
@@ -82,11 +117,17 @@ export default function Home() {
             signals={signals}
             setSignals={setSignals}
             fs={fs}
-            setFs={setFs}
+            setFs={handleSetFs}
             noiseLevel={noiseLevel}
             setNoiseLevel={setNoiseLevel}
             numSamples={numSamples}
-            setNumSamples={setNumSamples}
+            setNumSamples={handleSetNumSamples}
+            lor={lor}
+            setLor={handleSetLor}
+            fmax={fmax}
+            setFmax={handleSetFmax}
+            pow2Options={pow2Options}
+            lorOptions={lorOptions}
           />
           <div className="border-t pt-4">
             <WindowingControls windowType={windowType} setWindowType={setWindowType} />
@@ -100,6 +141,39 @@ export default function Home() {
               overlapPercent={overlapPercent}
               setOverlapPercent={setOverlapPercent}
             />
+          </div>
+          <div className="border-t pt-4 space-y-2">
+            <label className="block text-sm font-medium">FFT / Spectrum info</label>
+            <div className="grid grid-cols-2 gap-2 text-xs text-gray-700">
+              <div>
+                <div className="text-xs text-gray-500">Lines (LOR)</div>
+                <div className="font-medium">{lor}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500">Fmax (Hz)</div>
+                <div className="font-medium">{fmax.toFixed(3)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500">Delta F (df)</div>
+                <div className="font-medium">
+                  {(() => {
+                    const mult = windowType === 'hanning' ? 1.5 : 1.0;
+                    const df = (fmax / lor) * mult;
+                    return df.toFixed(6);
+                  })()}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500">Time period T (s)</div>
+                <div className="font-medium">
+                  {(() => {
+                    const T = lor / Math.max(1e-12, fmax);
+                    return T.toFixed(6);
+                  })()}
+                </div>
+              </div>
+            </div>
+            <div className="text-xs text-gray-500">Note: Hanning window increases effective resolution by ~1.5× for df.</div>
           </div>
           <div className="text-xs text-gray-500 border-t pt-3">
             Tip: Use the camera icon on each plot to export as PNG.

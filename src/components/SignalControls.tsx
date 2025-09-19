@@ -11,11 +11,18 @@ export interface SignalControlsProps {
   setNoiseLevel: (v: number) => void;
   numSamples: number;
   setNumSamples: (v: number) => void;
+  // new spectrum controls
+  lor?: number;
+  setLor?: (v: number) => void;
+  fmax?: number;
+  setFmax?: (v: number) => void;
+  pow2Options?: number[];
+  lorOptions?: number[];
 }
 
-const pow2Options = [256, 512, 1024, 2048, 4096];
+const defaultPow2 = [256, 512, 1024, 2048, 4096];
 
-export const SignalControls: React.FC<SignalControlsProps> = ({ signals, setSignals, fs, setFs, noiseLevel, setNoiseLevel, numSamples, setNumSamples }) => {
+export const SignalControls: React.FC<SignalControlsProps> = ({ signals, setSignals, fs, setFs, noiseLevel, setNoiseLevel, numSamples, setNumSamples, lor, setLor, fmax, setFmax, pow2Options, lorOptions }) => {
   // Add new signal
   const addSignal = () => {
     setSignals([...signals, {
@@ -94,13 +101,33 @@ export const SignalControls: React.FC<SignalControlsProps> = ({ signals, setSign
         <input type="range" min={0} max={1} step={0.01} value={noiseLevel} onChange={e => setNoiseLevel(Number(e.target.value))} className="mt-2 w-full" />
         <div className="text-xs text-gray-600">{noiseLevel.toFixed(2)}</div>
       </div>
-      <div>
-        <label className="block text-sm font-medium">Samples (N)</label>
-        <select value={numSamples} onChange={e => setNumSamples(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800">
-          {pow2Options.map(n => (
-            <option key={n} value={n}>{n}</option>
-          ))}
-        </select>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="block text-sm font-medium">Samples (N)</label>
+          <select value={numSamples} onChange={e => setNumSamples(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800">
+            {(pow2Options ?? defaultPow2).map((n: number) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Lines (LOR)</label>
+          <select value={lor ?? Math.round(numSamples / 2.56)} onChange={e => setLor && setLor(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800">
+            {(lorOptions ?? (defaultPow2.map((n: number) => Math.round(n / 2.56)))).map((l: number) => (
+              <option key={l} value={l}>{l}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 mt-2">
+        <div>
+          <label className="block text-sm font-medium">Fmax (Hz)</label>
+          <input type="number" value={fmax ?? (fs / 2.56)} onChange={e => setFmax && setFmax(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" min={0.0001} step={0.0001} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium">(Derived)</label>
+          <div className="mt-2 text-xs text-gray-600">Delta F and T shown in sidebar</div>
+        </div>
       </div>
     </div>
   );
