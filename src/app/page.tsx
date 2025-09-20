@@ -116,7 +116,7 @@ export default function Home() {
   };
   const [tAnalogPlot, yAnalogPlot] = filterByTime(tAnalog, analog);
   const [tSamplesPlot, ySamplesPlot] = filterByTime(tSamples, cleanSamples);
-  const individualSignalsPlot = individualSignals.map(sig => {
+  let individualSignalsPlot = individualSignals.map(sig => {
     const [tS, yS] = filterByTime(sig.tSamples, sig.cleanSamples);
     return { ...sig, tSamples: tS, cleanSamples: yS };
   });
@@ -251,6 +251,33 @@ export default function Home() {
       windowedT = appendedWT;
       windowedY = appendedWY;
     }
+
+    // (individual signals expansion moved later to run for any averaging mode when framesData is available)
+  }
+
+  // Expand individual signals across all frames (T * N) whenever framesData exists (i.e., averaging is active)
+  if (typeof framesData !== 'undefined' && framesData.length > 0) {
+    const Twindow = lor / Math.max(fmax, 1e-12);
+    const frameLenSamples = Math.max(1, Math.round(Twindow * fs));
+    const totalSamples = tSamples.length;
+    const expandedIndividuals = individualSignals.map(sig => {
+      const appendedT: number[] = [];
+      const appendedY: number[] = [];
+      for (let k = 0; k < framesData.length; k++) {
+        const start = k * frameLenSamples;
+        for (let n = 0; n < framesData[k].t.length; n++) {
+          const idx = (start + n) % totalSamples;
+          const tRel = framesData[k].t[n];
+          appendedT.push(k * Twindow + tRel);
+          appendedY.push(sig.cleanSamples[idx]);
+        }
+      }
+      return { ...sig, tSamples: appendedT, cleanSamples: appendedY };
+    });
+    individualSignalsPlot = expandedIndividuals.map(sig => {
+      const [tS, yS] = filterByTime(sig.tSamples, sig.cleanSamples);
+      return { ...sig, tSamples: tS, cleanSamples: yS };
+    });
   }
 
   return (
@@ -266,15 +293,14 @@ export default function Home() {
                   signals={signals}
                   setSignals={setSignals}
                 />
-              </Collapsible>
-
-              <Collapsible title="Sampling" defaultOpen={false}>
-                {/* Noise and sampling inputs (moved from SignalControls visual area) */}
-                <div>
+                <div className="mt-3">
                   <label className="block text-sm font-medium">Noise level (0-1)</label>
                   <input type="range" min={0} max={1} step={0.01} value={noiseLevel} onChange={e => setNoiseLevel(Number(e.target.value))} className="mt-2 w-full" />
                   <div className="text-xs text-gray-600">{noiseLevel.toFixed(2)}</div>
                 </div>
+              </Collapsible>
+
+              <Collapsible title="Sampling" defaultOpen={false}>
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   <div>
                     <label className="block text-sm font-medium">Sampling frequency (Hz)</label>
