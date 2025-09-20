@@ -108,7 +108,7 @@ export function useSpectrum(params: SpectrumParams) {
     }
 
     return { single, averaged };
-  }, [signal, fs, windowType, averagingMode, segmentLength, overlapPercent, params.numAverages]);
+  }, [signal, fs, windowType, averagingMode, segmentLength, overlapPercent, params.numAverages, params.frames]);
 
   return result;
 }

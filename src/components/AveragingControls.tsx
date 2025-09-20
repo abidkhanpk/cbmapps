@@ -42,9 +42,7 @@ export const AveragingControls: React.FC<AveragingControlsProps> = ({ averagingM
               </select>
             </div>
           )}
-          {averagingMode === 'linear' && (
-            <div className="text-xs text-gray-600">Segment length is auto-derived from LOR and Fmax for linear averaging.</div>
-          )}
+          {/* Note: segment length is auto-derived for linear averaging (UI hidden) */}
           {averagingMode === 'overlap' && (
             <div>
               <label className="block text-sm font-medium">Overlap (%)</label>

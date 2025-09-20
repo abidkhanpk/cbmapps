@@ -103,7 +103,7 @@ export function useSignal(params: MultiSignalParams): SignalOutputs {
     }
 
     // Generate and sum each signal
-    signals.forEach((sig, idx) => {
+  signals.forEach((sig) => {
       const phase = (sig.phaseDeg * Math.PI) / 180;
       const f0 = sig.chirpStartFreq ?? sig.frequency;
       const f1 = sig.chirpEndFreq ?? sig.frequency;
