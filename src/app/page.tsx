@@ -274,10 +274,8 @@ export default function Home() {
       }
       return { ...sig, tSamples: appendedT, cleanSamples: appendedY };
     });
-    individualSignalsPlot = expandedIndividuals.map(sig => {
-      const [tS, yS] = filterByTime(sig.tSamples, sig.cleanSamples);
-      return { ...sig, tSamples: tS, cleanSamples: yS };
-    });
+    // keep full concatenated arrays so individual signals span T * N (match analog/digitized)
+    individualSignalsPlot = expandedIndividuals.map(sig => ({ ...sig }));
   }
 
   return (
