@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { SignalControls } from '@/components/SignalControls';
 import { WindowingControls } from '@/components/WindowingControls';
+import { Collapsible } from '@/components/Collapsible';
 import { AveragingControls } from '@/components/AveragingControls';
 import { TimePlot } from '@/components/TimePlot';
 import { SpectrumPlot } from '@/components/SpectrumPlot';
@@ -258,93 +259,69 @@ export default function Home() {
         {/* Controls Sidebar */}
         <aside className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-5 space-y-6 h-fit">
           <h1 className="text-lg font-semibold">Signal Simulator</h1>
-          <div className="mt-2">
-            {/* Collapsible groups to save vertical space */}
-            <div className="mb-2">
-              {/* Signals group */}
-              <div className="border-b pb-2 mb-2">
-                <div className="flex justify-between items-center py-1">
-                  <span className="font-medium">Signals</span>
+            <div className="mt-2">
+              {/* Collapsible groups to save vertical space */}
+              <Collapsible title="Signals" defaultOpen={false}>
+                <SignalControls
+                  signals={signals}
+                  setSignals={setSignals}
+                />
+              </Collapsible>
+
+              <Collapsible title="Sampling" defaultOpen={false}>
+                {/* Noise and sampling inputs (moved from SignalControls visual area) */}
+                <div>
+                  <label className="block text-sm font-medium">Noise level (0-1)</label>
+                  <input type="range" min={0} max={1} step={0.01} value={noiseLevel} onChange={e => setNoiseLevel(Number(e.target.value))} className="mt-2 w-full" />
+                  <div className="text-xs text-gray-600">{noiseLevel.toFixed(2)}</div>
                 </div>
-                <div className="mt-2">
-                  <SignalControls
-                    signals={signals}
-                    setSignals={setSignals}
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <div>
+                    <label className="block text-sm font-medium">Sampling frequency (Hz)</label>
+                    <input type="number" value={fs} onChange={e => handleSetFs(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" min={1} step={1} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium">Fmax (Hz)</label>
+                    <input type="number" value={Math.round(fmax ?? (fs / 2.56))} onChange={e => handleSetFmax(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" min={1} step={1} />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <div>
+                    <label className="block text-sm font-medium">Samples (N)</label>
+                    <select value={numSamples} onChange={e => handleSetNumSamples(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800">
+                      {pow2Options.map((n: number) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium">Lines (LOR)</label>
+                    <select value={lor ?? Math.round(numSamples / 2.56)} onChange={e => handleSetLor(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800">
+                      {lorOptions.map((l: number) => (
+                        <option key={l} value={l}>{l}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </Collapsible>
+
+              <Collapsible title="Windows & Averaging" defaultOpen={false}>
+                <WindowingControls windowType={windowType} setWindowType={setWindowType} showWindowed={showWindowed} setShowWindowed={setShowWindowed} />
+                <div className="mt-3">
+                  <AveragingControls
+                    averagingMode={averagingMode}
+                    setAveragingMode={setAveragingMode}
+                    segmentLength={segmentLength}
+                    setSegmentLength={setSegmentLength}
+                    overlapPercent={overlapPercent}
+                    setOverlapPercent={setOverlapPercent}
+                    numAverages={numAverages}
+                    setNumAverages={setNumAverages}
                   />
                 </div>
-              </div>
+              </Collapsible>
             </div>
-
-            <div className="mb-2">
-              {/* Sampling group */}
-              <div className="border-b pb-2 mb-2">
-                <div className="flex justify-between items-center py-1">
-                  <span className="font-medium">Sampling</span>
-                </div>
-                <div className="mt-2">
-                  {/* Noise and sampling inputs (moved from SignalControls visual area) */}
-                  <div>
-                    <label className="block text-sm font-medium">Noise level (0-1)</label>
-                    <input type="range" min={0} max={1} step={0.01} value={noiseLevel} onChange={e => setNoiseLevel(Number(e.target.value))} className="mt-2 w-full" />
-                    <div className="text-xs text-gray-600">{noiseLevel.toFixed(2)}</div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 mt-2">
-                    <div>
-                      <label className="block text-sm font-medium">Sampling frequency (Hz)</label>
-                      <input type="number" value={fs} onChange={e => handleSetFs(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" min={1} step={1} />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium">Fmax (Hz)</label>
-                      <input type="number" value={Math.round(fmax ?? (fs / 2.56))} onChange={e => handleSetFmax(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" min={1} step={1} />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 mt-2">
-                    <div>
-                      <label className="block text-sm font-medium">Samples (N)</label>
-                      <select value={numSamples} onChange={e => handleSetNumSamples(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800">
-                        {pow2Options.map((n: number) => (
-                          <option key={n} value={n}>{n}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium">Lines (LOR)</label>
-                      <select value={lor ?? Math.round(numSamples / 2.56)} onChange={e => handleSetLor(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800">
-                        {lorOptions.map((l: number) => (
-                          <option key={l} value={l}>{l}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mb-2">
-              {/* Windows & Averaging group */}
-              <div className="border-b pb-2 mb-2">
-                <div className="flex justify-between items-center py-1">
-                  <span className="font-medium">Windows & Averaging</span>
-                </div>
-                <div className="mt-2">
-                  <WindowingControls windowType={windowType} setWindowType={setWindowType} showWindowed={showWindowed} setShowWindowed={setShowWindowed} />
-                  <div className="mt-3">
-                    <AveragingControls
-                      averagingMode={averagingMode}
-                      setAveragingMode={setAveragingMode}
-                      segmentLength={segmentLength}
-                      setSegmentLength={setSegmentLength}
-                      overlapPercent={overlapPercent}
-                      setOverlapPercent={setOverlapPercent}
-                      numAverages={numAverages}
-                      setNumAverages={setNumAverages}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
           
           <div className="text-xs text-gray-500 border-t pt-3">
             Tip: Use the camera icon on each plot to export as PNG.
