@@ -9,11 +9,13 @@ export interface AveragingControlsProps {
   setSegmentLength: (n: number) => void;
   overlapPercent: number;
   setOverlapPercent: (v: number) => void;
+  numAverages: number;
+  setNumAverages: (n: number) => void;
 }
 
 const segmentOptions = [128, 256, 512, 1024, 2048];
 
-export const AveragingControls: React.FC<AveragingControlsProps> = ({ averagingMode, setAveragingMode, segmentLength, setSegmentLength, overlapPercent, setOverlapPercent }) => {
+export const AveragingControls: React.FC<AveragingControlsProps> = ({ averagingMode, setAveragingMode, segmentLength, setSegmentLength, overlapPercent, setOverlapPercent, numAverages, setNumAverages }) => {
   return (
     <div className="space-y-3">
       <label className="block text-sm font-medium">Averaging</label>
@@ -26,13 +28,23 @@ export const AveragingControls: React.FC<AveragingControlsProps> = ({ averagingM
       {averagingMode !== 'none' && (
         <>
           <div>
-            <label className="block text-sm font-medium">Segment length (samples)</label>
-            <select value={segmentLength} onChange={e => setSegmentLength(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800">
-              {segmentOptions.map(n => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
+            <label className="block text-sm font-medium">Number of averages</label>
+            <input type="number" min={1} max={100} value={numAverages} onChange={e => setNumAverages(Math.max(1, Number(e.target.value) || 1))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" />
           </div>
+          {/* For linear averaging the segment length is determined from LOR and Fmax, so hide manual selection */}
+          {averagingMode !== 'linear' && (
+            <div>
+              <label className="block text-sm font-medium">Segment length (samples)</label>
+              <select value={segmentLength} onChange={e => setSegmentLength(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800">
+                {segmentOptions.map(n => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {averagingMode === 'linear' && (
+            <div className="text-xs text-gray-600">Segment length is auto-derived from LOR and Fmax for linear averaging.</div>
+          )}
           {averagingMode === 'overlap' && (
             <div>
               <label className="block text-sm font-medium">Overlap (%)</label>

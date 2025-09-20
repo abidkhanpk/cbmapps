@@ -9,11 +9,11 @@ const Plot = dynamic<PlotParams>(() => import('react-plotly.js'), { ssr: false }
 export interface SpectrumPlotProps {
   freq: ArrayLike<number>;
   magSingle: ArrayLike<number>;
+  freqAveraged?: ArrayLike<number>;
   magAveraged?: ArrayLike<number>;
   fs: number;
 }
-
-export const SpectrumPlot: React.FC<SpectrumPlotProps> = ({ freq, magSingle, magAveraged, fs }) => {
+export const SpectrumPlot: React.FC<SpectrumPlotProps> = ({ freq, magSingle, freqAveraged, magAveraged, fs }) => {
   const traces: Data[] = [
     {
       x: Array.from(freq),
@@ -26,7 +26,7 @@ export const SpectrumPlot: React.FC<SpectrumPlotProps> = ({ freq, magSingle, mag
   ];
   if (magAveraged) {
     traces.push({
-      x: Array.from(freq),
+      x: Array.from(freqAveraged ?? freq),
       y: Array.from(magAveraged),
       type: 'scatter',
       mode: 'lines',

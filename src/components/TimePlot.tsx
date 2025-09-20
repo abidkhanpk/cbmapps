@@ -11,6 +11,9 @@ export interface TimePlotProps {
   yAnalog: number[] | Float64Array;
   tSamples: number[] | Float64Array;
   ySamples: number[] | Float64Array;
+  // optional windowed overlay (time & amplitude) to draw on top
+  windowedT?: number[] | Float64Array;
+  windowedY?: number[] | Float64Array;
   individualSignals?: Array<{
     tSamples: number[] | Float64Array;
     cleanSamples: number[] | Float64Array;
@@ -21,6 +24,8 @@ export interface TimePlotProps {
   showAnalog?: boolean;
   showDigitized?: boolean;
   title?: string;
+  frames?: Array<{ t0: number; t1: number }>;
+  framesData?: Array<{ t: number[]; y: number[] }>;
 }
 export const TimePlot: React.FC<TimePlotProps> = ({
   tAnalog,
@@ -28,6 +33,10 @@ export const TimePlot: React.FC<TimePlotProps> = ({
   tSamples,
   ySamples,
   individualSignals = [],
+  windowedT,
+  windowedY,
+  frames,
+  framesData,
   showAnalog = true,
   showDigitized = true,
   title = 'Time Domain',
@@ -64,6 +73,30 @@ export const TimePlot: React.FC<TimePlotProps> = ({
       name: sig.label,
     });
   });
+  // windowed overlay (draw on top)
+  if (windowedT && windowedY) {
+    traces.push({
+      x: Array.from(windowedT),
+      y: Array.from(windowedY),
+      type: 'scatter',
+      mode: 'lines',
+      line: { color: '#d97706', width: 3 },
+      name: 'Windowed time waveform',
+    });
+  }
+  // render each frame's raw sampled data as a separate faint trace so frames are distinguishable
+  if (frames && frames.length > 0 && framesData && framesData.length > 0) {
+    framesData.forEach((fd: { t: number[]; y: number[] }, idx: number) => {
+      traces.push({
+        x: Array.from(fd.t),
+        y: Array.from(fd.y),
+        type: 'scatter',
+        mode: 'lines',
+  line: { color: `hsla(${(idx * 60) % 360},60%,50%,0.9)`, width: 1, dash: 'solid' },
+        name: `Frame ${idx + 1}`,
+      });
+    });
+  }
   const layout: Partial<Layout> = {
     title,
     uirevision: 'timeplot',
@@ -74,6 +107,21 @@ export const TimePlot: React.FC<TimePlotProps> = ({
     paper_bgcolor: 'transparent',
     plot_bgcolor: 'transparent',
   };
+  // add shaded frame shapes if provided
+  if (frames && frames.length > 0) {
+    const shapes: NonNullable<Layout['shapes']> = frames.map((f, idx) => ({
+      type: 'rect',
+      x0: f.t0,
+      x1: f.t1,
+      y0: 0,
+      y1: 1,
+      xref: 'x',
+      yref: 'paper',
+      fillcolor: idx % 2 === 0 ? 'rgba(200,200,255,0.06)' : 'rgba(200,200,255,0.03)',
+      line: { width: 0 },
+    }));
+    layout.shapes = [...(layout.shapes ?? []), ...shapes];
+  }
   const config: Partial<Config> = { responsive: true, displaylogo: false };
   return (
     <div className="w-full">
