@@ -115,7 +115,7 @@ export default function Home() {
     return [Array.from(tArr).slice(0, endIdx), Array.from(yArr).slice(0, endIdx)];
   };
   const [tAnalogPlot, yAnalogPlot] = filterByTime(tAnalog, analog);
-  const [tSamplesPlot, ySamplesPlot] = filterByTime(tSamples, cleanSamples);
+  const [tSamplesPlot, ySamplesPlot] = filterByTime(tSamples, noisySamples);
   let individualSignalsPlot = individualSignals.map(sig => {
     const [tS, yS] = filterByTime(sig.tSamples, sig.cleanSamples);
     return { ...sig, tSamples: tS, cleanSamples: yS };
@@ -217,8 +217,8 @@ export default function Home() {
       for (let n = 0; n < fd.t.length; n++) {
         const idx = (start + n) % totalSamples;
         const tRel = fd.t[n];
-        appendedSampledT.push(k * Twindow + tRel);
-        appendedSampledY.push(cleanSamples[idx]);
+  appendedSampledT.push(k * Twindow + tRel);
+  appendedSampledY.push(noisySamples[idx]);
         // find closest analog index
         let ai = 0;
         while (ai < tAnalog.length - 1 && tAnalog[ai] < tSamples[idx]) ai++;

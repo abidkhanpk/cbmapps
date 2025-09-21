@@ -135,12 +135,30 @@ export function useSignal(params: MultiSignalParams): SignalOutputs {
     });
 
     // Add noise to summed signal
-    for (let n = 0; n < N; n++) {
-      const noise = noiseLevel * (signals.reduce((sum, sig) => sum + sig.amplitude, 0)) * (2 * Math.random() - 1);
-      noisySamples[n] = cleanSamples[n] + noise;
+    // Add noise to the analog waveform (so analog contains noise). Then sample noisy analog to produce digitized noisySamples.
+    const totalAmp = signals.reduce((sum, sig) => sum + sig.amplitude, 0);
+    const noisyAnalog = new Float64Array(analogCount);
+    for (let i = 0; i < analogCount; i++) {
+      const noise = noiseLevel * totalAmp * (2 * Math.random() - 1);
+      noisyAnalog[i] = analog[i] + noise;
     }
 
-    return { tSamples, cleanSamples, noisySamples, tAnalog, analog, individualSignals };
+    // Sample noisyAnalog at the sample times to build noisySamples
+    let ai = 0;
+    for (let n = 0; n < N; n++) {
+      // advance ai until tAnalog[ai] >= tSamples[n]
+      while (ai < analogCount - 1 && tAnalog[ai] < tSamples[n]) ai++;
+      let chosen = ai;
+      if (ai > 0) {
+        const d0 = Math.abs(tAnalog[ai] - tSamples[n]);
+        const d1 = Math.abs(tAnalog[ai - 1] - tSamples[n]);
+        if (d1 < d0) chosen = ai - 1;
+      }
+      noisySamples[n] = noisyAnalog[chosen];
+    }
+
+  // Return noisy analog (so analog plot shows noise) while individualSignals keep their clean analog components.
+  return { tSamples, cleanSamples, noisySamples, tAnalog, analog: noisyAnalog, individualSignals };
   }, [signals, fs, noiseLevel, numSamples]);
 
   return outputs;
