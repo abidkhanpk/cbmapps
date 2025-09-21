@@ -386,7 +386,7 @@ export default function Home() {
               </Accordion>
             </div>
           
-          <div className="text-xs text-gray-500 pt-3">
+          <div className="text-xs text-gray-500 pt-1">
             Tip: Use the camera icon on each plot to export as PNG.
           </div>
         </aside>
