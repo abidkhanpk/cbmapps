@@ -1,14 +1,36 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, createContext, useContext } from 'react';
 
 export interface CollapsibleProps {
   title: string;
   defaultOpen?: boolean;
   children?: React.ReactNode;
+  id?: string;
 }
 
-export const Collapsible: React.FC<CollapsibleProps> = ({ title, defaultOpen = true, children }) => {
-  const [open, setOpen] = useState<boolean>(defaultOpen);
+// Accordion context: when used, only one id is open at a time
+type AccordionContextType = { openId?: string | null; setOpenId?: (id?: string | null) => void };
+const AccordionContext = createContext<AccordionContextType | undefined>(undefined);
+
+export const Accordion: React.FC<{ children?: React.ReactNode; defaultOpenId?: string | null }> = ({ children, defaultOpenId = null }) => {
+  const [openId, setOpenId] = useState<string | null | undefined>(defaultOpenId);
+  return <AccordionContext.Provider value={{ openId, setOpenId }}>{children}</AccordionContext.Provider>;
+};
+
+export const Collapsible: React.FC<CollapsibleProps> = ({ title, defaultOpen = true, children, id }) => {
+  const ctx = useContext(AccordionContext);
+  const isAccordion = !!ctx && typeof ctx.setOpenId === 'function';
+  const [openLocal, setOpenLocal] = useState<boolean>(defaultOpen);
+  const open = isAccordion ? ctx!.openId === id : openLocal;
+  const toggle = () => {
+    if (isAccordion) {
+      const cur = ctx!.openId;
+      if (cur === id) ctx!.setOpenId && ctx!.setOpenId(null);
+      else ctx!.setOpenId && ctx!.setOpenId(id ?? null);
+    } else {
+      setOpenLocal(v => !v);
+    }
+  };
   return (
   // use last:mb-0 so the final collapsible doesn't introduce extra bottom space
   // render a full rounded border box so collapsed sections look like a card
@@ -17,7 +39,7 @@ export const Collapsible: React.FC<CollapsibleProps> = ({ title, defaultOpen = t
       <button
         type="button"
         aria-expanded={open}
-        onClick={() => setOpen(!open)}
+        onClick={toggle}
         className="w-full flex justify-between items-center gap-3 py-2 px-3 rounded-t-lg hover:shadow-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-indigo-200"
       >
         <span className="font-medium text-gray-800 flex items-center gap-2">

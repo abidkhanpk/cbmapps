@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { SignalControls } from '@/components/SignalControls';
 import { WindowingControls } from '@/components/WindowingControls';
-import { Collapsible } from '@/components/Collapsible';
+import { Collapsible, Accordion } from '@/components/Collapsible';
 import { AveragingControls } from '@/components/AveragingControls';
 import { TimePlot } from '@/components/TimePlot';
 import { SpectrumPlot } from '@/components/SpectrumPlot';
@@ -286,7 +286,8 @@ export default function Home() {
           <h1 className="text-lg font-semibold">Signal Simulator</h1>
             <div className="mt-2">
               {/* Collapsible groups to save vertical space */}
-              <Collapsible title="Signals" defaultOpen={false}>
+              <Accordion>
+              <Collapsible id="signals" title="Signals" defaultOpen={false}>
                 <SignalControls
                   signals={signals}
                   setSignals={setSignals}
@@ -298,7 +299,7 @@ export default function Home() {
                 </div>
               </Collapsible>
 
-              <Collapsible title="Sampling" defaultOpen={false}>
+              <Collapsible id="sampling" title="Sampling" defaultOpen={false}>
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   <div>
                     <label className="block text-sm font-medium">Sampling frequency (Hz)</label>
@@ -367,7 +368,7 @@ export default function Home() {
                 })()}</div>
               </Collapsible>
 
-              <Collapsible title="Windows & Averaging" defaultOpen={false}>
+              <Collapsible id="windows" title="Windows & Averaging" defaultOpen={false}>
                 <WindowingControls windowType={windowType} setWindowType={setWindowType} showWindowed={showWindowed} setShowWindowed={setShowWindowed} />
                 <div className="mt-3">
                   <AveragingControls
@@ -382,6 +383,7 @@ export default function Home() {
                   />
                 </div>
               </Collapsible>
+              </Accordion>
             </div>
           
           <div className="text-xs text-gray-500 border-t pt-3">
