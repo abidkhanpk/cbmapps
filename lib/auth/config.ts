@@ -9,6 +9,7 @@ const prismaForAuth = new PrismaClient();
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prismaForAuth),
+  secret: process.env.NEXTAUTH_SECRET,
   providers: [
     CredentialsProvider({
       name: 'credentials',
@@ -61,42 +62,38 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   session: {
-    strategy: 'database',
+    strategy: 'jwt',
     maxAge: parseInt(process.env.SESSION_MAX_AGE_DAYS || '7') * 24 * 60 * 60,
   },
-  cookies: {
-    sessionToken: {
-      name: 'next-auth.session-token',
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: process.env.NODE_ENV === 'production',
-      },
-    },
-  },
-  callbacks: {
-    async session({ session, user }) {
-      if (session.user) {
+    callbacks: {
+    async jwt({ token, user }) {
+      // On initial sign-in, merge user info into the token
+      if (user) {
+        token.id = (user as any).id;
+        token.roles = (user as any).roles || [];
+      }
+      // Ensure roles exist on subsequent calls by hydrating from DB if missing
+      if (!token.roles && token.id) {
         const dbUser = await prismaForAuth.user.findUnique({
-          where: { id: user.id },
+          where: { id: token.id as string },
           include: {
-            user_roles: {
-              include: {
-                role: true,
-              },
-            },
+            user_roles: { include: { role: true } },
           },
         });
-
-        session.user.id = user.id;
-        session.user.roles = dbUser?.user_roles.map((ur) => ur.role.name) || [];
+        token.roles = dbUser?.user_roles.map((ur) => ur.role.name) || [];
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.id as string;
+        session.user.roles = (token.roles as string[]) || [];
       }
       return session;
     },
   },
   pages: {
-    signIn: '/auth/login',
+    signIn: '/login',
   },
 };
 

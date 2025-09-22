@@ -6,6 +6,20 @@ const nextConfig = {
   images: {
     domains: [],
   },
+  async redirects() {
+    return [
+      {
+        source: '/auth/login',
+        destination: '/login',
+        permanent: false,
+      },
+      {
+        source: '/auth/signin',
+        destination: '/login',
+        permanent: false,
+      },
+    ];
+  },
   async headers() {
     return [
       {

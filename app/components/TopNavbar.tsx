@@ -16,7 +16,7 @@ export default function TopNavbar() {
   };
 
   const handleSignOut = () => {
-    signOut({ callbackUrl: '/auth/login' });
+    signOut({ callbackUrl: '/login' });
   };
 
   return (
