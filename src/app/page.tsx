@@ -1,426 +1,126 @@
 "use client";
-import React, { useState, useEffect } from 'react';
-import { SignalControls } from '@/components/SignalControls';
-import { WindowingControls } from '@/components/WindowingControls';
-import { Collapsible, Accordion } from '@/components/Collapsible';
-import { AveragingControls } from '@/components/AveragingControls';
-import { TimePlot } from '@/components/TimePlot';
-import { SpectrumPlot } from '@/components/SpectrumPlot';
-import { useSignal, SignalType } from '@/hooks/useSignal';
-import { useSpectrum, AveragingMode } from '@/hooks/useSpectrum';
-import { getWindow, applyWindow } from '@/lib/dsp';
-import type { WindowType } from '@/lib/dsp';
-import type { SingleSignalParams } from '@/hooks/useSignal';
+import React from 'react';
+import Link from 'next/link';
 
 export default function Home() {
-  const [maxRevolutions, setMaxRevolutions] = useState(5);
-  // Multi-signal state: array of signal parameter objects
-  const [signals, setSignals] = useState<SingleSignalParams[]>([
-    {
-      type: 'sine' as SignalType,
-      amplitude: 1,
-      frequency: 10,
-      phaseDeg: 0,
-      chirpStartFreq: undefined,
-      chirpEndFreq: undefined,
-    },
-  ]);
-    const maxFreq = signals.reduce((max, sig) => Math.max(max, sig.frequency), 0);
-    const period = maxFreq > 0 ? 1 / maxFreq : 1;
-  // Signal visibility state
-  const [showAnalog, setShowAnalog] = useState(true);
-  const [showDigitized, setShowDigitized] = useState(true);
-  const [showIndividuals, setShowIndividuals] = useState(false);
-  // Shared parameters
-  const [fs, setFs] = useState<number>(1024);
-  const [noiseLevel, setNoiseLevel] = useState<number>(0);
-  const [numSamples, setNumSamples] = useState<number>(1024);
-
-  // Spectrum / FFT controls: allow selecting number of samples (power of two) and LOR (lines)
-  const pow2Options = [256, 512, 1024, 2048, 4096, 8192, 16384, 32768];
-  const lorOptions = pow2Options.map(n => Math.round(n / 2.56));
-  const [lor, setLor] = useState<number>(Math.round(numSamples / 2.56));
-  const [fmax, setFmax] = useState<number>(fs / 2.56);
-
-  const [windowType, setWindowType] = useState<WindowType>('hanning');
-  const [showWindowed, setShowWindowed] = useState<boolean>(false);
-  // remember previous manual maxRevolutions to restore when toggling off
-  const [prevMaxRevolutions, setPrevMaxRevolutions] = useState<number>(5);
-  const [averagingMode, setAveragingMode] = useState<AveragingMode>('none');
-  const [segmentLength, setSegmentLength] = useState<number>(256);
-  const [numAverages, setNumAverages] = useState<number>(5);
-  const [overlapPercent, setOverlapPercent] = useState<number>(50);
-
-  // Use new multi-signal hook signature
-  const { tSamples, noisySamples, cleanSamples, tAnalog, analog, individualSignals } = useSignal({
-    signals,
-    fs,
-    noiseLevel,
-    numSamples,
-  });
-
-  // Sync handlers between samples <-> LOR and fs <-> fmax
-  const handleSetNumSamples = (n: number) => {
-    if (!pow2Options.includes(n)) n = pow2Options[0];
-    setNumSamples(n);
-    const idx = pow2Options.indexOf(n);
-    setLor(lorOptions[idx]);
-  };
-
-  const handleSetLor = (l: number) => {
-    const idx = lorOptions.indexOf(l);
-    if (idx === -1) return;
-    const n = pow2Options[idx];
-    setLor(l);
-    setNumSamples(n);
-  };
-
-  const handleSetFs = (f: number) => {
-    if (isNaN(f) || f <= 0) return;
-    setFs(f);
-    setFmax(Math.round(f / 2.56));
-  };
-
-  const handleSetFmax = (fm: number) => {
-    if (isNaN(fm) || fm <= 0) return;
-    const fmInt = Math.round(fm);
-    setFmax(fmInt);
-    setFs(Math.round(fmInt * 2.56));
-  };
-
-  // Auto-adjust maxRevolutions when showWindowed toggles. Use effect to avoid state changes during render.
-  useEffect(() => {
-    if (showWindowed) {
-      if (fmax > 0 && lor > 0) {
-        const Twindow = lor / fmax; // seconds
-        const needed = Math.max(1, Math.ceil(Twindow / Math.max(period, 1e-12)));
-        if (needed !== maxRevolutions) {
-          setPrevMaxRevolutions(maxRevolutions);
-          setMaxRevolutions(needed);
-        }
-      }
-    } else {
-      if (prevMaxRevolutions && prevMaxRevolutions !== maxRevolutions) {
-        setMaxRevolutions(prevMaxRevolutions);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showWindowed, fmax, lor]);
-
-  const maxTime = maxRevolutions * period;
-  // Filter time waveform data
-  const filterByTime = (tArr: Float64Array | number[], yArr: Float64Array | number[]) => {
-    const idx = tArr.findIndex(t => t > maxTime);
-    const endIdx = idx === -1 ? tArr.length : idx;
-    return [Array.from(tArr).slice(0, endIdx), Array.from(yArr).slice(0, endIdx)];
-  };
-  const [tAnalogPlot, yAnalogPlot] = filterByTime(tAnalog, analog);
-  const [tSamplesPlot, ySamplesPlot] = filterByTime(tSamples, noisySamples);
-  let individualSignalsPlot = individualSignals.map(sig => {
-    const [tS, yS] = filterByTime(sig.tSamples, sig.cleanSamples);
-    return { ...sig, tSamples: tS, cleanSamples: yS };
-  });
-
-  // determine segment length to use for spectrum computation
-  let desiredSegmentLength = segmentLength;
-  if (averagingMode === 'linear') {
-    const Twindow = lor / Math.max(fmax, 1e-12);
-    const frameLenSamples = Math.max(1, Math.round(Twindow * fs));
-    // choose nearest power of two <= frameLenSamples
-    let p = 1;
-    while (p * 2 <= frameLenSamples) p *= 2;
-    desiredSegmentLength = Math.min(p, numSamples);
-  }
-
-  // Compute frames for plotting when averaging selected
-  let frames: Array<{ t0: number; t1: number }> | undefined = undefined;
-  let framesData: Array<{ t: number[]; y: number[] }> | undefined = undefined;
-  if (averagingMode !== 'none' && numAverages > 0) {
-    const Twindow = lor / Math.max(fmax, 1e-12);
-    const frameLenSamples = Math.max(1, Math.round(Twindow * fs));
-    frames = [];
-    framesData = [];
-    const totalSamples = tSamples.length;
-    const dt = 1 / fs;
-    for (let k = 0; k < numAverages; k++) {
-      const start = k * frameLenSamples;
-      const tArr: number[] = [];
-      const yArr: number[] = [];
-      for (let n = 0; n < frameLenSamples; n++) {
-        const idx = (start + n) % totalSamples;
-        tArr.push(n * dt);
-        yArr.push(noisySamples[idx]);
-      }
-      frames.push({ t0: k * Twindow, t1: (k + 1) * Twindow });
-      framesData.push({ t: tArr, y: yArr });
-    }
-  }
-
-
-  const framesForSpectrum = (averagingMode === 'linear' && typeof framesData !== 'undefined') ? framesData.map(fd => {
-    const a = new Float64Array(fd.y.length);
-    for (let i = 0; i < fd.y.length; i++) a[i] = fd.y[i];
-    return a;
-  }) : undefined;
-
-  const { single, averaged } = useSpectrum({
-    signal: noisySamples,
-    fs,
-    windowType,
-    averagingMode,
-    segmentLength: desiredSegmentLength,
-    overlapPercent,
-    numAverages,
-    frames: framesForSpectrum,
-  });
-
-  // compute windowed sampled waveform (overlay). Use the window of length numSamples applied to cleanSamples.
-  let windowedT: number[] | undefined = undefined;
-  let windowedY: number[] | undefined = undefined;
-  try {
-    if (showWindowed) {
-      // compute the desired window duration (seconds) from LOR and fmax
-      const Twindow = lor / Math.max(fmax, 1e-12);
-      // window length in samples
-      let Lw = Math.max(1, Math.round(Twindow * fs));
-      Lw = Math.min(Lw, numSamples);
-      // create window of length Lw and apply to the first Lw samples
-      const w = getWindow(windowType, Lw);
-      const seg = new Float64Array(Lw);
-      for (let i = 0; i < Lw; i++) seg[i] = cleanSamples[i] ?? 0;
-      const yw = applyWindow(seg, w);
-      windowedT = Array.from(tSamples).slice(0, Lw);
-      windowedY = Array.from(yw);
-    }
-  } catch {
-    // defensive: do nothing on error
-    windowedT = undefined;
-    windowedY = undefined;
-  }
-
-  // If linear averaging is active, build appended sampled & analog arrays so the time waveform equals N * Twindow
-  let tAnalogPlotFinal = tAnalogPlot;
-  let yAnalogPlotFinal = yAnalogPlot;
-  let tSamplesPlotFinal = tSamplesPlot;
-  let ySamplesPlotFinal = ySamplesPlot;
-  if (averagingMode === 'linear' && typeof framesData !== 'undefined' && framesData.length > 0) {
-    const Twindow = lor / Math.max(fmax, 1e-12);
-    const frameLenSamples = Math.max(1, Math.round(Twindow * fs));
-    const totalSamples = tSamples.length;
-    const appendedSampledT: number[] = [];
-    const appendedSampledY: number[] = [];
-    const appendedAnalogT: number[] = [];
-    const appendedAnalogY: number[] = [];
-    for (let k = 0; k < framesData.length; k++) {
-      const fd = framesData[k];
-      const start = k * frameLenSamples;
-      for (let n = 0; n < fd.t.length; n++) {
-        const idx = (start + n) % totalSamples;
-        const tRel = fd.t[n];
-  appendedSampledT.push(k * Twindow + tRel);
-  appendedSampledY.push(noisySamples[idx]);
-        // find closest analog index
-        let ai = 0;
-        while (ai < tAnalog.length - 1 && tAnalog[ai] < tSamples[idx]) ai++;
-        let chosen = ai;
-        if (ai > 0) {
-          const d0 = Math.abs(tAnalog[ai] - tSamples[idx]);
-          const d1 = Math.abs(tAnalog[ai - 1] - tSamples[idx]);
-          if (d1 < d0) chosen = ai - 1;
-        }
-        appendedAnalogT.push(k * Twindow + tRel);
-        appendedAnalogY.push(analog[chosen]);
-      }
-    }
-  // For linear averaging we want to show the full concatenated N * Twindow waveform.
-  tAnalogPlotFinal = appendedAnalogT;
-  yAnalogPlotFinal = appendedAnalogY;
-  tSamplesPlotFinal = appendedSampledT;
-  ySamplesPlotFinal = appendedSampledY;
-
-    // If windowed overlay exists and linear averaging, expand it to span all frames (if not already done)
-    if (windowedT && windowedY && windowedT.length <= frameLenSamples) {
-      const appendedWT: number[] = [];
-      const appendedWY: number[] = [];
-      for (let k = 0; k < framesData.length; k++) {
-        for (let n = 0; n < windowedY.length; n++) {
-          appendedWT.push(k * Twindow + (windowedT[n] - windowedT[0]));
-          appendedWY.push(windowedY[n]);
-        }
-      }
-      windowedT = appendedWT;
-      windowedY = appendedWY;
-    }
-
-    // (individual signals expansion moved later to run for any averaging mode when framesData is available)
-  }
-
-  // Expand individual signals across all frames (T * N) whenever framesData exists (i.e., averaging is active)
-  if (typeof framesData !== 'undefined' && framesData.length > 0) {
-    const Twindow = lor / Math.max(fmax, 1e-12);
-    const frameLenSamples = Math.max(1, Math.round(Twindow * fs));
-    const totalSamples = tSamples.length;
-    const expandedIndividuals = individualSignals.map(sig => {
-      const appendedT: number[] = [];
-      const appendedY: number[] = [];
-      for (let k = 0; k < framesData.length; k++) {
-        const start = k * frameLenSamples;
-        for (let n = 0; n < framesData[k].t.length; n++) {
-          const idx = (start + n) % totalSamples;
-          const tRel = framesData[k].t[n];
-          appendedT.push(k * Twindow + tRel);
-          appendedY.push(sig.cleanSamples[idx]);
-        }
-      }
-      return { ...sig, tSamples: appendedT, cleanSamples: appendedY };
-    });
-    // keep full concatenated arrays so individual signals span T * N (match analog/digitized)
-    individualSignalsPlot = expandedIndividuals.map(sig => ({ ...sig }));
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
-      <div className="grid grid-cols-1 md:grid-cols-[360px_1fr] gap-6 p-4 md:p-6">
-        {/* Controls Sidebar */}
-        <aside className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-5 space-y-6 h-fit">
-          <h1 className="text-lg font-semibold">Signal Generator</h1>
-            <div className="mt-2">
-              {/* Collapsible groups to save vertical space */}
-              <Accordion>
-              <Collapsible id="signals" title="Signals" defaultOpen={false}>
-                <SignalControls
-                  signals={signals}
-                  setSignals={setSignals}
-                />
-                <div className="mt-3">
-                  <label className="block text-sm font-medium">Noise level (0-1)</label>
-                  <input type="range" min={0} max={1} step={0.01} value={noiseLevel} onChange={e => setNoiseLevel(Number(e.target.value))} className="mt-2 w-full" />
-                  <div className="text-xs text-gray-600">{noiseLevel.toFixed(2)}</div>
-                </div>
-              </Collapsible>
-
-              <Collapsible id="sampling" title="Sampling" defaultOpen={false}>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  <div>
-                    <label className="block text-sm font-medium">Sampling frequency (Hz)</label>
-                    <input type="number" value={fs} onChange={e => handleSetFs(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" min={1} step={1} />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium">Fmax (Hz)</label>
-                    <input type="number" value={Math.round(fmax ?? (fs / 2.56))} onChange={e => handleSetFmax(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" min={1} step={1} />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  <div>
-                    <label className="block text-sm font-medium">Samples (N)</label>
-                    <select value={numSamples} onChange={e => handleSetNumSamples(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800">
-                      {pow2Options.map((n: number) => (
-                        <option key={n} value={n}>{n}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium">Lines (LOR)</label>
-                    <select value={lor ?? Math.round(numSamples / 2.56)} onChange={e => handleSetLor(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800">
-                      {lorOptions.map((l: number) => (
-                        <option key={l} value={l}>{l}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 mt-3">
-                  <div>
-                    <div className="text-[11px] text-gray-500">Delta F (df)</div>
-                    <div className="text-[13px] font-mono font-medium text-gray-800">{(() => {
-                      const L = lor ?? Math.round(numSamples / 2.56);
-                      const fm = fmax ?? (fs / 2.56);
-                      const mult = (windowType === 'hanning') ? 1.5 : 1.0;
-                      const df = fm / Math.max(1, L) * mult;
-                      return df.toFixed(6);
-                    })()}</div>
-                  </div>
-
-                  <div>
-                    <div className="text-[11px] text-gray-500">Time period T (s)</div>
-                    <div className="text-[13px] font-mono font-medium text-gray-800">{(() => {
-                      const L = lor ?? Math.round(numSamples / 2.56);
-                      const fm = fmax ?? (fs / 2.56);
-                      const T = L / Math.max(1e-12, fm);
-                      return T.toFixed(6);
-                    })()}</div>
-                  </div>
-                </div>
-
-                <div className="mt-2 text-xs text-gray-500 col-span-2">{(() => {
-                  const map: Record<string, number> = {
-                    rectangular: 1.0,
-                    hanning: 1.5,
-                    hamming: 1.36,
-                    blackman: 1.73,
-                  };
-                  const name = (windowType ?? 'rectangular');
-                  const factor = map[name] ?? 1.0;
-                  const displayName = name.charAt(0).toUpperCase() + name.slice(1);
-                  if (factor === 1.0) return `Window: ${displayName} (factor ${factor.toFixed(2)}×) — no effective df increase.`;
-                  return `Window: ${displayName} (factor ${factor.toFixed(2)}×) — effective df scaled by ~${factor.toFixed(2)}×.`;
-                })()}</div>
-              </Collapsible>
-
-              <Collapsible id="windows" title="Windows & Averaging" defaultOpen={false}>
-                <WindowingControls windowType={windowType} setWindowType={setWindowType} showWindowed={showWindowed} setShowWindowed={setShowWindowed} />
-                <div className="mt-3">
-                  <AveragingControls
-                    averagingMode={averagingMode}
-                    setAveragingMode={setAveragingMode}
-                    segmentLength={segmentLength}
-                    setSegmentLength={setSegmentLength}
-                    overlapPercent={overlapPercent}
-                    setOverlapPercent={setOverlapPercent}
-                    numAverages={numAverages}
-                    setNumAverages={setNumAverages}
-                  />
-                </div>
-              </Collapsible>
-              </Accordion>
+    <div className="min-h-screen bg-gradient-to-b from-[#f8fafc] via-white to-[#fff7f9] text-gray-900 flex flex-col">
+      <header className="max-w-6xl mx-auto w-full px-6 py-10">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-md bg-gradient-to-tr from-indigo-600 to-sky-500 flex items-center justify-center text-white font-extrabold">cb</div>
+              <div>
+                <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">cbmapps</h1>
+                <p className="text-sm text-gray-600 mt-1">Interactive DSP playground — launch apps from the dashboard</p>
+              </div>
             </div>
-          
-          <div className="text-xs text-gray-500 pt-1">
-            Tip: Use the camera icon on each plot to export as PNG.
           </div>
-        </aside>
 
-        {/* Plots Panel */}
-        <main className="space-y-6">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 md:p-4">
-            <div className="flex gap-4 mb-2">
-              <label><input type="checkbox" checked={showAnalog} onChange={e => setShowAnalog(e.target.checked)} /> Analog</label>
-              <label><input type="checkbox" checked={showDigitized} onChange={e => setShowDigitized(e.target.checked)} /> Digitized</label>
-              <label><input type="checkbox" checked={showIndividuals} onChange={e => setShowIndividuals(e.target.checked)} /> Individual Signals</label>
-              <label className="ml-4">Max Revolutions: <input type="number" min={1} max={20} value={maxRevolutions} onChange={e => setMaxRevolutions(Number(e.target.value))} className="w-16 ml-1 border rounded px-1" disabled={showWindowed} /></label>
-              {showWindowed && <span className="text-xs text-gray-500 ml-2">(auto for window: shows full T)</span>}
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-medium">Beta</span>
+            <nav className="hidden sm:flex items-center gap-4 text-sm text-gray-600">
+              <a>Docs</a>
+              <a>About</a>
+            </nav>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1">
+        <div className="max-w-7xl mx-auto px-6 pb-16">
+          <section className="bg-white rounded-3xl shadow-xl p-8 md:p-12 -mt-6">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+              <div className="max-w-2xl">
+                <h2 className="text-2xl md:text-3xl font-bold">Launch an app to explore vibrations & signal analysis</h2>
+                <p className="mt-3 text-gray-600">Explore vibration analysis concepts — time waveforms, spectra, RMS, bearing fault detection, windowing, and more. Start with the Signal Generator to synthesize and analyze vibrations, or add your own data.</p>
+
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <Link href="/signal-generator" className="inline-flex items-center gap-3 px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-sky-500 text-white font-semibold shadow hover:translate-y-[-2px] transition-transform">Open Signal Generator</Link>
+                  <button className="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-700">Explore features</button>
+                </div>
+              </div>
+
+              <div className="w-full lg:w-1/2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="bg-gradient-to-tr from-indigo-600 to-sky-500 text-white p-4 rounded-xl flex flex-col justify-between transform transition-transform hover:scale-[1.02] hover:-translate-y-1">
+                    <div>
+                      <div className="text-2xl font-bold">Real-time</div>
+                      <div className="mt-2 text-sm opacity-90">Interactive controls, instant preview</div>
+                    </div>
+                    <div className="mt-4 text-xs opacity-90">Plots · Windowing · Averaging</div>
+                  </div>
+                  <div className="bg-gradient-to-tr from-rose-500 to-pink-400 text-white p-4 rounded-xl flex flex-col justify-between transform transition-transform hover:scale-[1.02] hover:-translate-y-1">
+                    <div>
+                      <div className="text-2xl font-bold">Spectral tools</div>
+                      <div className="mt-2 text-sm opacity-90">FFT, smoothing and customization</div>
+                    </div>
+                    <div className="mt-4 text-xs opacity-90">DF estimates · Resolution control</div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <TimePlot
-              tAnalog={tAnalogPlotFinal}
-              yAnalog={yAnalogPlotFinal}
-              tSamples={tSamplesPlotFinal}
-              ySamples={ySamplesPlotFinal}
-              frames={averagingMode === 'linear' ? undefined : frames}
-              framesData={averagingMode === 'linear' ? undefined : framesData}
-              windowedT={windowedT}
-              windowedY={windowedY}
-              individualSignals={showIndividuals ? individualSignalsPlot : []}
-              showAnalog={showAnalog}
-              showDigitized={showDigitized}
-              title="Time-Domain Signal"
-            />
-          </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 md:p-4">
-            <SpectrumPlot freq={single.freq} magSingle={single.mag} freqAveraged={averaged?.freq} magAveraged={averaged?.mag} fs={fs} />
-          </div>
-        </main>
-      </div>
+          </section>
+
+          <section className="mt-10">
+            <h3 className="text-lg font-semibold mb-4">Apps</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <Link href="/signal-generator" className="group">
+                <article className="relative h-full bg-white rounded-2xl border border-gray-200 shadow-md p-6 hover:shadow-2xl transform transition duration-300 hover:-translate-y-2 hover:scale-[1.01] focus-within:ring-2 focus-within:ring-indigo-300">
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0 p-3 rounded-lg bg-gradient-to-tr from-indigo-600 to-sky-500 text-white animate-wave hover:animate-none">
+                      {/* inline waveform SVG icon */}
+                      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                        <path d="M2 12h2l2-6 2 12 2-8 2 4 2-10 2 8 2-4 2 6h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-xl font-semibold">Signal Generator</h4>
+                      <p className="text-sm text-gray-600 mt-2">Create composite signals, add noise, apply windows, and inspect time and frequency plots with export options.</p>
+                      <div className="mt-4 flex items-center justify-between">
+                        <div className="text-xs text-gray-500">Interactive DSP playground</div>
+                        <div className="inline-flex items-center gap-2">
+                          <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs">Open</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              </Link>
+
+              {/* placeholders */}
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between">
+                <div className="flex items-start gap-4">
+                  <div className="p-3 rounded-lg bg-gradient-to-tr from-emerald-500 to-lime-400 text-white">WD</div>
+                  <div>
+                    <h4 className="text-lg font-semibold">Waveform Designer</h4>
+                    <p className="text-sm text-gray-600 mt-2">Design and export custom waveforms (coming soon).</p>
+                  </div>
+                </div>
+                <div className="mt-4 text-xs text-gray-500">Soon</div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between">
+                <div className="flex items-start gap-4">
+                  <div className="p-3 rounded-lg bg-gradient-to-tr from-rose-500 to-pink-400 text-white">SP</div>
+                  <div>
+                    <h4 className="text-lg font-semibold">Spectrum Lab</h4>
+                    <p className="text-sm text-gray-600 mt-2">Advanced spectral analysis tools (coming soon).</p>
+                  </div>
+                </div>
+                <div className="mt-4 text-xs text-gray-500">Soon</div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <footer className="border-t bg-white/60 backdrop-blur-sm">
+        <div className="max-w-6xl mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between text-sm text-gray-600 gap-3">
+          <div>© {new Date().getFullYear()} cbmapps</div>
+          <div>Built with Next.js & Tailwind • <span className="text-gray-500">No account required</span></div>
+        </div>
+      </footer>
     </div>
   );
 }
