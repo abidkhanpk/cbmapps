@@ -1,5 +1,5 @@
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth/config';
+import getAuthOptions from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
 import DashboardStats from './components/DashboardStats';
 import RecentActions from './components/RecentActions';
@@ -86,7 +86,7 @@ async function getDashboardData() {
 }
 
 export default async function DashboardPage() {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession(getAuthOptions());
   const data = await getDashboardData();
 
   return (
