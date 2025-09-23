@@ -24,7 +24,7 @@ async function ensureDefaultCompany() {
 }
 
 export default async function FmecaPage({ searchParams }: { searchParams?: { [key: string]: string | string[] | undefined } }) {
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession(getAuthOptions())
   if (!session?.user?.id) redirect('/login')
   const userId = session.user.id
 
@@ -67,7 +67,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
 
   async function createStudy(formData: FormData) {
     'use server'
-    const session = await getServerSession(authOptions)
+    const session = await getServerSession(getAuthOptions())
     if (!session?.user?.id) redirect('/login')
 
     const title = String(formData.get('title') || '').trim()
