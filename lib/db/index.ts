@@ -12,13 +12,21 @@ declare global {
 
 function createPrismaClient() {
   try {
-    if (process.env.PRISMA_ACCELERATE_URL) {
+    const accelUrl = process.env.PRISMA_ACCELERATE_URL?.trim();
+    const useAccelerate = !!accelUrl && accelUrl.startsWith('prisma://') && /api_key=[^&]+/.test(accelUrl) && !accelUrl.includes('your_api_key');
+
+    if (useAccelerate) {
       // When using Accelerate, set the datasourceUrl to the Accelerate URL
       // so queries are proxied via Prisma's edge-friendly pool.
       return new PrismaClient({
-        datasourceUrl: process.env.PRISMA_ACCELERATE_URL,
+        datasourceUrl: accelUrl,
       }).$extends(withAccelerate());
     }
+
+    if (accelUrl && !useAccelerate) {
+      console.warn('PRISMA_ACCELERATE_URL is set but appears invalid; falling back to DATABASE_URL.');
+    }
+
     return new PrismaClient();
   } catch (err) {
     // Re-throw after logging for better diagnostics in serverless logs
