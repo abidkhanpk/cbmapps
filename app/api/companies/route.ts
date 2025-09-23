@@ -6,6 +6,10 @@ import { companySchema } from '@/lib/validation/schemas';
 import { hasPermission, PERMISSIONS } from '@/lib/rbac/permissions';
 import { AuditService } from '@/lib/services/audit';
 
+// Ensure this route runs on Node.js runtime (Prisma compatibility)
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const session = await getServerSession(getAuthOptions());

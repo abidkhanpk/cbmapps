@@ -10,6 +10,9 @@ export const metadata: Metadata = {
   description: 'Comprehensive FMECA and Condition Monitoring Management System',
 };
 
+// Force Node.js runtime for all routes to ensure Prisma/NextAuth compatibility on Vercel
+export const runtime = 'nodejs';
+
 export default function RootLayout({
   children,
 }: {
