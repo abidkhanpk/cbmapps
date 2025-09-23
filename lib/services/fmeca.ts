@@ -74,17 +74,17 @@ export class FmecaService {
 
     const totalItems = items.length;
     const criticalityBreakdown = {
-      high: items.filter(item => item.criticality === 'high').length,
-      medium: items.filter(item => item.criticality === 'medium').length,
-      low: items.filter(item => item.criticality === 'low').length,
+      high: items.filter((item: any) => item.criticality === 'high').length,
+      medium: items.filter((item: any) => item.criticality === 'medium').length,
+      low: items.filter((item: any) => item.criticality === 'low').length,
     };
 
     const averageRPN = totalItems > 0 
-      ? items.reduce((sum, item) => sum + item.rpn, 0) / totalItems 
+      ? items.reduce((sum: number, item: any) => sum + item.rpn, 0) / totalItems 
       : 0;
 
     const maxRPN = totalItems > 0 
-      ? Math.max(...items.map(item => item.rpn)) 
+      ? Math.max(...items.map((item: any) => item.rpn)) 
       : 0;
 
     return {
@@ -107,8 +107,8 @@ export class FmecaService {
     // Parse detection methods and return as array
     return failureMode.detection_methods
       .split(',')
-      .map(method => method.trim())
-      .filter(method => method.length > 0);
+      .map((method: string) => method.trim())
+      .filter((method: string) => method.length > 0);
   }
 
   static async submitStudyForApproval(studyId: string, userId: string): Promise<void> {
@@ -135,7 +135,7 @@ export class FmecaService {
     });
 
     // Create approval records
-    const approvalData = approvers.map(approver => ({
+    const approvalData = approvers.map((approver: any) => ({
       study_id: studyId,
       approver_user_id: approver.id,
       status: 'pending' as const,
@@ -147,7 +147,7 @@ export class FmecaService {
   }
 
   static async approveStudy(studyId: string, approverId: string, comment?: string): Promise<void> {
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       // Update the approval record
       await tx.fmecaApproval.updateMany({
         where: {
@@ -180,7 +180,7 @@ export class FmecaService {
   }
 
   static async rejectStudy(studyId: string, approverId: string, comment?: string): Promise<void> {
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       // Update the approval record
       await tx.fmecaApproval.updateMany({
         where: {

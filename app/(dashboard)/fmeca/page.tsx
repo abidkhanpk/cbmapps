@@ -227,7 +227,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
                   </tr>
                 </thead>
                 <tbody>
-                  {studies.map((s) => (
+                  {studies.map((s: any) => (
                     <tr key={s.id}>
                       <td>{s.title}</td>
                       <td className="text-capitalize">{s.status}</td>
@@ -291,7 +291,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
                             <label className="form-label">Component</label>
                             <select name="component_id" className="form-select" required>
                               <option value="">Select component...</option>
-                              {components.map(c => (
+                              {components.map((c: any) => (
                                 <option key={c.id} value={c.id}>
                                   {(c.asset?.tag_code || c.asset?.name) + ' - ' + c.name}
                                 </option>
@@ -302,7 +302,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
                             <label className="form-label">Failure Mode</label>
                             <select name="failure_mode_id" className="form-select" required>
                               <option value="">Select failure mode...</option>
-                              {failureModes.map(fm => (
+                              {failureModes.map((fm: any) => (
                                 <option key={fm.id} value={fm.id}>{fm.title}</option>
                               ))}
                             </select>
@@ -361,7 +361,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
                             </tr>
                           </thead>
                           <tbody>
-                            {selectedStudy.items.map((it) => (
+                            {selectedStudy.items.map((it: any) => (
                               <tr key={it.id}>
                                 <td>{(it.component.asset?.tag_code || it.component.asset?.name) + ' - ' + it.component.name}</td>
                                 <td>{it.failure_mode.title}</td>

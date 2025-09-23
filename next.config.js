@@ -3,7 +3,9 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['@prisma/client', 'bcryptjs'],
   },
-  output: 'standalone',
+  // Do not force standalone output on Vercel; let the platform optimize the build
+  // to avoid issues with native Prisma engines packaging.
+  // output: 'standalone',
   images: {
     domains: [],
   },

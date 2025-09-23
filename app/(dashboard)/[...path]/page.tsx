@@ -1,4 +1,3 @@
-import { prisma } from '@/lib/db';
 
 // This catch-all page handles routes linked from the Sidebar:
 // /assets, /fmeca, /cm/tasks, /cm/readings, /actions, /users, /audit
@@ -19,6 +18,7 @@ function SectionContainer({ title, children }: { title: string; children: React.
 }
 
 async function AssetsView() {
+  const { prisma } = await import('@/lib/db');
   const assets = await prisma.asset.findMany({
     take: 50,
     orderBy: { created_at: 'desc' },
@@ -31,6 +31,7 @@ async function AssetsView() {
 
   async function createAsset(formData: FormData) {
     'use server'
+    const { prisma } = await import('@/lib/db');
     const name = String(formData.get('name') || '')
     const tag = String(formData.get('tag_code') || '')
     const systemName = String(formData.get('system') || '')
@@ -93,7 +94,7 @@ async function AssetsView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {assets.map((a) => (
+                  {assets.map((a: any) => (
                     <tr key={a.id}>
                       <td>{a.tag_code}</td>
                       <td>{a.name}</td>
@@ -118,6 +119,7 @@ async function AssetsView() {
 }
 
 async function FmecaView() {
+  const { prisma } = await import('@/lib/db');
   const studies = await prisma.fmecaStudy.findMany({
     take: 50,
     orderBy: { created_at: 'desc' },
@@ -142,7 +144,7 @@ async function FmecaView() {
               </tr>
             </thead>
             <tbody>
-              {studies.map((s) => (
+              {studies.map((s: any) => (
                 <tr key={s.id}>
                   <td>{s.title}</td>
                   <td className="text-capitalize">{s.status}</td>
@@ -165,6 +167,7 @@ async function FmecaView() {
 }
 
 async function CmTasksView() {
+  const { prisma } = await import('@/lib/db');
   const [tasks, components] = await Promise.all([
     prisma.cmTask.findMany({
       take: 50,
@@ -182,6 +185,7 @@ async function CmTasksView() {
 
   async function createTask(formData: FormData) {
     'use server'
+    const { prisma } = await import('@/lib/db');
     const component_id = String(formData.get('component_id') || '')
     const technique = String(formData.get('technique') || 'vibration') as any
     const interval_days = parseInt(String(formData.get('interval_days') || '30'), 10)
@@ -203,7 +207,7 @@ async function CmTasksView() {
                   <label className="form-label">Component</label>
                   <select name="component_id" className="form-select" required>
                     <option value="">Select component...</option>
-                    {components.map(c => (
+                    {components.map((c: any) => (
                       <option key={c.id} value={c.id}>{(c.asset?.tag_code || c.asset?.name) + ' - ' + c.name}</option>
                     ))}
                   </select>
@@ -244,7 +248,7 @@ async function CmTasksView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {tasks.map((t) => (
+                  {tasks.map((t: any) => (
                     <tr key={t.id}>
                       <td>{t.component?.name}</td>
                       <td>{t.component?.asset?.tag_code || t.component?.asset?.name}</td>
@@ -269,6 +273,7 @@ async function CmTasksView() {
 }
 
 async function CmReadingsView() {
+  const { prisma } = await import('@/lib/db');
   const readings = await prisma.cmReading.findMany({
     take: 50,
     orderBy: { performed_at: 'desc' },
@@ -299,7 +304,7 @@ async function CmReadingsView() {
               </tr>
             </thead>
             <tbody>
-              {readings.map((r) => (
+              {readings.map((r: any) => (
                 <tr key={r.id}>
                   <td>{new Date(r.performed_at).toLocaleString()}</td>
                   <td>{r.task?.technique}</td>
@@ -322,6 +327,7 @@ async function CmReadingsView() {
 }
 
 async function ActionsView() {
+  const { prisma } = await import('@/lib/db');
   const [actions, users] = await Promise.all([
     prisma.action.findMany({
       take: 50,
@@ -336,6 +342,7 @@ async function ActionsView() {
 
   async function createAction(formData: FormData) {
     'use server'
+    const { prisma } = await import('@/lib/db');
     const title = String(formData.get('title') || '')
     const description = String(formData.get('description') || '')
     const assignee_user_id = String(formData.get('assignee_user_id') || '')
@@ -358,7 +365,7 @@ async function ActionsView() {
                   <label className="form-label">Assignee</label>
                   <select name="assignee_user_id" className="form-select" required>
                     <option value="">Select user...</option>
-                    {users.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}
+                    {users.map((u: any) => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}
                   </select>
                 </div>
                 <div className="mb-3">
@@ -390,7 +397,7 @@ async function ActionsView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {actions.map((a) => (
+                  {actions.map((a: any) => (
                     <tr key={a.id}>
                       <td>{a.title}</td>
                       <td className="text-capitalize">{a.status}</td>
@@ -415,6 +422,7 @@ async function ActionsView() {
 }
 
 async function UsersView() {
+  const { prisma } = await import('@/lib/db');
   const users = await prisma.user.findMany({
     take: 50,
     orderBy: { created_at: 'desc' },
@@ -438,11 +446,11 @@ async function UsersView() {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
+              {users.map((u: any) => (
                 <tr key={u.id}>
                   <td>{u.full_name}</td>
                   <td>{u.email}</td>
-                  <td>{u.user_roles.map((ur) => ur.role.name).join(', ') || '-'}</td>
+                  <td>{u.user_roles.map((ur: any) => ur.role.name).join(', ') || '-'}</td>
                   <td>{u.is_active ? 'Yes' : 'No'}</td>
                   <td>{new Date(u.created_at).toLocaleString()}</td>
                 </tr>
@@ -461,6 +469,7 @@ async function UsersView() {
 }
 
 async function AuditView() {
+  const { prisma } = await import('@/lib/db');
   const logs = await prisma.auditLog.findMany({
     take: 50,
     orderBy: { created_at: 'desc' },
@@ -484,7 +493,7 @@ async function AuditView() {
               </tr>
             </thead>
             <tbody>
-              {logs.map((l) => (
+              {logs.map((l: any) => (
                 <tr key={l.id}>
                   <td>{new Date(l.created_at).toLocaleString()}</td>
                   <td>{l.user?.full_name || l.user?.email || 'System'}</td>
