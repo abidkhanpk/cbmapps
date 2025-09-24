@@ -15,10 +15,11 @@ function getPrismaAuth() {
 
 export function getAuthOptions(): NextAuthOptions {
   const prisma = getPrismaAuth();
+  const authSecret = (process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET || process.env.NEXT_AUTH_SECRET || '').trim() || undefined;
 
   return {
     adapter: PrismaAdapter(prisma),
-    secret: process.env.NEXTAUTH_SECRET,
+    secret: authSecret,
     providers: [
       CredentialsProvider({
         name: 'credentials',
