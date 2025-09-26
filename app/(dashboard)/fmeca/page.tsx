@@ -14,7 +14,7 @@ function computeCriticality(rpn: number): 'low' | 'medium' | 'high' {
   return 'low'
 }
 
-// Server Actions
+// Server Actions - FMECA
 async function ensureDefaultCompany() {
   const company = await prisma.company.findFirst({})
   if (company) return company
@@ -26,7 +26,7 @@ async function ensureDefaultCompany() {
 export default async function FmecaPage({ searchParams }: { searchParams?: { [key: string]: string | string[] | undefined } }) {
   const session = await getServerSession(getAuthOptions())
   if (!session?.user?.id) redirect('/login')
-  const userId = session.user.id
+  const userId = (session.user as any).id as string
 
   const selectedStudyId = typeof searchParams?.study === 'string' ? searchParams!.study : undefined
 
@@ -65,6 +65,34 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
       })
     : null
 
+  // Users for assignee dropdowns (minimal fields)
+  const users = selectedStudy
+    ? await prisma.user.findMany({
+        select: { id: true, full_name: true, email: true },
+        orderBy: { full_name: 'asc' },
+        take: 200,
+      })
+    : []
+
+  // Fetch Actions linked to FMECA items
+  const itemIds = (selectedStudy?.items ?? []).map((i: { id: string }) => i.id)
+  const actions = itemIds.length
+    ? await prisma.action.findMany({
+        where: { entity_type: 'fmeca_item', entity_id: { in: itemIds } },
+        include: {
+          assignee: { select: { full_name: true, email: true } },
+          comments: true,
+        },
+        orderBy: { created_at: 'desc' },
+      })
+    : []
+  const actionsByItem = actions.reduce((acc: Record<string, any[]>, a: any) => {
+    acc[a.entity_id] = acc[a.entity_id] || []
+    acc[a.entity_id].push(a)
+    return acc
+  }, {} as Record<string, any[]>)
+
+  // Server Actions in-scope of the page
   async function createStudy(formData: FormData) {
     'use server'
     const session = await getServerSession(getAuthOptions())
@@ -81,7 +109,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
         title,
         scope: scope || null,
         company_id: company.id,
-        owner_user_id: session.user.id,
+        owner_user_id: (session.user as any).id,
         status: 'draft',
       },
     })
@@ -108,6 +136,9 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
 
   async function addItem(formData: FormData) {
     'use server'
+    const session = await getServerSession(getAuthOptions())
+    if (!session?.user?.id) redirect('/login')
+
     const study_id = String(formData.get('study_id') || '')
     const component_id = String(formData.get('component_id') || '')
     const failure_mode_id = String(formData.get('failure_mode_id') || '')
@@ -148,6 +179,10 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
     const id = String(formData.get('item_id') || '')
     if (!id) return
 
+    const func = String(formData.get('function') || '')
+    const effect = String(formData.get('effect') || '')
+    const cause = String(formData.get('cause') || '')
+    const detection = String(formData.get('detection') || '')
     const severity = parseInt(String(formData.get('severity') || '1'), 10)
     const occurrence = parseInt(String(formData.get('occurrence') || '1'), 10)
     const detectability = parseInt(String(formData.get('detectability') || '1'), 10)
@@ -158,10 +193,10 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
     await prisma.fmecaItem.update({
       where: { id },
       data: {
-        function: String(formData.get('function') || ''),
-        effect: String(formData.get('effect') || ''),
-        cause: String(formData.get('cause') || ''),
-        detection: String(formData.get('detection') || ''),
+        function: func,
+        effect,
+        cause,
+        detection,
         severity,
         occurrence,
         detectability,
@@ -181,12 +216,86 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
     revalidatePath(`/fmeca?study=${item.study_id}`)
   }
 
+  // Server Actions - Corrective Actions
+  async function addAction(formData: FormData) {
+    'use server'
+    const session = await getServerSession(getAuthOptions())
+    if (!session?.user?.id) redirect('/login')
+
+    const item_id = String(formData.get('item_id') || '')
+    const study_id = String(formData.get('study_id') || '')
+    const title = String(formData.get('title') || '').trim()
+    const description = String(formData.get('description') || '').trim()
+    const assignee_user_id = String(formData.get('assignee_user_id') || (session.user as any).id)
+    const priority = String(formData.get('priority') || 'medium') as any
+    const due_date_raw = String(formData.get('due_date') || '')
+
+    if (!item_id || !title) return
+
+    await prisma.action.create({
+      data: {
+        title,
+        description,
+        entity_type: 'fmeca_item',
+        entity_id: item_id,
+        assignee_user_id,
+        due_date: due_date_raw ? new Date(due_date_raw) : null,
+        priority,
+        status: 'open',
+        created_by_user_id: (session.user as any).id,
+      },
+    })
+
+    revalidatePath(`/fmeca?study=${study_id}`)
+  }
+
+  async function updateAction(formData: FormData) {
+    'use server'
+    const session = await getServerSession(getAuthOptions())
+    if (!session?.user?.id) redirect('/login')
+
+    const action_id = String(formData.get('action_id') || '')
+    const study_id = String(formData.get('study_id') || '')
+
+    if (!action_id) return
+
+    const title = String(formData.get('title') || '').trim()
+    const description = String(formData.get('description') || '').trim()
+    const assignee_user_id = String(formData.get('assignee_user_id') || '') || undefined
+    const priority = String(formData.get('priority') || '') as any
+    const status = String(formData.get('status') || '') as any
+    const due_date_raw = String(formData.get('due_date') || '')
+
+    await prisma.action.update({
+      where: { id: action_id },
+      data: {
+        ...(title ? { title } : {}),
+        ...(description ? { description } : {}),
+        ...(assignee_user_id ? { assignee_user_id } : {}),
+        ...(priority ? { priority } : {}),
+        ...(status ? { status } : {}),
+        ...(due_date_raw ? { due_date: new Date(due_date_raw) } : { due_date: null }),
+      },
+    })
+
+    revalidatePath(`/fmeca?study=${study_id}`)
+  }
+
+  async function deleteAction(formData: FormData) {
+    'use server'
+    const action_id = String(formData.get('action_id') || '')
+    const study_id = String(formData.get('study_id') || '')
+    if (!action_id) return
+    await prisma.action.delete({ where: { id: action_id } })
+    revalidatePath(`/fmeca?study=${study_id}`)
+  }
+
   return (
     <div className="container-fluid">
       <div className="row mb-4">
         <div className="col">
           <h1 className="h3 mb-0">FMECA Studies</h1>
-          <p className="text-muted">Create new FMECA studies and manage analysis items.</p>
+          <p className="text-muted">Create new FMECA studies and manage analysis items. Link corrective actions to each FMECA item.</p>
         </div>
       </div>
 
@@ -195,18 +304,20 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
           <div className="card">
             <div className="card-header"><strong>Create Study</strong></div>
             <div className="card-body">
-              <form action={createStudy}>
-                <div className="mb-3">
+              <form action={createStudy} className="row g-3">
+                <div className="col-12">
                   <label className="form-label">Title</label>
                   <input name="title" className="form-control" placeholder="e.g. Conveyor System FMECA" required />
                 </div>
-                <div className="mb-3">
+                <div className="col-12">
                   <label className="form-label">Scope</label>
                   <textarea name="scope" className="form-control" rows={3} placeholder="Optional study scope" />
                 </div>
-                <button className="btn btn-primary" type="submit">
-                  <i className="bi bi-plus-circle me-2" />Create Study
-                </button>
+                <div className="col-12 d-flex gap-2">
+                  <button className="btn btn-primary" type="submit">
+                    <i className="bi bi-plus-circle me-2" />Create Study
+                  </button>
+                </div>
               </form>
             </div>
           </div>
@@ -280,6 +391,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
                 </div>
               </div>
               <div className="card-body">
+                {/* Add Item */}
                 <div className="row g-4">
                   <div className="col-lg-4">
                     <div className="card">
@@ -347,74 +459,160 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
 
                   <div className="col-lg-8">
                     <div className="card">
-                      <div className="card-header"><strong>Items</strong></div>
+                      <div className="card-header d-flex justify-content-between align-items-center">
+                        <strong>Items</strong>
+                        <span className="small text-muted">Inline edits supported. Link and manage corrective actions per item.</span>
+                      </div>
                       <div className="card-body table-responsive">
                         <table className="table table-striped align-middle">
                           <thead>
                             <tr>
-                              <th>Component</th>
+                              <th style={{minWidth: 200}}>Component</th>
                               <th>Failure Mode</th>
+                              <th>Function</th>
                               <th>Ratings (S/O/D)</th>
                               <th>RPN</th>
                               <th>Criticality</th>
-                              <th>Actions</th>
+                              <th style={{minWidth: 280}}>Corrective Actions</th>
+                              <th>Ops</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {selectedStudy.items.map((it: any) => (
-                              <tr key={it.id}>
-                                <td>{(it.component.asset?.tag_code || it.component.asset?.name) + ' - ' + it.component.name}</td>
-                                <td>{it.failure_mode.title}</td>
-                                <td>
-                                  <form action={updateItem} className="d-flex gap-2 align-items-center">
-                                    <input type="hidden" name="item_id" value={it.id} />
-                                    <input type="hidden" name="study_id" value={selectedStudy.id} />
-                                    <input type="number" name="severity" min={1} max={10} defaultValue={it.severity} className="form-control form-control-sm" style={{width: 70}} />
-                                    <input type="number" name="occurrence" min={1} max={10} defaultValue={it.occurrence} className="form-control form-control-sm" style={{width: 70}} />
-                                    <input type="number" name="detectability" min={1} max={10} defaultValue={it.detectability} className="form-control form-control-sm" style={{width: 70}} />
-                                    <button className="btn btn-sm btn-secondary" type="submit">Save</button>
-                                  </form>
-                                </td>
-                                <td>{it.rpn}</td>
-                                <td className={'text-capitalize'}>{it.criticality}</td>
-                                <td className="d-flex gap-2">
-                                  <details>
-                                    <summary className="btn btn-sm btn-outline-secondary">Details</summary>
-                                    <div className="p-2">
-                                      <form action={updateItem}>
-                                        <input type="hidden" name="item_id" value={it.id} />
-                                        <input type="hidden" name="study_id" value={selectedStudy.id} />
-                                        <div className="mb-2">
-                                          <label className="form-label">Function</label>
-                                          <input name="function" defaultValue={it.function} className="form-control form-control-sm" />
+                            {selectedStudy.items.map((it: any) => {
+                              const itemActions = actionsByItem[it.id] || []
+                              return (
+                                <tr key={it.id}>
+                                  <td>{(it.component.asset?.tag_code || it.component.asset?.name) + ' - ' + it.component.name}</td>
+                                  <td>{it.failure_mode.title}</td>
+                                  <td>
+                                    <form action={updateItem} className="d-flex flex-column gap-2">
+                                      <input type="hidden" name="item_id" value={it.id} />
+                                      <input type="hidden" name="study_id" value={selectedStudy.id} />
+                                      <input name="function" defaultValue={it.function} className="form-control form-control-sm" placeholder="Function" />
+                                      <input name="effect" defaultValue={it.effect} className="form-control form-control-sm" placeholder="Effect" />
+                                      <input name="cause" defaultValue={it.cause} className="form-control form-control-sm" placeholder="Cause" />
+                                      <input name="detection" defaultValue={it.detection} className="form-control form-control-sm" placeholder="Detection" />
+                                      <div className="d-flex gap-2 align-items-center">
+                                        <input type="number" name="severity" min={1} max={10} defaultValue={it.severity} className="form-control form-control-sm" style={{width: 70}} />
+                                        <input type="number" name="occurrence" min={1} max={10} defaultValue={it.occurrence} className="form-control form-control-sm" style={{width: 70}} />
+                                        <input type="number" name="detectability" min={1} max={10} defaultValue={it.detectability} className="form-control form-control-sm" style={{width: 70}} />
+                                        <button className="btn btn-sm btn-secondary" type="submit">Save</button>
+                                      </div>
+                                    </form>
+                                  </td>
+                                  <td>{it.rpn}</td>
+                                  <td className={'text-capitalize'}>{it.criticality}</td>
+                                  <td>
+                                    {/* Actions List */}
+                                    <div className="d-flex flex-column gap-2">
+                                      {itemActions.length === 0 && (
+                                        <div className="text-muted small">No actions yet</div>
+                                      )}
+                                      {itemActions.map((a: any) => (
+                                        <div key={a.id} className="border rounded p-2">
+                                          <div className="d-flex justify-content-between align-items-start">
+                                            <div>
+                                              <div className="fw-semibold">
+                                                {a.title}
+                                                <span className={`badge ms-2 bg-${a.status === 'done' ? 'success' : a.status === 'in_progress' ? 'primary' : a.status === 'blocked' ? 'danger' : 'secondary'}`}>{a.status.replace('_', ' ')}</span>
+                                                <span className={`badge ms-1 bg-${a.priority === 'urgent' ? 'danger' : a.priority === 'high' ? 'warning' : a.priority === 'medium' ? 'info' : 'secondary'}`}>{a.priority}</span>
+                                              </div>
+                                              <div className="small text-muted">Assignee: {a.assignee?.full_name || a.assignee?.email || 'Unassigned'}{a.due_date ? ` • Due: ${new Date(a.due_date).toLocaleDateString()}` : ''}</div>
+                                              {a.description && (
+                                                <div className="small mt-1">{a.description}</div>
+                                              )}
+                                            </div>
+                                            <details>
+                                              <summary className="btn btn-sm btn-outline-secondary">Edit</summary>
+                                              <div className="mt-2">
+                                                <form action={updateAction} className="d-flex flex-column gap-2">
+                                                  <input type="hidden" name="action_id" value={a.id} />
+                                                  <input type="hidden" name="study_id" value={selectedStudy.id} />
+                                                  <input className="form-control form-control-sm" name="title" defaultValue={a.title} placeholder="Title" />
+                                                  <textarea className="form-control form-control-sm" name="description" defaultValue={a.description || ''} placeholder="Description" />
+                                                  <div className="d-flex gap-2">
+                                                    <select name="status" defaultValue={a.status} className="form-select form-select-sm">
+                                                      <option value="open">Open</option>
+                                                      <option value="in_progress">In Progress</option>
+                                                      <option value="blocked">Blocked</option>
+                                                      <option value="done">Done</option>
+                                                      <option value="cancelled">Cancelled</option>
+                                                    </select>
+                                                    <select name="priority" defaultValue={a.priority} className="form-select form-select-sm">
+                                                      <option value="low">Low</option>
+                                                      <option value="medium">Medium</option>
+                                                      <option value="high">High</option>
+                                                      <option value="urgent">Urgent</option>
+                                                    </select>
+                                                  </div>
+                                                  <div className="d-flex gap-2">
+                                                    <select name="assignee_user_id" defaultValue={a.assignee_user_id} className="form-select form-select-sm">
+                                                      <option value="">Unassigned</option>
+                                                      {users.map((u: any) => (
+                                                        <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
+                                                      ))}
+                                                    </select>
+                                                    <input type="date" name="due_date" defaultValue={a.due_date ? new Date(a.due_date).toISOString().split('T')[0] : ''} className="form-control form-control-sm" />
+                                                  </div>
+                                                  <div className="d-flex gap-2">
+                                                    <button className="btn btn-sm btn-secondary" type="submit">Save</button>
+                                                    <form action={deleteAction}>
+                                                      <input type="hidden" name="action_id" value={a.id} />
+                                                      <input type="hidden" name="study_id" value={selectedStudy.id} />
+                                                      <button className="btn btn-sm btn-outline-danger" type="submit">
+                                                        <i className="bi bi-trash me-1" />Delete
+                                                      </button>
+                                                    </form>
+                                                  </div>
+                                                </form>
+                                              </div>
+                                            </details>
+                                          </div>
                                         </div>
-                                        <div className="mb-2">
-                                          <label className="form-label">Effect</label>
-                                          <input name="effect" defaultValue={it.effect} className="form-control form-control-sm" />
+                                      ))}
+
+                                      {/* Add Action */}
+                                      <details>
+                                        <summary className="btn btn-sm btn-outline-primary">Add Action</summary>
+                                        <div className="mt-2">
+                                          <form action={addAction} className="d-flex flex-column gap-2">
+                                            <input type="hidden" name="item_id" value={it.id} />
+                                            <input type="hidden" name="study_id" value={selectedStudy.id} />
+                                            <input className="form-control form-control-sm" name="title" placeholder="Title" required />
+                                            <textarea className="form-control form-control-sm" name="description" placeholder="Description (optional)" />
+                                            <div className="d-flex gap-2">
+                                              <select name="assignee_user_id" className="form-select form-select-sm" defaultValue={userId}>
+                                                {users.map((u: any) => (
+                                                  <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
+                                                ))}
+                                              </select>
+                                              <select name="priority" className="form-select form-select-sm" defaultValue="medium">
+                                                <option value="low">Low</option>
+                                                <option value="medium">Medium</option>
+                                                <option value="high">High</option>
+                                                <option value="urgent">Urgent</option>
+                                              </select>
+                                              <input type="date" name="due_date" className="form-control form-control-sm" />
+                                            </div>
+                                            <button className="btn btn-sm btn-primary" type="submit">Create Action</button>
+                                          </form>
                                         </div>
-                                        <div className="mb-2">
-                                          <label className="form-label">Cause</label>
-                                          <input name="cause" defaultValue={it.cause} className="form-control form-control-sm" />
-                                        </div>
-                                        <div className="mb-2">
-                                          <label className="form-label">Detection</label>
-                                          <input name="detection" defaultValue={it.detection} className="form-control form-control-sm" />
-                                        </div>
-                                        <button className="btn btn-sm btn-secondary" type="submit">Save Details</button>
-                                      </form>
+                                      </details>
                                     </div>
-                                  </details>
-                                  <form action={deleteItem}>
-                                    <input type="hidden" name="item_id" value={it.id} />
-                                    <button className="btn btn-sm btn-outline-danger" type="submit">
-                                      <i className="bi bi-trash me-1" />Delete
-                                    </button>
-                                  </form>
-                                </td>
-                              </tr>
-                            ))}
+                                  </td>
+                                  <td className="text-nowrap">
+                                    <form action={deleteItem}>
+                                      <input type="hidden" name="item_id" value={it.id} />
+                                      <button className="btn btn-sm btn-outline-danger" type="submit">
+                                        <i className="bi bi-trash me-1" />Delete
+                                      </button>
+                                    </form>
+                                  </td>
+                                </tr>
+                              )
+                            })}
                             {selectedStudy.items.length === 0 && (
-                              <tr><td colSpan={6} className="text-center text-muted">No items yet</td></tr>
+                              <tr><td colSpan={8} className="text-center text-muted">No items yet</td></tr>
                             )}
                           </tbody>
                         </table>
