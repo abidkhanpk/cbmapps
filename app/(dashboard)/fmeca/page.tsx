@@ -29,9 +29,10 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
   const userId = (session.user as any).id as string
 
   const selectedStudyId = typeof searchParams?.study === 'string' ? searchParams!.study : undefined
+  const expandedItemId = typeof searchParams?.expand === 'string' ? searchParams!.expand : undefined
 
   // Data for list and selects
-  const [studies, components, failureModes] = await Promise.all([
+  const [studies, components, failureModes, assets] = await Promise.all([
     prisma.fmecaStudy.findMany({
       orderBy: { created_at: 'desc' },
       include: {
@@ -47,6 +48,11 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
       take: 200,
     }),
     prisma.failureMode.findMany({ orderBy: { title: 'asc' }, take: 200 }),
+    prisma.asset.findMany({
+      select: { id: true, name: true, tag_code: true },
+      orderBy: [{ tag_code: 'asc' }, { name: 'asc' }],
+      take: 500,
+    }),
   ])
 
   const selectedStudy = selectedStudyId
@@ -134,6 +140,25 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
     revalidatePath('/fmeca')
   }
 
+  async function createComponent(formData: FormData) {
+    'use server'
+    const study_id = String(formData.get('study_id') || '')
+    const asset_id = String(formData.get('asset_id') || '')
+    const name = String(formData.get('name') || '').trim()
+    const component_code = String(formData.get('component_code') || '').trim()
+    const type = String(formData.get('type') || 'other') as any
+    if (!asset_id || !name || !component_code) return
+    await prisma.component.create({
+      data: {
+        asset_id,
+        name,
+        component_code,
+        type,
+      },
+    })
+    revalidatePath(`/fmeca?study=${study_id}`)
+  }
+
   async function addItem(formData: FormData) {
     'use server'
     const session = await getServerSession(getAuthOptions())
@@ -205,7 +230,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
       },
     })
     const study_id = String(formData.get('study_id') || '')
-    revalidatePath(`/fmeca?study=${study_id || ''}`)
+    revalidatePath(`/fmeca?study=${study_id || ''}&expand=${id}`)
   }
 
   async function deleteItem(formData: FormData) {
@@ -246,7 +271,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
       },
     })
 
-    revalidatePath(`/fmeca?study=${study_id}`)
+    revalidatePath(`/fmeca?study=${study_id}&expand=${item_id}`)
   }
 
   async function updateAction(formData: FormData) {
@@ -256,6 +281,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
 
     const action_id = String(formData.get('action_id') || '')
     const study_id = String(formData.get('study_id') || '')
+    const item_id = String(formData.get('item_id') || '')
 
     if (!action_id) return
 
@@ -278,16 +304,17 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
       },
     })
 
-    revalidatePath(`/fmeca?study=${study_id}`)
+    revalidatePath(`/fmeca?study=${study_id}&expand=${item_id}`)
   }
 
   async function deleteAction(formData: FormData) {
     'use server'
     const action_id = String(formData.get('action_id') || '')
     const study_id = String(formData.get('study_id') || '')
+    const item_id = String(formData.get('item_id') || '')
     if (!action_id) return
     await prisma.action.delete({ where: { id: action_id } })
-    revalidatePath(`/fmeca?study=${study_id}`)
+    revalidatePath(`/fmeca?study=${study_id}&expand=${item_id}`)
   }
 
   return (
@@ -295,7 +322,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
       <div className="row mb-4">
         <div className="col">
           <h1 className="h3 mb-0">FMECA Studies</h1>
-          <p className="text-muted">Create new FMECA studies and manage analysis items. Link corrective actions to each FMECA item.</p>
+          <p className="text-muted">Create new FMECA studies and manage analysis items. Link corrective actions to each item using the expandable row.</p>
         </div>
       </div>
 
@@ -327,7 +354,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
           <div className="card">
             <div className="card-header"><strong>Existing Studies</strong></div>
             <div className="card-body table-responsive">
-              <table className="table table-striped align-middle">
+              <table className="table table-striped table-sm align-middle">
                 <thead>
                   <tr>
                     <th>Title</th>
@@ -369,257 +396,331 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
 
       {selectedStudy && (
         <div className="row g-4 mt-1">
-          <div className="col-12">
+          <div className="col-lg-4">
+            <div className="card">
+              <div className="card-header"><strong>Add FMECA Item</strong></div>
+              <div className="card-body">
+                <form action={addItem} className="row g-2">
+                  <input type="hidden" name="study_id" value={selectedStudy.id} />
+                  <div className="col-12">
+                    <label className="form-label">Component</label>
+                    <select name="component_id" className="form-select form-select-sm" required>
+                      <option value="">Select component...</option>
+                      {components.map((c: any) => (
+                        <option key={c.id} value={c.id}>
+                          {(c.asset?.tag_code || c.asset?.name) + ' - ' + c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-12">
+                    <label className="form-label">Failure Mode</label>
+                    <select name="failure_mode_id" className="form-select form-select-sm" required>
+                      <option value="">Select failure mode...</option>
+                      {failureModes.map((fm: any) => (
+                        <option key={fm.id} value={fm.id}>{fm.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-12">
+                    <label className="form-label">Function</label>
+                    <input name="function" className="form-control form-control-sm" placeholder="Component function" required />
+                  </div>
+                  <div className="col-12">
+                    <label className="form-label">Effect</label>
+                    <input name="effect" className="form-control form-control-sm" placeholder="Effect of failure" />
+                  </div>
+                  <div className="col-12">
+                    <label className="form-label">Cause</label>
+                    <input name="cause" className="form-control form-control-sm" placeholder="Cause of failure" />
+                  </div>
+                  <div className="col-12">
+                    <label className="form-label">Detection</label>
+                    <input name="detection" className="form-control form-control-sm" placeholder="Detection method" />
+                  </div>
+                  <div className="col-4">
+                    <label className="form-label">Severity</label>
+                    <input type="number" name="severity" className="form-control form-control-sm" min={1} max={10} defaultValue={5} required />
+                  </div>
+                  <div className="col-4">
+                    <label className="form-label">Occurrence</label>
+                    <input type="number" name="occurrence" className="form-control form-control-sm" min={1} max={10} defaultValue={5} required />
+                  </div>
+                  <div className="col-4">
+                    <label className="form-label">Detectability</label>
+                    <input type="number" name="detectability" className="form-control form-control-sm" min={1} max={10} defaultValue={5} required />
+                  </div>
+                  <div className="col-12">
+                    <button className="btn btn-sm btn-primary" type="submit">
+                      <i className="bi bi-plus-circle me-2" />Add Item
+                    </button>
+                  </div>
+                </form>
+                <hr />
+                <details>
+                  <summary className="text-secondary small">Quick add component to Asset Register</summary>
+                  <div className="mt-2">
+                    <form action={createComponent} className="row g-2">
+                      <input type="hidden" name="study_id" value={selectedStudy.id} />
+                      <div className="col-12">
+                        <label className="form-label">Asset (Equipment)</label>
+                        <select name="asset_id" className="form-select form-select-sm" required>
+                          <option value="">Select asset...</option>
+                          {assets.map((a: any) => (
+                            <option key={a.id} value={a.id}>{(a.tag_code || a.name) + ' - ' + a.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="col-7">
+                        <label className="form-label">Component Name</label>
+                        <input name="name" className="form-control form-control-sm" required />
+                      </div>
+                      <div className="col-5">
+                        <label className="form-label">Code</label>
+                        <input name="component_code" className="form-control form-control-sm" required />
+                      </div>
+                      <div className="col-12">
+                        <label className="form-label">Type</label>
+                        <select name="type" className="form-select form-select-sm" defaultValue="other">
+                          <option value="mechanical">Mechanical</option>
+                          <option value="electrical">Electrical</option>
+                          <option value="instrumentation">Instrumentation</option>
+                          <option value="rotating">Rotating</option>
+                          <option value="static">Static</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                      <div className="col-12">
+                        <button className="btn btn-sm btn-outline-primary" type="submit">Add Component</button>
+                      </div>
+                    </form>
+                  </div>
+                </details>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-lg-8">
             <div className="card">
               <div className="card-header d-flex justify-content-between align-items-center">
-                <div>
-                  <strong>Manage Study:</strong> {selectedStudy.title}
-                  <div className="small text-muted">Owner: {selectedStudy.owner?.full_name || selectedStudy.owner?.email}</div>
-                </div>
-                <div>
-                  <form action={updateStudyStatus} className="d-flex align-items-center gap-2">
-                    <input type="hidden" name="study_id" value={selectedStudy.id} />
-                    <select className="form-select form-select-sm" name="status" defaultValue={selectedStudy.status}>
-                      <option value="draft">Draft</option>
-                      <option value="in_review">In Review</option>
-                      <option value="approved">Approved</option>
-                      <option value="archived">Archived</option>
-                    </select>
-                    <button className="btn btn-sm btn-secondary" type="submit">Update Status</button>
-                    <a className="btn btn-sm btn-outline-secondary" href="/fmeca">Close</a>
-                  </form>
-                </div>
+                <strong>Items</strong>
+                <span className="small text-muted">Compact rows. Expand a row to edit and manage corrective actions.</span>
               </div>
-              <div className="card-body">
-                {/* Add Item */}
-                <div className="row g-4">
-                  <div className="col-lg-4">
-                    <div className="card">
-                      <div className="card-header"><strong>Add FMECA Item</strong></div>
-                      <div className="card-body">
-                        <form action={addItem}>
-                          <input type="hidden" name="study_id" value={selectedStudy.id} />
-                          <div className="mb-2">
-                            <label className="form-label">Component</label>
-                            <select name="component_id" className="form-select" required>
-                              <option value="">Select component...</option>
-                              {components.map((c: any) => (
-                                <option key={c.id} value={c.id}>
-                                  {(c.asset?.tag_code || c.asset?.name) + ' - ' + c.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="mb-2">
-                            <label className="form-label">Failure Mode</label>
-                            <select name="failure_mode_id" className="form-select" required>
-                              <option value="">Select failure mode...</option>
-                              {failureModes.map((fm: any) => (
-                                <option key={fm.id} value={fm.id}>{fm.title}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="mb-2">
-                            <label className="form-label">Function</label>
-                            <input name="function" className="form-control" placeholder="Component function" required />
-                          </div>
-                          <div className="mb-2">
-                            <label className="form-label">Effect</label>
-                            <input name="effect" className="form-control" placeholder="Effect of failure" />
-                          </div>
-                          <div className="mb-2">
-                            <label className="form-label">Cause</label>
-                            <input name="cause" className="form-control" placeholder="Cause of failure" />
-                          </div>
-                          <div className="mb-2">
-                            <label className="form-label">Detection</label>
-                            <input name="detection" className="form-control" placeholder="Detection method" />
-                          </div>
-                          <div className="row g-2 mb-3">
-                            <div className="col">
-                              <label className="form-label">Severity</label>
-                              <input type="number" name="severity" className="form-control" min={1} max={10} defaultValue={5} required />
-                            </div>
-                            <div className="col">
-                              <label className="form-label">Occurrence</label>
-                              <input type="number" name="occurrence" className="form-control" min={1} max={10} defaultValue={5} required />
-                            </div>
-                            <div className="col">
-                              <label className="form-label">Detectability</label>
-                              <input type="number" name="detectability" className="form-control" min={1} max={10} defaultValue={5} required />
-                            </div>
-                          </div>
-                          <button className="btn btn-primary" type="submit">
-                            <i className="bi bi-plus-circle me-2" />Add Item
-                          </button>
-                        </form>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="col-lg-8">
-                    <div className="card">
-                      <div className="card-header d-flex justify-content-between align-items-center">
-                        <strong>Items</strong>
-                        <span className="small text-muted">Inline edits supported. Link and manage corrective actions per item.</span>
-                      </div>
-                      <div className="card-body table-responsive">
-                        <table className="table table-striped align-middle">
-                          <thead>
+              <div className="card-body table-responsive">
+                <table className="table table-striped table-sm align-middle">
+                  <thead>
+                    <tr>
+                      <th style={{minWidth: 220}}>Component</th>
+                      <th>Failure Mode</th>
+                      <th>Function</th>
+                      <th className="text-center">S/O/D</th>
+                      <th>RPN</th>
+                      <th>Criticality</th>
+                      <th className="text-end">Ops</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(selectedStudy?.items ?? []).map((it: any) => {
+                      const isExpanded = expandedItemId === it.id
+                      return (
+                        <>
+                          <tr key={it.id}>
+                            <td>{(it.component.asset?.tag_code || it.component.asset?.name) + ' - ' + it.component.name}</td>
+                            <td>{it.failure_mode.title}</td>
+                            <td className="text-truncate" style={{maxWidth: 220}} title={it.function}>{it.function}</td>
+                            <td className="text-center">{it.severity}/{it.occurrence}/{it.detectability}</td>
+                            <td>{it.rpn}</td>
+                            <td className={'text-capitalize'}>{it.criticality}</td>
+                            <td className="text-end">
+                              {!isExpanded ? (
+                                <a className="btn btn-sm btn-outline-secondary" href={`/fmeca?study=${selectedStudy.id}&expand=${it.id}`}>
+                                  <i className="bi bi-arrows-expand me-1" />Expand
+                                </a>
+                              ) : (
+                                <a className="btn btn-sm btn-secondary" href={`/fmeca?study=${selectedStudy.id}`}>
+                                  <i className="bi bi-arrows-collapse me-1" />Collapse
+                                </a>
+                              )}
+                              <form action={deleteItem} className="d-inline ms-2">
+                                <input type="hidden" name="item_id" value={it.id} />
+                                <button className="btn btn-sm btn-outline-danger" type="submit">
+                                  <i className="bi bi-trash me-1" />Delete
+                                </button>
+                              </form>
+                            </td>
+                          </tr>
+                          {isExpanded && (
                             <tr>
-                              <th style={{minWidth: 200}}>Component</th>
-                              <th>Failure Mode</th>
-                              <th>Function</th>
-                              <th>Ratings (S/O/D)</th>
-                              <th>RPN</th>
-                              <th>Criticality</th>
-                              <th style={{minWidth: 280}}>Corrective Actions</th>
-                              <th>Ops</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {selectedStudy.items.map((it: any) => {
-                              const itemActions = actionsByItem[it.id] || []
-                              return (
-                                <tr key={it.id}>
-                                  <td>{(it.component.asset?.tag_code || it.component.asset?.name) + ' - ' + it.component.name}</td>
-                                  <td>{it.failure_mode.title}</td>
-                                  <td>
-                                    <form action={updateItem} className="d-flex flex-column gap-2">
-                                      <input type="hidden" name="item_id" value={it.id} />
-                                      <input type="hidden" name="study_id" value={selectedStudy.id} />
-                                      <input name="function" defaultValue={it.function} className="form-control form-control-sm" placeholder="Function" />
-                                      <input name="effect" defaultValue={it.effect} className="form-control form-control-sm" placeholder="Effect" />
-                                      <input name="cause" defaultValue={it.cause} className="form-control form-control-sm" placeholder="Cause" />
-                                      <input name="detection" defaultValue={it.detection} className="form-control form-control-sm" placeholder="Detection" />
-                                      <div className="d-flex gap-2 align-items-center">
-                                        <input type="number" name="severity" min={1} max={10} defaultValue={it.severity} className="form-control form-control-sm" style={{width: 70}} />
-                                        <input type="number" name="occurrence" min={1} max={10} defaultValue={it.occurrence} className="form-control form-control-sm" style={{width: 70}} />
-                                        <input type="number" name="detectability" min={1} max={10} defaultValue={it.detectability} className="form-control form-control-sm" style={{width: 70}} />
-                                        <button className="btn btn-sm btn-secondary" type="submit">Save</button>
-                                      </div>
-                                    </form>
-                                  </td>
-                                  <td>{it.rpn}</td>
-                                  <td className={'text-capitalize'}>{it.criticality}</td>
-                                  <td>
-                                    {/* Actions List */}
-                                    <div className="d-flex flex-column gap-2">
-                                      {itemActions.length === 0 && (
-                                        <div className="text-muted small">No actions yet</div>
-                                      )}
-                                      {itemActions.map((a: any) => (
-                                        <div key={a.id} className="border rounded p-2">
-                                          <div className="d-flex justify-content-between align-items-start">
-                                            <div>
-                                              <div className="fw-semibold">
-                                                {a.title}
-                                                <span className={`badge ms-2 bg-${a.status === 'done' ? 'success' : a.status === 'in_progress' ? 'primary' : a.status === 'blocked' ? 'danger' : 'secondary'}`}>{a.status.replace('_', ' ')}</span>
-                                                <span className={`badge ms-1 bg-${a.priority === 'urgent' ? 'danger' : a.priority === 'high' ? 'warning' : a.priority === 'medium' ? 'info' : 'secondary'}`}>{a.priority}</span>
-                                              </div>
-                                              <div className="small text-muted">Assignee: {a.assignee?.full_name || a.assignee?.email || 'Unassigned'}{a.due_date ? ` • Due: ${new Date(a.due_date).toLocaleDateString()}` : ''}</div>
-                                              {a.description && (
-                                                <div className="small mt-1">{a.description}</div>
-                                              )}
-                                            </div>
-                                            <details>
-                                              <summary className="btn btn-sm btn-outline-secondary">Edit</summary>
-                                              <div className="mt-2">
-                                                <form action={updateAction} className="d-flex flex-column gap-2">
-                                                  <input type="hidden" name="action_id" value={a.id} />
-                                                  <input type="hidden" name="study_id" value={selectedStudy.id} />
-                                                  <input className="form-control form-control-sm" name="title" defaultValue={a.title} placeholder="Title" />
-                                                  <textarea className="form-control form-control-sm" name="description" defaultValue={a.description || ''} placeholder="Description" />
-                                                  <div className="d-flex gap-2">
-                                                    <select name="status" defaultValue={a.status} className="form-select form-select-sm">
-                                                      <option value="open">Open</option>
-                                                      <option value="in_progress">In Progress</option>
-                                                      <option value="blocked">Blocked</option>
-                                                      <option value="done">Done</option>
-                                                      <option value="cancelled">Cancelled</option>
-                                                    </select>
-                                                    <select name="priority" defaultValue={a.priority} className="form-select form-select-sm">
-                                                      <option value="low">Low</option>
-                                                      <option value="medium">Medium</option>
-                                                      <option value="high">High</option>
-                                                      <option value="urgent">Urgent</option>
-                                                    </select>
-                                                  </div>
-                                                  <div className="d-flex gap-2">
-                                                    <select name="assignee_user_id" defaultValue={a.assignee_user_id} className="form-select form-select-sm">
-                                                      <option value="">Unassigned</option>
-                                                      {users.map((u: any) => (
-                                                        <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
-                                                      ))}
-                                                    </select>
-                                                    <input type="date" name="due_date" defaultValue={a.due_date ? new Date(a.due_date).toISOString().split('T')[0] : ''} className="form-control form-control-sm" />
-                                                  </div>
-                                                  <div className="d-flex gap-2">
-                                                    <button className="btn btn-sm btn-secondary" type="submit">Save</button>
-                                                    <form action={deleteAction}>
-                                                      <input type="hidden" name="action_id" value={a.id} />
-                                                      <input type="hidden" name="study_id" value={selectedStudy.id} />
-                                                      <button className="btn btn-sm btn-outline-danger" type="submit">
-                                                        <i className="bi bi-trash me-1" />Delete
-                                                      </button>
-                                                    </form>
-                                                  </div>
-                                                </form>
-                                              </div>
-                                            </details>
-                                          </div>
+                              <td colSpan={7}>
+                                <div className="row g-3">
+                                  <div className="col-lg-6">
+                                    <div className="border rounded p-3">
+                                      <div className="fw-semibold mb-2">Edit FMECA Item</div>
+                                      <form action={updateItem} className="row g-2">
+                                        <input type="hidden" name="item_id" value={it.id} />
+                                        <input type="hidden" name="study_id" value={selectedStudy.id} />
+                                        <div className="col-12">
+                                          <label className="form-label">Function</label>
+                                          <input name="function" defaultValue={it.function} className="form-control form-control-sm" placeholder="Function" />
                                         </div>
-                                      ))}
-
-                                      {/* Add Action */}
-                                      <details>
-                                        <summary className="btn btn-sm btn-outline-primary">Add Action</summary>
-                                        <div className="mt-2">
-                                          <form action={addAction} className="d-flex flex-column gap-2">
-                                            <input type="hidden" name="item_id" value={it.id} />
-                                            <input type="hidden" name="study_id" value={selectedStudy.id} />
-                                            <input className="form-control form-control-sm" name="title" placeholder="Title" required />
-                                            <textarea className="form-control form-control-sm" name="description" placeholder="Description (optional)" />
-                                            <div className="d-flex gap-2">
-                                              <select name="assignee_user_id" className="form-select form-select-sm" defaultValue={userId}>
-                                                {users.map((u: any) => (
-                                                  <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
-                                                ))}
-                                              </select>
-                                              <select name="priority" className="form-select form-select-sm" defaultValue="medium">
-                                                <option value="low">Low</option>
-                                                <option value="medium">Medium</option>
-                                                <option value="high">High</option>
-                                                <option value="urgent">Urgent</option>
-                                              </select>
-                                              <input type="date" name="due_date" className="form-control form-control-sm" />
-                                            </div>
-                                            <button className="btn btn-sm btn-primary" type="submit">Create Action</button>
-                                          </form>
+                                        <div className="col-12">
+                                          <label className="form-label">Effect</label>
+                                          <input name="effect" defaultValue={it.effect} className="form-control form-control-sm" placeholder="Effect" />
                                         </div>
-                                      </details>
+                                        <div className="col-12">
+                                          <label className="form-label">Cause</label>
+                                          <input name="cause" defaultValue={it.cause} className="form-control form-control-sm" placeholder="Cause" />
+                                        </div>
+                                        <div className="col-12">
+                                          <label className="form-label">Detection</label>
+                                          <input name="detection" defaultValue={it.detection} className="form-control form-control-sm" placeholder="Detection" />
+                                        </div>
+                                        <div className="col-4">
+                                          <label className="form-label">Severity</label>
+                                          <input type="number" name="severity" min={1} max={10} defaultValue={it.severity} className="form-control form-control-sm" />
+                                        </div>
+                                        <div className="col-4">
+                                          <label className="form-label">Occurrence</label>
+                                          <input type="number" name="occurrence" min={1} max={10} defaultValue={it.occurrence} className="form-control form-control-sm" />
+                                        </div>
+                                        <div className="col-4">
+                                          <label className="form-label">Detectability</label>
+                                          <input type="number" name="detectability" min={1} max={10} defaultValue={it.detectability} className="form-control form-control-sm" />
+                                        </div>
+                                        <div className="col-12">
+                                          <button className="btn btn-sm btn-secondary" type="submit">Save</button>
+                                        </div>
+                                      </form>
                                     </div>
-                                  </td>
-                                  <td className="text-nowrap">
-                                    <form action={deleteItem}>
-                                      <input type="hidden" name="item_id" value={it.id} />
-                                      <button className="btn btn-sm btn-outline-danger" type="submit">
-                                        <i className="bi bi-trash me-1" />Delete
-                                      </button>
-                                    </form>
-                                  </td>
-                                </tr>
-                              )
-                            })}
-                            {selectedStudy.items.length === 0 && (
-                              <tr><td colSpan={8} className="text-center text-muted">No items yet</td></tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                                  </div>
+                                  <div className="col-lg-6">
+                                    <div className="border rounded p-3">
+                                      <div className="fw-semibold mb-2">Corrective Actions</div>
+                                      {/* Add Action */}
+                                      <form action={addAction} className="row g-2 mb-3">
+                                        <input type="hidden" name="item_id" value={it.id} />
+                                        <input type="hidden" name="study_id" value={selectedStudy.id} />
+                                        <div className="col-8">
+                                          <input className="form-control form-control-sm" name="title" placeholder="Title" required />
+                                        </div>
+                                        <div className="col-4">
+                                          <select name="priority" className="form-select form-select-sm" defaultValue="medium">
+                                            <option value="low">Low</option>
+                                            <option value="medium">Medium</option>
+                                            <option value="high">High</option>
+                                            <option value="urgent">Urgent</option>
+                                          </select>
+                                        </div>
+                                        <div className="col-12">
+                                          <textarea className="form-control form-control-sm" name="description" placeholder="Description (optional)" />
+                                        </div>
+                                        <div className="col-7">
+                                          <select name="assignee_user_id" className="form-select form-select-sm" defaultValue={userId}>
+                                            {users.map((u: any) => (
+                                              <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                        <div className="col-5">
+                                          <input type="date" name="due_date" className="form-control form-control-sm" />
+                                        </div>
+                                        <div className="col-12">
+                                          <button className="btn btn-sm btn-primary" type="submit">Create Action</button>
+                                        </div>
+                                      </form>
+
+                                      {/* Actions List */}
+                                      <div className="d-flex flex-column gap-2">
+                                        {(actionsByItem[it.id] || []).map((a: any) => (
+                                          <div key={a.id} className="border rounded p-2">
+                                            <div className="d-flex justify-content-between align-items-start">
+                                              <div>
+                                                <div className="fw-semibold">
+                                                  {a.title}
+                                                  <span className={`badge ms-2 bg-${a.status === 'done' ? 'success' : a.status === 'in_progress' ? 'primary' : a.status === 'blocked' ? 'danger' : 'secondary'}`}>{a.status.replace('_', ' ')}</span>
+                                                  <span className={`badge ms-1 bg-${a.priority === 'urgent' ? 'danger' : a.priority === 'high' ? 'warning' : a.priority === 'medium' ? 'info' : 'secondary'}`}>{a.priority}</span>
+                                                </div>
+                                                <div className="small text-muted">Assignee: {a.assignee?.full_name || a.assignee?.email || 'Unassigned'}{a.due_date ? ` • Due: ${new Date(a.due_date).toLocaleDateString()}` : ''}</div>
+                                                {a.description && (
+                                                  <div className="small mt-1">{a.description}</div>
+                                                )}
+                                              </div>
+                                              <details>
+                                                <summary className="btn btn-sm btn-outline-secondary">Edit</summary>
+                                                <div className="mt-2">
+                                                  <form action={updateAction} className="row g-2">
+                                                    <input type="hidden" name="action_id" value={a.id} />
+                                                    <input type="hidden" name="study_id" value={selectedStudy.id} />
+                                                    <input type="hidden" name="item_id" value={it.id} />
+                                                    <div className="col-12">
+                                                      <input className="form-control form-control-sm" name="title" defaultValue={a.title} placeholder="Title" />
+                                                    </div>
+                                                    <div className="col-12">
+                                                      <textarea className="form-control form-control-sm" name="description" defaultValue={a.description || ''} placeholder="Description" />
+                                                    </div>
+                                                    <div className="col-6">
+                                                      <select name="status" defaultValue={a.status} className="form-select form-select-sm">
+                                                        <option value="open">Open</option>
+                                                        <option value="in_progress">In Progress</option>
+                                                        <option value="blocked">Blocked</option>
+                                                        <option value="done">Done</option>
+                                                        <option value="cancelled">Cancelled</option>
+                                                      </select>
+                                                    </div>
+                                                    <div className="col-6">
+                                                      <select name="priority" defaultValue={a.priority} className="form-select form-select-sm">
+                                                        <option value="low">Low</option>
+                                                        <option value="medium">Medium</option>
+                                                        <option value="high">High</option>
+                                                        <option value="urgent">Urgent</option>
+                                                      </select>
+                                                    </div>
+                                                    <div className="col-7">
+                                                      <select name="assignee_user_id" defaultValue={a.assignee_user_id} className="form-select form-select-sm">
+                                                        <option value="">Unassigned</option>
+                                                        {users.map((u: any) => (
+                                                          <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
+                                                        ))}
+                                                      </select>
+                                                    </div>
+                                                    <div className="col-5">
+                                                      <input type="date" name="due_date" defaultValue={a.due_date ? new Date(a.due_date).toISOString().split('T')[0] : ''} className="form-control form-control-sm" />
+                                                    </div>
+                                                    <div className="col-12 d-flex gap-2">
+                                                      <button className="btn btn-sm btn-secondary" type="submit">Save</button>
+                                                      <form action={deleteAction}>
+                                                        <input type="hidden" name="action_id" value={a.id} />
+                                                        <input type="hidden" name="study_id" value={selectedStudy.id} />
+                                                        <input type="hidden" name="item_id" value={it.id} />
+                                                        <button className="btn btn-sm btn-outline-danger" type="submit">
+                                                          <i className="bi bi-trash me-1" />Delete
+                                                        </button>
+                                                      </form>
+                                                    </div>
+                                                  </form>
+                                                </div>
+                                              </details>
+                                            </div>
+                                          </div>
+                                        ))}
+                                        {(actionsByItem[it.id] || []).length === 0 && (
+                                          <div className="text-muted small">No actions yet</div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </>
+                      )
+                    })}
+                    {(selectedStudy?.items?.length ?? 0) === 0 && (
+                      <tr><td colSpan={7} className="text-center text-muted">No items yet</td></tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
