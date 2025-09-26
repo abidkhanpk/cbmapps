@@ -45,6 +45,7 @@ export const SignalControls: React.FC<SignalControlsProps> = ({ signals, setSign
                 <option value="chirp">Chirp</option>
                 <option value="noise">Noise</option>
                 <option value="am">Amp. Modulation</option>
+                <option value="fm">Freq. Modulation</option>
               </select>
             </div>
             <div>
@@ -78,12 +79,24 @@ export const SignalControls: React.FC<SignalControlsProps> = ({ signals, setSign
             {sig.type === 'am' && (
               <>
                 <div>
-                  <label className="block text-xs">Modulation frequency fm (Hz)</label>
+                  <label className="block text-xs">AM: modulation frequency fm (Hz)</label>
                   <input type="number" value={sig.modulationFrequency ?? 2} onChange={e => updateSignal(idx, 'modulationFrequency', Number(e.target.value))} className="w-full rounded border p-1" min={0} step={0.1} />
                 </div>
                 <div>
-                  <label className="block text-xs">Modulation index m (0-1)</label>
+                  <label className="block text-xs">AM: modulation index m (0-1)</label>
                   <input type="number" value={sig.modulationIndex ?? 0.5} onChange={e => updateSignal(idx, 'modulationIndex', Number(e.target.value))} className="w-full rounded border p-1" min={0} max={1} step={0.01} />
+                </div>
+              </>
+            )}
+            {sig.type === 'fm' && (
+              <>
+                <div>
+                  <label className="block text-xs">FM: modulation frequency fm (Hz)</label>
+                  <input type="number" value={sig.modulationFrequency ?? 2} onChange={e => updateSignal(idx, 'modulationFrequency', Number(e.target.value))} className="w-full rounded border p-1" min={0} step={0.1} />
+                </div>
+                <div>
+                  <label className="block text-xs">FM: frequency deviation Δf (Hz)</label>
+                  <input type="number" value={sig.frequencyDeviation ?? 5} onChange={e => updateSignal(idx, 'frequencyDeviation', Number(e.target.value))} className="w-full rounded border p-1" min={0} step={0.1} />
                 </div>
               </>
             )}

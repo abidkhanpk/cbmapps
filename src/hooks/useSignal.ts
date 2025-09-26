@@ -1,7 +1,7 @@
 'use client';
 import { useMemo } from 'react';
 
-export type SignalType = 'sine' | 'square' | 'chirp' | 'noise' | 'am';
+export type SignalType = 'sine' | 'square' | 'chirp' | 'noise' | 'am' | 'fm';
 
 export interface SingleSignalParams {
   type: SignalType;
@@ -13,6 +13,8 @@ export interface SingleSignalParams {
   // AM parameters
   modulationFrequency?: number;
   modulationIndex?: number;
+  // FM parameters
+  frequencyDeviation?: number; // peak frequency deviation (Hz)
 }
 
 export interface MultiSignalParams {
@@ -65,6 +67,16 @@ function generateSample(
       const m = k ?? 0;   // modulation index (0..1)
       return amp * (1 + m * Math.cos(2 * Math.PI * fm * t)) * Math.cos(2 * Math.PI * f * t + phi);
     }
+    case 'fm': {
+      const fm = f0 ?? 0;          // modulation frequency
+      const df = k ?? 0;           // frequency deviation (Hz)
+      if (fm <= 0) {
+        return amp * Math.cos(2 * Math.PI * f * t + phi);
+      }
+      const beta = df / fm;        // modulation index β
+      const phase = 2 * Math.PI * f * t + 2 * Math.PI * beta * Math.sin(2 * Math.PI * fm * t) + phi;
+      return amp * Math.cos(phase);
+    }
     case 'noise':
       return amp * (2 * Math.random() - 1);
   }
@@ -92,6 +104,8 @@ export function useSignal(params: MultiSignalParams): SignalOutputs {
         maxFreq = Math.max(maxFreq, sig.chirpEndFreq ?? sig.frequency);
       } else if (sig.type === 'am') {
         maxFreq = Math.max(maxFreq, sig.frequency + (sig.modulationFrequency ?? 0));
+      } else if (sig.type === 'fm') {
+        maxFreq = Math.max(maxFreq, sig.frequency + (sig.frequencyDeviation ?? 0));
       } else {
         maxFreq = Math.max(maxFreq, sig.frequency);
       }
@@ -121,6 +135,9 @@ export function useSignal(params: MultiSignalParams): SignalOutputs {
       if (sig.type === 'am') {
         f0 = sig.modulationFrequency ?? 0;
         k = sig.modulationIndex ?? 0;
+      } else if (sig.type === 'fm') {
+        f0 = sig.modulationFrequency ?? 0;
+        k = sig.frequencyDeviation ?? 0;
       }
 
       // Individual sampled
@@ -144,7 +161,12 @@ export function useSignal(params: MultiSignalParams): SignalOutputs {
         cleanSamples: indClean,
         tAnalog,
         analog: indAnalog,
-        label: sig.type === 'am' ? `am (fc=${sig.frequency} Hz, fm=${sig.modulationFrequency ?? 0} Hz, m=${sig.modulationIndex ?? 0})` : `${sig.type} (${sig.frequency} Hz)`,
+        label:
+          sig.type === 'am'
+            ? `am (fc=${sig.frequency} Hz, fm=${sig.modulationFrequency ?? 0} Hz, m=${sig.modulationIndex ?? 0})`
+            : sig.type === 'fm'
+            ? `fm (fc=${sig.frequency} Hz, fm=${sig.modulationFrequency ?? 0} Hz, df=${sig.frequencyDeviation ?? 0} Hz)`
+            : `${sig.type} (${sig.frequency} Hz)`,
       });
     });
 
