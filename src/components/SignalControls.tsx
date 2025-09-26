@@ -44,6 +44,7 @@ export const SignalControls: React.FC<SignalControlsProps> = ({ signals, setSign
                 <option value="square">Square</option>
                 <option value="chirp">Chirp</option>
                 <option value="noise">Noise</option>
+                <option value="am">Amp. Modulation</option>
               </select>
             </div>
             <div>
@@ -73,6 +74,18 @@ export const SignalControls: React.FC<SignalControlsProps> = ({ signals, setSign
                 <label className="block text-xs">Phase (deg)</label>
                 <input type="number" value={sig.phaseDeg} onChange={e => updateSignal(idx, 'phaseDeg', Number(e.target.value))} className="w-full rounded border p-1" step={1} />
               </div>
+            )}
+            {sig.type === 'am' && (
+              <>
+                <div>
+                  <label className="block text-xs">Modulation frequency fm (Hz)</label>
+                  <input type="number" value={sig.modulationFrequency ?? 2} onChange={e => updateSignal(idx, 'modulationFrequency', Number(e.target.value))} className="w-full rounded border p-1" min={0} step={0.1} />
+                </div>
+                <div>
+                  <label className="block text-xs">Modulation index m (0-1)</label>
+                  <input type="number" value={sig.modulationIndex ?? 0.5} onChange={e => updateSignal(idx, 'modulationIndex', Number(e.target.value))} className="w-full rounded border p-1" min={0} max={1} step={0.01} />
+                </div>
+              </>
             )}
           </div>
         </div>

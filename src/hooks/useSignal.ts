@@ -1,7 +1,7 @@
 'use client';
 import { useMemo } from 'react';
 
-export type SignalType = 'sine' | 'square' | 'chirp' | 'noise';
+export type SignalType = 'sine' | 'square' | 'chirp' | 'noise' | 'am';
 
 export interface SingleSignalParams {
   type: SignalType;
@@ -10,6 +10,9 @@ export interface SingleSignalParams {
   phaseDeg: number;
   chirpStartFreq?: number;
   chirpEndFreq?: number;
+  // AM parameters
+  modulationFrequency?: number;
+  modulationIndex?: number;
 }
 
 export interface MultiSignalParams {
@@ -57,6 +60,11 @@ function generateSample(
       const phase = 2 * Math.PI * (fstart * t + 0.5 * rate * t * t) + phi;
       return amp * Math.sin(phase);
     }
+    case 'am': {
+      const fm = f0 ?? 0; // modulation frequency
+      const m = k ?? 0;   // modulation index (0..1)
+      return amp * (1 + m * Math.cos(2 * Math.PI * fm * t)) * Math.cos(2 * Math.PI * f * t + phi);
+    }
     case 'noise':
       return amp * (2 * Math.random() - 1);
   }
@@ -82,6 +90,8 @@ export function useSignal(params: MultiSignalParams): SignalOutputs {
   signals.forEach((sig) => {
       if (sig.type === 'chirp') {
         maxFreq = Math.max(maxFreq, sig.chirpEndFreq ?? sig.frequency);
+      } else if (sig.type === 'am') {
+        maxFreq = Math.max(maxFreq, sig.frequency + (sig.modulationFrequency ?? 0));
       } else {
         maxFreq = Math.max(maxFreq, sig.frequency);
       }
@@ -105,9 +115,13 @@ export function useSignal(params: MultiSignalParams): SignalOutputs {
     // Generate and sum each signal
   signals.forEach((sig) => {
       const phase = (sig.phaseDeg * Math.PI) / 180;
-      const f0 = sig.chirpStartFreq ?? sig.frequency;
+      let f0 = sig.chirpStartFreq ?? sig.frequency;
       const f1 = sig.chirpEndFreq ?? sig.frequency;
-      const k = (f1 - f0) / Math.max(duration, 1e-9);
+      let k = (f1 - f0) / Math.max(duration, 1e-9);
+      if (sig.type === 'am') {
+        f0 = sig.modulationFrequency ?? 0;
+        k = sig.modulationIndex ?? 0;
+      }
 
       // Individual sampled
       const indClean = new Float64Array(N);
@@ -130,7 +144,7 @@ export function useSignal(params: MultiSignalParams): SignalOutputs {
         cleanSamples: indClean,
         tAnalog,
         analog: indAnalog,
-        label: `${sig.type} (${sig.frequency} Hz)`,
+        label: sig.type === 'am' ? `am (fc=${sig.frequency} Hz, fm=${sig.modulationFrequency ?? 0} Hz, m=${sig.modulationIndex ?? 0})` : `${sig.type} (${sig.frequency} Hz)`,
       });
     });
 
