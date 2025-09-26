@@ -3,6 +3,7 @@ import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import { PrismaClient } from '@prisma/client';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 // Lazy Prisma client (avoid instantiating at build time)
 let prismaAuth: PrismaClient | null = null;
@@ -15,11 +16,29 @@ function getPrismaAuth() {
 
 export function getAuthOptions(): NextAuthOptions {
   const prisma = getPrismaAuth();
-  const authSecret = (process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET || process.env.NEXT_AUTH_SECRET || '').trim() || undefined;
+  // Resolve NextAuth secret with robust fallbacks for Vercel runtime
+  const primarySecret = (process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET || process.env.NEXT_AUTH_SECRET || '').trim();
+  let authSecret = primarySecret || '';
+  if (!authSecret) {
+    const seed = process.env.DATABASE_URL || process.env.PRISMA_ACCELERATE_URL || process.env.APP_BASE_URL || process.env.VERCEL_URL || '';
+    if (seed) {
+      authSecret = crypto.createHash('sha256').update(seed).digest('hex');
+      console.warn('[auth] NEXTAUTH_SECRET not set. Deriving a secret from existing environment variables for runtime use.');
+    }
+  }
+  const finalSecret = authSecret || undefined;
+
+  // Ensure NEXTAUTH_URL is set in production (fallback to APP_BASE_URL or VERCEL_URL)
+  if (!process.env.NEXTAUTH_URL) {
+    const inferredUrl = process.env.APP_BASE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined);
+    if (inferredUrl) {
+      process.env.NEXTAUTH_URL = inferredUrl;
+    }
+  }
 
   return {
     adapter: PrismaAdapter(prisma),
-    secret: authSecret,
+    secret: finalSecret,
     providers: [
       CredentialsProvider({
         name: 'credentials',
