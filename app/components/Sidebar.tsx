@@ -66,12 +66,26 @@ export default function Sidebar() {
   );
 
   return (
-    <nav className="sidebar">
-      <div className="p-3">
+    <nav className="sidebar" id="sidebar">
+      <div className="p-3 d-flex justify-content-between align-items-center">
         <Link href="/dashboard" className="navbar-brand text-white text-decoration-none">
           <i className="bi bi-clipboard-data me-2"></i>
           FMECA System
         </Link>
+        <button
+          className="btn btn-sm btn-outline-light d-none d-md-inline"
+          type="button"
+          onClick={() => {
+            if (typeof window !== 'undefined') {
+              document.querySelector('.sidebar')?.classList.toggle('collapsed');
+              document.querySelector('.main-content')?.classList.toggle('expanded');
+            }
+          }}
+          title="Toggle sidebar"
+          aria-label="Toggle sidebar"
+        >
+          <i className="bi bi-layout-sidebar-inset"></i>
+        </button>
       </div>
       
       <ul className="nav nav-pills flex-column">

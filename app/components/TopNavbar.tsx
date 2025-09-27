@@ -25,10 +25,29 @@ export default function TopNavbar() {
         <button
           className="btn btn-link d-md-none sidebar-toggle"
           type="button"
-          data-bs-toggle="offcanvas"
-          data-bs-target="#sidebar"
+          onClick={() => {
+            if (typeof window !== 'undefined') {
+              document.querySelector('.sidebar')?.classList.toggle('show');
+            }
+          }}
+          aria-label="Toggle sidebar"
+          title="Toggle sidebar"
         >
           <i className="bi bi-list"></i>
+        </button>
+        <button
+          className="btn btn-link d-none d-md-inline"
+          type="button"
+          onClick={() => {
+            if (typeof window !== 'undefined') {
+              document.querySelector('.sidebar')?.classList.toggle('collapsed');
+              document.querySelector('.main-content')?.classList.toggle('expanded');
+            }
+          }}
+          aria-label="Collapse sidebar"
+          title="Collapse sidebar"
+        >
+          <i className="bi bi-layout-sidebar-inset"></i>
         </button>
         
         <form className="d-flex ms-3" onSubmit={handleSearch}>
