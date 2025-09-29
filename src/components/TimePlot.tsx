@@ -136,8 +136,9 @@ export const TimePlot: React.FC<TimePlotProps> = ({
   if (overlapBars && overlapBars.length > 0) {
     const barHeight = 0.03;
     const barGap = 0.005;
+    const numBars = overlapBars.length;
     // Start a little above the x-axis and stack each subsequent bar downward
-    const baseTop = 0.15; // in paper coords (0 bottom .. 1 top)
+    const baseTop = Math.min(0.4, barHeight * numBars + barGap * (numBars - 1)); // in paper coords (0 bottom .. 1 top)
     const barShapes = overlapBars.map((b, idx) => {
       const yTop = Math.max(barHeight, baseTop - idx * (barHeight + barGap));
       const yBottom = Math.max(0, yTop - barHeight);
@@ -149,8 +150,8 @@ export const TimePlot: React.FC<TimePlotProps> = ({
         y1: yTop,
         xref: 'x',
         yref: 'paper',
-        fillcolor: 'rgba(0,0,0,0)',
-        line: { width: 1, color: 'rgba(120,120,120,1)' },
+        fillcolor: 'rgba(120,120,120,0.2)',
+        line: { width: 1, color: 'rgba(100,100,100,1)' },
       } as unknown;
     }) as unknown as NonNullable<Layout['shapes']>;
     layout.shapes = [...(layout.shapes ?? []), ...barShapes];
