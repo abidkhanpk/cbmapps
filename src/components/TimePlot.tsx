@@ -106,11 +106,11 @@ export const TimePlot: React.FC<TimePlotProps> = ({
   const layout: Partial<Layout> = {
     title,
     uirevision: 'timeplot',
-    margin: { l: 60, r: 20, t: 40, b: 40 },
+    margin: { l: 60, r: 20, t: 60, b: 40 },
     xaxis: { title: 'Time (s)', gridcolor: '#eee' },
     // allow autorange for the waveform; when overlap bars exist we'll reserve paper space via yaxis.domain
     yaxis: { title: 'Amplitude', gridcolor: '#eee', autorange: true },
-    legend: { orientation: 'h' },
+    legend: { orientation: 'h', y: 1.02, yanchor: 'bottom', x: 0.5, xanchor: 'center' },
     paper_bgcolor: 'transparent',
     plot_bgcolor: 'transparent',
   };
@@ -138,10 +138,12 @@ export const TimePlot: React.FC<TimePlotProps> = ({
     const barHeight = 0.03;
     const barGap = 0.005;
     const numBars = overlapBars.length;
-  // Increase bottom margin so bars and tick labels have room (smaller than before)
-  layout.margin = { ...(layout.margin ?? {}), b: Math.max((layout.margin?.b as number) ?? 40, 60) };
-  // Vertical offset to move bars slightly below the x-axis ticks (smaller offset)
-  const barVerticalOffset = 0.03; // how far below the x-axis (in paper coords)
+  // Increase bottom margin so bars and tick labels have room
+  layout.margin = { ...(layout.margin ?? {}), b: Math.max((layout.margin?.b as number) ?? 40, 48) };
+  // Ensure the top margin leaves room for the legend placed above plot
+  layout.margin = { ...(layout.margin ?? {}), t: Math.max((layout.margin?.t as number) ?? 60, 70) };
+  // Vertical offset to move bars slightly below the x-axis ticks (small offset)
+  const barVerticalOffset = 0.02; // how far below the x-axis (in paper coords)
     // Compute bar shapes positioned below the plot area (negative paper y values)
     const barShapes = overlapBars.map((b, idx) => {
       const yTop = -barVerticalOffset - idx * (barHeight + barGap);
@@ -160,8 +162,8 @@ export const TimePlot: React.FC<TimePlotProps> = ({
     }) as unknown as NonNullable<Layout['shapes']>;
     layout.shapes = [...(layout.shapes ?? []), ...barShapes];
     // Reserve the lower portion of the plot for bars and ticks by moving the waveform domain upward
-    // Use a smaller reserved domain so bars are close to axis but not overlapping ticks/legend
-    const reserveDomainBottom = 0.12; // waveform will occupy [reserveDomainBottom, 1]
+    // Use a small reserved domain so bars are close to axis but do not overlap ticks; legend sits above plot
+    const reserveDomainBottom = 0.09; // waveform will occupy [reserveDomainBottom, 1]
     layout.yaxis = { ...(layout.yaxis ?? {}), domain: [reserveDomainBottom, 1] };
   }
   const config: Partial<Config> = { responsive: true, displaylogo: false };
