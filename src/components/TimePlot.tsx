@@ -26,6 +26,10 @@ export interface TimePlotProps {
   title?: string;
   frames?: Array<{ t0: number; t1: number }>;
   framesData?: Array<{ t: number[]; y: number[] }>;
+  // force x-axis span to a specific maximum (e.g., T * N)
+  xAxisMax?: number;
+  // bars drawn near the bottom to visualize overlap windows
+  overlapBars?: Array<{ x0: number; x1: number }>;
 }
 export const TimePlot: React.FC<TimePlotProps> = ({
   tAnalog,
@@ -37,6 +41,8 @@ export const TimePlot: React.FC<TimePlotProps> = ({
   windowedY,
   frames,
   framesData,
+  xAxisMax,
+  overlapBars,
   showAnalog = true,
   showDigitized = true,
   title = 'Time Domain',
@@ -107,6 +113,10 @@ export const TimePlot: React.FC<TimePlotProps> = ({
     paper_bgcolor: 'transparent',
     plot_bgcolor: 'transparent',
   };
+  // If provided, force the x-axis to span from 0 to xAxisMax (e.g., T * N)
+  if (typeof xAxisMax === 'number' && isFinite(xAxisMax)) {
+    layout.xaxis = { ...(layout.xaxis ?? {}), range: [0, xAxisMax] };
+  }
   // add shaded frame shapes if provided
   if (frames && frames.length > 0) {
     const shapes: NonNullable<Layout['shapes']> = frames.map((f, idx) => ({
@@ -121,6 +131,29 @@ export const TimePlot: React.FC<TimePlotProps> = ({
       line: { width: 0 },
     }));
     layout.shapes = [...(layout.shapes ?? []), ...shapes];
+  }
+  // add overlap bars just above the x-axis when provided
+  if (overlapBars && overlapBars.length > 0) {
+    const slots = 3;
+    const barHeight = 0.03;
+    const barGap = 0.005;
+    const barShapes = overlapBars.map((b, idx) => {
+      const slot = idx % slots;
+      const y0 = slot * (barHeight + barGap);
+      const y1 = y0 + barHeight;
+      return {
+        type: 'rect',
+        x0: b.x0,
+        x1: b.x1,
+        y0,
+        y1,
+        xref: 'x',
+        yref: 'paper',
+        fillcolor: 'rgba(0,0,0,0)',
+        line: { width: 1, color: 'rgba(120,120,120,1)' },
+      } as unknown;
+    }) as unknown as NonNullable<Layout['shapes']>;
+    layout.shapes = [...(layout.shapes ?? []), ...barShapes];
   }
   const config: Partial<Config> = { responsive: true, displaylogo: false };
   return (

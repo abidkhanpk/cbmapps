@@ -135,6 +135,9 @@ export default function Home() {
   // Compute frames for plotting when averaging selected
   let frames: Array<{ t0: number; t1: number }> | undefined = undefined;
   let framesData: Array<{ t: number[]; y: number[] }> | undefined = undefined;
+  // For overlap bar visualization and x-axis forcing
+  let xAxisMax: number | undefined = undefined;
+  let overlapBars: Array<{ x0: number; x1: number }> | undefined = undefined;
   if (averagingMode !== 'none' && numAverages > 0) {
     const Twindow = lor / Math.max(fmax, 1e-12);
     const frameLenSamples = Math.max(1, Math.round(Twindow * fs));
@@ -153,6 +156,19 @@ export default function Home() {
       }
       frames.push({ t0: k * Twindow, t1: (k + 1) * Twindow });
       framesData.push({ t: tArr, y: yArr });
+    }
+    // Force x-axis span to T * N (full span) for both linear and overlap visualization
+    xAxisMax = Twindow * numAverages;
+
+    // If overlap mode, we want to visualize bars at the actual start times with overlap
+    if (averagingMode === 'overlap') {
+      const ov = Math.min(90, Math.max(0, overlapPercent));
+      const stepT = Twindow * (1 - ov / 100);
+      overlapBars = [];
+      for (let k = 0; k < numAverages; k++) {
+        const x0 = k * stepT;
+        overlapBars.push({ x0, x1: x0 + Twindow });
+      }
     }
   }
 
@@ -413,6 +429,8 @@ export default function Home() {
               individualSignals={showIndividuals ? individualSignalsPlot : []}
               showAnalog={showAnalog}
               showDigitized={showDigitized}
+              xAxisMax={xAxisMax}
+              overlapBars={overlapBars}
               title="Time-Domain Signal"
             />
           </div>
