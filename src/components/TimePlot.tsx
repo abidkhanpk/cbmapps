@@ -132,21 +132,21 @@ export const TimePlot: React.FC<TimePlotProps> = ({
     }));
     layout.shapes = [...(layout.shapes ?? []), ...shapes];
   }
-  // add overlap bars just above the x-axis when provided
+  // add overlap bars stacked downward from a small offset above the x-axis when provided
   if (overlapBars && overlapBars.length > 0) {
-    const slots = 3;
     const barHeight = 0.03;
     const barGap = 0.005;
+    // Start a little above the x-axis and stack each subsequent bar downward
+    const baseTop = 0.15; // in paper coords (0 bottom .. 1 top)
     const barShapes = overlapBars.map((b, idx) => {
-      const slot = idx % slots;
-      const y0 = slot * (barHeight + barGap);
-      const y1 = y0 + barHeight;
+      const yTop = Math.max(barHeight, baseTop - idx * (barHeight + barGap));
+      const yBottom = Math.max(0, yTop - barHeight);
       return {
         type: 'rect',
         x0: b.x0,
         x1: b.x1,
-        y0,
-        y1,
+        y0: yBottom,
+        y1: yTop,
         xref: 'x',
         yref: 'paper',
         fillcolor: 'rgba(0,0,0,0)',
