@@ -33,16 +33,30 @@ body {
   width: var(--sidebar-width);
   background-color: var(--bs-dark);
   z-index: 1000;
-  transition: transform 0.3s ease-in-out;
+  transition: transform 0.3s ease-in-out, width 0.3s ease-in-out;
 }
 
 .sidebar.collapsed {
-  transform: translateX(-100%);
+  width: 64px;
+}
+
+.sidebar.collapsed .label {
+  display: none;
+}
+
+.sidebar.collapsed .brand-icon {
+  display: none;
+}
+
+.sidebar.collapsed .nav-link i {
+  margin-right: 0;
+  text-align: center;
+  width: 100%;
 }
 
 /* When sidebar collapsed on desktop, allow main content full width */
 .main-content.expanded {
-  margin-left: 0;
+  margin-left: 64px;
 }
 
 .sidebar .nav-link {
@@ -70,7 +84,7 @@ body {
 }
 
 .main-content.expanded {
-  margin-left: 0;
+  margin-left: 64px;
 }
 
 /* Top Navbar */

@@ -35,21 +35,7 @@ export default function TopNavbar() {
         >
           <i className="bi bi-list"></i>
         </button>
-        <button
-          className="btn btn-link d-none d-md-inline"
-          type="button"
-          onClick={() => {
-            if (typeof window !== 'undefined') {
-              document.querySelector('.sidebar')?.classList.toggle('collapsed');
-              document.querySelector('.main-content')?.classList.toggle('expanded');
-            }
-          }}
-          aria-label="Collapse sidebar"
-          title="Collapse sidebar"
-        >
-          <i className="bi bi-layout-sidebar-inset"></i>
-        </button>
-        
+                
         <form className="d-flex ms-3" onSubmit={handleSearch}>
           <div className="input-group">
             <input

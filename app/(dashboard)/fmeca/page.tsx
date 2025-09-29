@@ -4,6 +4,8 @@ import prisma from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import ItemsCard from './components/ItemsCard'
+import DeleteStudyForm from './components/DeleteStudyForm'
+import Link from 'next/link'
 
 // Utility
 function computeRpn(sev: number, occ: number, det: number) {
@@ -330,30 +332,40 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
       <div className="row g-4">
         <div className="col-lg-6">
           <div className="card">
-            <div className="card-header"><strong>Create Study</strong></div>
-            <div className="card-body">
-              <form action={createStudy} className="row g-3">
-                <div className="col-12">
-                  <label className="form-label">Title</label>
-                  <input name="title" className="form-control" placeholder="e.g. Conveyor System FMECA" required />
-                </div>
-                <div className="col-12">
-                  <label className="form-label">Scope</label>
-                  <textarea name="scope" className="form-control" rows={3} placeholder="Optional study scope" />
-                </div>
-                <div className="col-12 d-flex gap-2">
-                  <button className="btn btn-primary" type="submit">
-                    <i className="bi bi-plus-circle me-2" />Create Study
-                  </button>
-                </div>
-              </form>
+            <div className="card-header d-flex justify-content-between align-items-center">
+              <strong>Existing Studies</strong>
+              <button
+                className="btn btn-sm btn-primary"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#create-study"
+                aria-expanded="false"
+                aria-controls="create-study"
+                title="Create FMECA Study"
+              >
+                <i className="bi bi-plus-circle" />
+                <span className="d-none d-md-inline ms-1">Create Study</span>
+              </button>
             </div>
-          </div>
-        </div>
-
-        <div className="col-lg-6">
-          <div className="card">
-            <div className="card-header"><strong>Existing Studies</strong></div>
+            <div id="create-study" className="collapse">
+              <div className="card-body">
+                <form action={createStudy} className="row g-3">
+                  <div className="col-12">
+                    <label className="form-label">Title</label>
+                    <input name="title" className="form-control" placeholder="e.g. Conveyor System FMECA" required />
+                  </div>
+                  <div className="col-12">
+                    <label className="form-label">Scope</label>
+                    <textarea name="scope" className="form-control" rows={3} placeholder="Optional study scope" />
+                  </div>
+                  <div className="col-12 d-flex gap-2">
+                    <button className="btn btn-primary" type="submit">
+                      <i className="bi bi-plus-circle me-2" />Create Study
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
             <div className="card-body table-responsive">
               <table className="table table-striped table-sm align-middle">
                 <thead>
@@ -373,15 +385,10 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
                       <td>{s.owner?.full_name || s.owner?.email}</td>
                       <td>{(s as any)._count?.items ?? 0}</td>
                       <td className="d-flex gap-2">
-                        <a className="btn btn-sm btn-outline-primary" href={`/fmeca?study=${s.id}`}>
+                        <Link className="btn btn-sm btn-outline-primary" href={{ pathname: '/fmeca', query: { study: s.id } }} prefetch>
                           <i className="bi bi-pencil-square me-1" />Manage
-                        </a>
-                        <form action={deleteStudy}>
-                          <input type="hidden" name="study_id" value={s.id} />
-                          <button className="btn btn-sm btn-outline-danger" type="submit">
-                            <i className="bi bi-trash me-1" />Delete
-                          </button>
-                        </form>
+                        </Link>
+                        <DeleteStudyForm deleteStudy={deleteStudy} studyId={s.id} />
                       </td>
                     </tr>
                   ))}
@@ -393,7 +400,8 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
             </div>
           </div>
         </div>
-      </div>
+
+              </div>
 
       {selectedStudy && (
         // Client component for interactive items table

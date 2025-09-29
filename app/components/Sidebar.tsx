@@ -68,9 +68,9 @@ export default function Sidebar() {
   return (
     <nav className="sidebar" id="sidebar">
       <div className="p-3 d-flex justify-content-between align-items-center">
-        <Link href="/dashboard" className="navbar-brand text-white text-decoration-none">
-          <i className="bi bi-clipboard-data me-2"></i>
-          FMECA System
+        <Link href="/dashboard" className="navbar-brand text-white text-decoration-none d-flex align-items-center">
+          <i className="bi bi-clipboard-data me-2 brand-icon"></i>
+          <span className="label">FMECA System</span>
         </Link>
         <button
           className="btn btn-sm btn-outline-light d-none d-md-inline"
@@ -84,7 +84,7 @@ export default function Sidebar() {
           title="Toggle sidebar"
           aria-label="Toggle sidebar"
         >
-          <i className="bi bi-layout-sidebar-inset"></i>
+          <i className="bi bi-list"></i>
         </button>
       </div>
       
@@ -93,10 +93,10 @@ export default function Sidebar() {
           <li key={item.href} className="nav-item">
             <Link
               href={item.href}
-              className={`nav-link ${pathname === item.href ? 'active' : ''}`}
+              className={`nav-link d-flex align-items-center ${pathname === item.href ? 'active' : ''}`}
             >
               <i className={`${item.icon} me-2`}></i>
-              {item.label}
+              <span className="label">{item.label}</span>
             </Link>
           </li>
         ))}
