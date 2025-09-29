@@ -19,8 +19,8 @@ export default function DeleteStudyForm({
       }}
     >
       <input type="hidden" name="study_id" value={studyId} />
-      <button className="btn btn-sm btn-outline-danger" type="submit">
-        <i className="bi bi-trash me-1" />Delete
+      <button className="btn btn-sm btn-outline-danger" type="submit" title="Delete">
+        <i className="bi bi-trash" />
       </button>
     </form>
   )

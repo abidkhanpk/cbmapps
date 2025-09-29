@@ -330,7 +330,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
       </div>
 
       <div className="row g-4">
-        <div className="col-lg-6">
+        <div className="col-12">
           <div className="card">
             <div className="card-header d-flex justify-content-between align-items-center">
               <strong>Existing Studies</strong>
@@ -385,8 +385,8 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
                       <td>{s.owner?.full_name || s.owner?.email}</td>
                       <td>{(s as any)._count?.items ?? 0}</td>
                       <td className="d-flex gap-2">
-                        <Link className="btn btn-sm btn-outline-primary" href={{ pathname: '/fmeca', query: { study: s.id } }} prefetch>
-                          <i className="bi bi-pencil-square me-1" />Manage
+                        <Link className="btn btn-sm btn-outline-primary" href={{ pathname: '/fmeca', query: { study: s.id } }} prefetch title="Edit">
+                          <i className="bi bi-pencil-square" />
                         </Link>
                         <DeleteStudyForm deleteStudy={deleteStudy} studyId={s.id} />
                       </td>

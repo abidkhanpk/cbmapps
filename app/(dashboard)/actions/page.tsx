@@ -3,6 +3,7 @@ import getAuthOptions from '@/lib/auth/config'
 import prisma from '@/lib/db'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
+import ActionRow from '@/app/components/actions/ActionRow'
 
 export default async function ActionsPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const session = await getServerSession(getAuthOptions())
@@ -104,49 +105,53 @@ export default async function ActionsPage({ searchParams }: { searchParams?: Rec
         </div>
       </div>
 
-      <div className="card mb-3">
-        <div className="card-header"><strong>Create Action</strong></div>
-        <div className="card-body">
-          <form action={createAction} className="row g-2">
-            <div className="col-lg-4">
-              <input name="title" className="form-control form-control-sm" placeholder="Title" required />
+      <div className="mb-3">
+        <details>
+          <summary className="btn btn-sm btn-primary">New Action</summary>
+          <div className="card mt-2">
+            <div className="card-body">
+              <form action={createAction} className="row g-2">
+                <div className="col-lg-4">
+                  <input name="title" className="form-control form-control-sm" placeholder="Title" required />
+                </div>
+                <div className="col-lg-3">
+                  <select name="entity_type" className="form-select form-select-sm" defaultValue="fmeca_item">
+                    <option value="fmeca_item">FMECA Item</option>
+                    <option value="cm_reading">CM Reading</option>
+                    <option value="component">Component</option>
+                  </select>
+                </div>
+                <div className="col-lg-3">
+                  <input name="entity_id" className="form-control form-control-sm" placeholder="Entity ID" required />
+                </div>
+                <div className="col-lg-2">
+                  <select name="priority" className="form-select form-select-sm" defaultValue="medium">
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
+                <div className="col-12">
+                  <textarea name="description" className="form-control form-control-sm" placeholder="Description (optional)" />
+                </div>
+                <div className="col-lg-6">
+                  <select name="assignee_user_id" className="form-select form-select-sm" defaultValue={(session.user as any).id}>
+                    {users.map((u: any) => (
+                      <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-lg-3">
+                  <input type="date" name="due_date" className="form-control form-control-sm" />
+                </div>
+                <div className="col-lg-3">
+                  <button className="btn btn-sm btn-primary w-100" type="submit">Create</button>
+                </div>
+              </form>
             </div>
-            <div className="col-lg-3">
-              <select name="entity_type" className="form-select form-select-sm" defaultValue="fmeca_item">
-                <option value="fmeca_item">FMECA Item</option>
-                <option value="cm_reading">CM Reading</option>
-                <option value="component">Component</option>
-              </select>
-            </div>
-            <div className="col-lg-3">
-              <input name="entity_id" className="form-control form-control-sm" placeholder="Entity ID" required />
-            </div>
-            <div className="col-lg-2">
-              <select name="priority" className="form-select form-select-sm" defaultValue="medium">
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
-              </select>
-            </div>
-            <div className="col-12">
-              <textarea name="description" className="form-control form-control-sm" placeholder="Description (optional)" />
-            </div>
-            <div className="col-lg-6">
-              <select name="assignee_user_id" className="form-select form-select-sm" defaultValue={(session.user as any).id}>
-                {users.map((u: any) => (
-                  <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
-                ))}
-              </select>
-            </div>
-            <div className="col-lg-3">
-              <input type="date" name="due_date" className="form-control form-control-sm" />
-            </div>
-            <div className="col-lg-3">
-              <button className="btn btn-sm btn-primary w-100" type="submit">Create</button>
-            </div>
-          </form>
-        </div>
+          </div>
+        </details>
       </div>
 
       <div className="card">
@@ -200,65 +205,7 @@ export default async function ActionsPage({ searchParams }: { searchParams?: Rec
             </thead>
             <tbody>
               {actions.map((a: any) => (
-                <tr key={a.id}>
-                  <td>{a.title}</td>
-                  <td className="text-nowrap">{a.entity_type} • {a.entity_id.slice(0,6)}...</td>
-                  <td>{a.assignee?.full_name || a.assignee?.email || 'Unassigned'}</td>
-                  <td className="text-capitalize">{a.priority}</td>
-                  <td className="text-capitalize">{a.status.replace('_',' ')}</td>
-                  <td>{a.due_date ? new Date(a.due_date).toLocaleDateString() : ''}</td>
-                  <td className="text-end">
-                    <details>
-                      <summary className="btn btn-sm btn-outline-secondary">Edit</summary>
-                      <div className="mt-2">
-                        <form action={updateAction} className="row g-2">
-                          <input type="hidden" name="action_id" value={a.id} />
-                          <div className="col-lg-6">
-                            <input className="form-control form-control-sm" name="title" defaultValue={a.title} placeholder="Title" />
-                          </div>
-                          <div className="col-lg-6">
-                            <select name="status" defaultValue={a.status} className="form-select form-select-sm">
-                              <option value="open">Open</option>
-                              <option value="in_progress">In Progress</option>
-                              <option value="blocked">Blocked</option>
-                              <option value="done">Done</option>
-                              <option value="cancelled">Cancelled</option>
-                            </select>
-                          </div>
-                          <div className="col-12">
-                            <textarea className="form-control form-control-sm" name="description" defaultValue={a.description || ''} placeholder="Description" />
-                          </div>
-                          <div className="col-lg-6">
-                            <select name="assignee_user_id" defaultValue={a.assignee_user_id} className="form-select form-select-sm">
-                              <option value="">Unassigned</option>
-                              {users.map((u: any) => (
-                                <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="col-lg-3">
-                            <select name="priority" defaultValue={a.priority} className="form-select form-select-sm">
-                              <option value="low">Low</option>
-                              <option value="medium">Medium</option>
-                              <option value="high">High</option>
-                              <option value="urgent">Urgent</option>
-                            </select>
-                          </div>
-                          <div className="col-lg-3">
-                            <input type="date" name="due_date" defaultValue={a.due_date ? new Date(a.due_date).toISOString().split('T')[0] : ''} className="form-control form-control-sm" />
-                          </div>
-                          <div className="col-12 d-flex gap-2">
-                            <button className="btn btn-sm btn-secondary" type="submit">Save</button>
-                            <form action={deleteAction}>
-                              <input type="hidden" name="action_id" value={a.id} />
-                              <button className="btn btn-sm btn-outline-danger" type="submit">Delete</button>
-                            </form>
-                          </div>
-                        </form>
-                      </div>
-                    </details>
-                  </td>
-                </tr>
+                <ActionRow key={a.id} action={a} users={users} updateAction={updateAction} deleteAction={deleteAction} />
               ))}
               {actions.length === 0 && (
                 <tr><td colSpan={7} className="text-center text-muted">No actions found</td></tr>
