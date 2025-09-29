@@ -138,11 +138,14 @@ export const TimePlot: React.FC<TimePlotProps> = ({
     const barHeight = 0.03;
     const barGap = 0.005;
     const numBars = overlapBars.length;
-    // Start a little above the x-axis and stack each subsequent bar downward
-    const baseTop = Math.min(0.4, barHeight * numBars + barGap * (numBars - 1)); // in paper coords (0 bottom .. 1 top)
+  // Increase bottom margin so bars and tick labels have room (smaller than before)
+  layout.margin = { ...(layout.margin ?? {}), b: Math.max((layout.margin?.b as number) ?? 40, 60) };
+  // Vertical offset to move bars slightly below the x-axis ticks (smaller offset)
+  const barVerticalOffset = 0.03; // how far below the x-axis (in paper coords)
+    // Compute bar shapes positioned below the plot area (negative paper y values)
     const barShapes = overlapBars.map((b, idx) => {
-      const yTop = Math.max(barHeight, baseTop - idx * (barHeight + barGap));
-      const yBottom = Math.max(0, yTop - barHeight);
+      const yTop = -barVerticalOffset - idx * (barHeight + barGap);
+      const yBottom = yTop - barHeight;
       return {
         type: 'rect',
         x0: b.x0,
@@ -151,19 +154,15 @@ export const TimePlot: React.FC<TimePlotProps> = ({
         y1: yTop,
         xref: 'x',
         yref: 'paper',
-        fillcolor: 'rgba(120,120,120,0.2)',
-        line: { width: 1, color: 'rgba(100,100,100,1)' },
+        fillcolor: 'rgba(120,120,120,0.18)',
+        line: { width: 1, color: 'rgba(100,100,100,0.9)' },
       } as unknown;
     }) as unknown as NonNullable<Layout['shapes']>;
     layout.shapes = [...(layout.shapes ?? []), ...barShapes];
-    // Reserve the lower paper-space for the bars so the waveform sits above them.
-    // baseTop is the paper-coordinate top of the topmost bar (0 bottom .. 1 top).
-    const reserveMargin = 0.02; // small gap between bars and waveform
-    const domainLower = Math.min(0.95, baseTop + reserveMargin);
-    // Ensure domainLower is less than 1 and non-negative
-    const domainMin = Math.max(0, Math.min(0.98, domainLower));
-    // Set yaxis domain so the plotted data area occupies [domainMin, 1] of the paper (leaving bottom for bars)
-    layout.yaxis = { ...(layout.yaxis ?? {}), domain: [domainMin, 1] };
+    // Reserve the lower portion of the plot for bars and ticks by moving the waveform domain upward
+    // Use a smaller reserved domain so bars are close to axis but not overlapping ticks/legend
+    const reserveDomainBottom = 0.12; // waveform will occupy [reserveDomainBottom, 1]
+    layout.yaxis = { ...(layout.yaxis ?? {}), domain: [reserveDomainBottom, 1] };
   }
   const config: Partial<Config> = { responsive: true, displaylogo: false };
   return (
