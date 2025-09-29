@@ -108,7 +108,7 @@ export const TimePlot: React.FC<TimePlotProps> = ({
     uirevision: 'timeplot',
     margin: { l: 60, r: 20, t: 40, b: 40 },
     xaxis: { title: 'Time (s)', gridcolor: '#eee' },
-    yaxis: { title: 'Amplitude', gridcolor: '#eee' },
+    yaxis: { title: 'Amplitude', gridcolor: '#eee', range: [-1.2, 1.2] },
     legend: { orientation: 'h' },
     paper_bgcolor: 'transparent',
     plot_bgcolor: 'transparent',

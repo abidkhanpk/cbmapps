@@ -31,8 +31,8 @@ export const AveragingControls: React.FC<AveragingControlsProps> = ({ averagingM
             <label className="block text-sm font-medium">Number of averages</label>
             <input type="number" min={1} max={100} value={numAverages} onChange={e => setNumAverages(Math.max(1, Number(e.target.value) || 1))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" />
           </div>
-          {/* For linear averaging the segment length is determined from LOR and Fmax, so hide manual selection */}
-          {averagingMode !== 'linear' && (
+          {/* For linear and overlap averaging the segment length is determined from LOR and Fmax */}
+          {(averagingMode as AveragingMode) === 'none' && (
             <div>
               <label className="block text-sm font-medium">Segment length (samples)</label>
               <select value={segmentLength} onChange={e => setSegmentLength(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800">

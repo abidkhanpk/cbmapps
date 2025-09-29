@@ -123,7 +123,7 @@ export default function Home() {
 
   // determine segment length to use for spectrum computation
   let desiredSegmentLength = segmentLength;
-  if (averagingMode === 'linear') {
+  if (averagingMode === 'linear' || averagingMode === 'overlap') {
     const Twindow = lor / Math.max(fmax, 1e-12);
     const frameLenSamples = Math.max(1, Math.round(Twindow * fs));
     // choose nearest power of two <= frameLenSamples
@@ -219,7 +219,7 @@ export default function Home() {
   let yAnalogPlotFinal = yAnalogPlot;
   let tSamplesPlotFinal = tSamplesPlot;
   let ySamplesPlotFinal = ySamplesPlot;
-  if (averagingMode === 'linear' && typeof framesData !== 'undefined' && framesData.length > 0) {
+  if ((averagingMode === 'linear' || averagingMode === 'overlap') && typeof framesData !== 'undefined' && framesData.length > 0) {
     const Twindow = lor / Math.max(fmax, 1e-12);
     const frameLenSamples = Math.max(1, Math.round(Twindow * fs));
     const totalSamples = tSamples.length;
@@ -248,14 +248,14 @@ export default function Home() {
         appendedAnalogY.push(analog[chosen]);
       }
     }
-  // For linear averaging we want to show the full concatenated N * Twindow waveform.
+  // For linear and overlap averaging we want to show the full concatenated N * Twindow waveform.
   tAnalogPlotFinal = appendedAnalogT;
   yAnalogPlotFinal = appendedAnalogY;
   tSamplesPlotFinal = appendedSampledT;
   ySamplesPlotFinal = appendedSampledY;
 
-    // If windowed overlay exists and linear averaging, expand it to span all frames (if not already done)
-    if (windowedT && windowedY && windowedT.length <= frameLenSamples) {
+  // If windowed overlay exists and linear/overlap averaging, expand it to span all frames (if not already done)
+  if (windowedT && windowedY && windowedT.length <= frameLenSamples) {
       const appendedWT: number[] = [];
       const appendedWY: number[] = [];
       for (let k = 0; k < framesData.length; k++) {
@@ -422,8 +422,8 @@ export default function Home() {
               yAnalog={yAnalogPlotFinal}
               tSamples={tSamplesPlotFinal}
               ySamples={ySamplesPlotFinal}
-              frames={averagingMode === 'linear' ? undefined : frames}
-              framesData={averagingMode === 'linear' ? undefined : framesData}
+              frames={undefined}
+              framesData={undefined}
               windowedT={windowedT}
               windowedY={windowedY}
               individualSignals={showIndividuals ? individualSignalsPlot : []}
