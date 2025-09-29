@@ -135,15 +135,14 @@ export const TimePlot: React.FC<TimePlotProps> = ({
   }
   // add overlap bars stacked downward from a small offset above the x-axis when provided
   if (overlapBars && overlapBars.length > 0) {
-    const barHeight = 0.03;
-    const barGap = 0.005;
-    const numBars = overlapBars.length;
-  // Increase bottom margin so bars and tick labels have room
-  layout.margin = { ...(layout.margin ?? {}), b: Math.max((layout.margin?.b as number) ?? 40, 48) };
+  const barHeight = 0.03;
+  const barGap = 0.005;
+  // Increase bottom margin so bars and tick labels have room (slightly smaller)
+  layout.margin = { ...(layout.margin ?? {}), b: Math.max((layout.margin?.b as number) ?? 40, 44) };
   // Ensure the top margin leaves room for the legend placed above plot
   layout.margin = { ...(layout.margin ?? {}), t: Math.max((layout.margin?.t as number) ?? 60, 70) };
-  // Vertical offset to move bars slightly below the x-axis ticks (small offset)
-  const barVerticalOffset = 0.02; // how far below the x-axis (in paper coords)
+  // Vertical offset to move bars slightly below the x-axis ticks (make smaller so bars are closer to ticks)
+  const barVerticalOffset = 0.009; // how far below the x-axis (in paper coords)
     // Compute bar shapes positioned below the plot area (negative paper y values)
     const barShapes = overlapBars.map((b, idx) => {
       const yTop = -barVerticalOffset - idx * (barHeight + barGap);
@@ -163,7 +162,7 @@ export const TimePlot: React.FC<TimePlotProps> = ({
     layout.shapes = [...(layout.shapes ?? []), ...barShapes];
     // Reserve the lower portion of the plot for bars and ticks by moving the waveform domain upward
     // Use a small reserved domain so bars are close to axis but do not overlap ticks; legend sits above plot
-    const reserveDomainBottom = 0.09; // waveform will occupy [reserveDomainBottom, 1]
+    const reserveDomainBottom = 0.06; // waveform will occupy [reserveDomainBottom, 1]
     layout.yaxis = { ...(layout.yaxis ?? {}), domain: [reserveDomainBottom, 1] };
   }
   const config: Partial<Config> = { responsive: true, displaylogo: false };
