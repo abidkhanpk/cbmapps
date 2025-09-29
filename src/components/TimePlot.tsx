@@ -108,7 +108,8 @@ export const TimePlot: React.FC<TimePlotProps> = ({
     uirevision: 'timeplot',
     margin: { l: 60, r: 20, t: 40, b: 40 },
     xaxis: { title: 'Time (s)', gridcolor: '#eee' },
-    yaxis: { title: 'Amplitude', gridcolor: '#eee', range: [-1.2, 1.2] },
+    // allow autorange for the waveform; when overlap bars exist we'll reserve paper space via yaxis.domain
+    yaxis: { title: 'Amplitude', gridcolor: '#eee', autorange: true },
     legend: { orientation: 'h' },
     paper_bgcolor: 'transparent',
     plot_bgcolor: 'transparent',
@@ -155,6 +156,14 @@ export const TimePlot: React.FC<TimePlotProps> = ({
       } as unknown;
     }) as unknown as NonNullable<Layout['shapes']>;
     layout.shapes = [...(layout.shapes ?? []), ...barShapes];
+    // Reserve the lower paper-space for the bars so the waveform sits above them.
+    // baseTop is the paper-coordinate top of the topmost bar (0 bottom .. 1 top).
+    const reserveMargin = 0.02; // small gap between bars and waveform
+    const domainLower = Math.min(0.95, baseTop + reserveMargin);
+    // Ensure domainLower is less than 1 and non-negative
+    const domainMin = Math.max(0, Math.min(0.98, domainLower));
+    // Set yaxis domain so the plotted data area occupies [domainMin, 1] of the paper (leaving bottom for bars)
+    layout.yaxis = { ...(layout.yaxis ?? {}), domain: [domainMin, 1] };
   }
   const config: Partial<Config> = { responsive: true, displaylogo: false };
   return (
