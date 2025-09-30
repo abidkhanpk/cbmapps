@@ -135,8 +135,10 @@ export const TimePlot: React.FC<TimePlotProps> = ({
   }
   // add overlap bars stacked downward from a small offset above the x-axis when provided
   if (overlapBars && overlapBars.length > 0) {
-    const barHeight = 0.03;
-    const barGap = 0.005;
+  // Keep bar sizes in paper coords for Plotly rendering, but compute pixel-targets to
+  // make spacing proportional and avoid a large fixed blank area.
+  const barHeight = 0.03; // paper coords height for each bar (visual size preserved)
+  const barGap = 0.005; // gap between bars in paper coords
     // Ensure the top margin leaves room for the legend placed above plot
     layout.margin = { ...(layout.margin ?? {}), t: Math.max((layout.margin?.t as number) ?? 60, 70) };
     // Base bottom margin (keep a sensible minimum so ticks/labels still have room)
@@ -170,23 +172,62 @@ export const TimePlot: React.FC<TimePlotProps> = ({
     const topMarginPx = (layout.margin?.t as number) ?? 70;
     const bottomMarginPx = baseBottom;
 
-    // Compute how far (in paper coords) the lowest point of the stacked bars extends below the plot (positive value)
     const numBars = overlapBars.length;
-    const lowestPaperY = Math.abs(-barVerticalOffset - (numBars - 1) * (barHeight + barGap) - barHeight);
 
-    // K is the initial plot-area height in pixels (before adding extra bottom margin)
-    const K = totalHeightPx - topMarginPx - bottomMarginPx;
+    // Desired pixel offsets (tweakable): initial offset for the first bar below the axis
+    const firstBarOffsetPx = 6; // move the first bar a few pixels below the axis
+    const perBarAdditionPx = 8; // additional pixels to add per extra bar (keeps growth modest)
 
-    // Solve for extra pixels (E) needed to accommodate the negative paper-space extent using the relation:
-    // E = A * (K - E)  => E = (A * K) / (1 + A), where A = lowestPaperY
-    const A = lowestPaperY;
-    let extraBottomPx = 0;
-    if (A > 0 && K > 0) {
-      extraBottomPx = Math.ceil((A * K) / (1 + A));
-    }
+    // Compute desired extra bottom pixels proportionally (small when few bars, larger as bars increase)
+    const desiredExtraPx = Math.max(0, firstBarOffsetPx + perBarAdditionPx * (numBars - 1));
 
-    const finalBottom = bottomMarginPx + extraBottomPx;
+    // We'll clamp extra pixels to avoid exceeding the plot height
+    const K = Math.max(20, totalHeightPx - topMarginPx - bottomMarginPx);
+    const clampedExtraPx = Math.min(desiredExtraPx, Math.floor(K * 0.8));
+
+    const finalBottom = bottomMarginPx + clampedExtraPx;
     layout.margin = { ...(layout.margin ?? {}), b: finalBottom };
+
+    // Now convert pixel offsets back to paper coordinates so bar shapes align with pixel spacing.
+    // Paper fraction occupied by the plot area (not margins): plotAreaPx = totalHeightPx - top - bottom
+    const plotAreaPx = Math.max(1, totalHeightPx - topMarginPx - finalBottom);
+
+    // Convert desired firstBarOffsetPx and per-bar pixel height to paper coords
+    const firstBarOffsetPaper = firstBarOffsetPx / plotAreaPx;
+    const perBarPaper = perBarAdditionPx / plotAreaPx;
+
+    // Recreate bar shapes using the new pixel->paper conversion so first bar is slightly lower and spacing grows
+    const adjustedBarShapes = overlapBars.map((b, idx) => {
+      const yTop = -firstBarOffsetPaper - idx * perBarPaper;
+      const yBottom = yTop - barHeight;
+      return {
+        type: 'rect',
+        x0: b.x0,
+        x1: b.x1,
+        y0: yBottom,
+        y1: yTop,
+        xref: 'x',
+        yref: 'paper',
+        fillcolor: 'rgba(120,120,120,0.18)',
+        line: { width: 1, color: 'rgba(100,100,100,0.9)' },
+      } as unknown;
+    }) as unknown as NonNullable<Layout['shapes']>;
+    // Replace the previously added shapes with adjusted ones
+    // Remove any shapes that were added earlier in this block (we appended earlier, so replace with adjusted)
+    // Filter out any previous paper-rect shapes we added earlier (match by type and yref safely)
+    const existingShapes = layout.shapes ?? [];
+    const filtered = existingShapes.filter((s) => {
+      if (!s || typeof s !== 'object') return true;
+      const so = s as Partial<Record<string, unknown>>;
+      const yref = so['yref'];
+      const type = so['type'];
+      if (typeof yref === 'string' && typeof type === 'string') {
+        // remove shapes that are paper-aligned rects (these were our overlap bars)
+        return !(yref === 'paper' && type === 'rect');
+      }
+      return true;
+    });
+    layout.shapes = [...filtered, ...adjustedBarShapes];
 
     // Reserve a small bottom domain so the waveform doesn't overlap the bars; keep the reserved fraction small
     const reserveDomainBottom = 0.06;
