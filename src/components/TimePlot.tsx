@@ -26,6 +26,8 @@ export interface TimePlotProps {
   title?: string;
   frames?: Array<{ t0: number; t1: number }>;
   framesData?: Array<{ t: number[]; y: number[] }>;
+  // optional per-frame windowed overlay traces (absolute times)
+  windowedFrames?: Array<{ t: number[]; y: number[] }>;
   // force x-axis span to a specific maximum (e.g., T * N)
   xAxisMax?: number;
   // bars drawn near the bottom to visualize overlap windows
@@ -39,6 +41,7 @@ export const TimePlot: React.FC<TimePlotProps> = ({
   individualSignals = [],
   windowedT,
   windowedY,
+  windowedFrames,
   frames,
   framesData,
   xAxisMax,
@@ -88,6 +91,19 @@ export const TimePlot: React.FC<TimePlotProps> = ({
       mode: 'lines',
       line: { color: '#d97706', width: 3 },
       name: 'Windowed time waveform',
+    });
+  }
+  // per-frame windowed overlays (for overlapped/linear averaging) - drawn above the faint raw frames
+  if (windowedFrames && windowedFrames.length > 0) {
+    windowedFrames.forEach((wf: { t: number[]; y: number[] }, idx: number) => {
+      traces.push({
+        x: Array.from(wf.t),
+        y: Array.from(wf.y),
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: `rgba(217,119,6,${0.9 - Math.min(0.6, idx * 0.06)})`, width: 2 },
+        name: `Windowed ${idx + 1}`,
+      });
     });
   }
   // render each frame's raw sampled data as a separate faint trace so frames are distinguishable

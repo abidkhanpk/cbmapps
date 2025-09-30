@@ -50,6 +50,8 @@ export default function Home() {
   const [segmentLength, setSegmentLength] = useState<number>(256);
   const [numAverages, setNumAverages] = useState<number>(5);
   const [overlapPercent, setOverlapPercent] = useState<number>(50);
+  // per-frame visibility toggles (for showing each windowed frame individually)
+  const [visibleFrames, setVisibleFrames] = useState<boolean[]>([]);
 
   // Use new multi-signal hook signature
   const { tSamples, noisySamples, cleanSamples, tAnalog, analog, individualSignals } = useSignal({
@@ -141,12 +143,17 @@ export default function Home() {
   if (averagingMode !== 'none' && numAverages > 0) {
     const Twindow = lor / Math.max(fmax, 1e-12);
     const frameLenSamples = Math.max(1, Math.round(Twindow * fs));
+    // compute stepSamples based on overlap mode; for linear averaging step==frameLenSamples
+    const ov = averagingMode === 'overlap' ? Math.min(90, Math.max(0, overlapPercent)) : 0;
+    const stepSamples = Math.max(1, Math.round(frameLenSamples * (1 - ov / 100)));
+    const stepT = stepSamples / fs;
     frames = [];
     framesData = [];
     const totalSamples = tSamples.length;
     const dt = 1 / fs;
+    // Build exactly numAverages frames starting every stepSamples (wrap-around using modulo as before)
     for (let k = 0; k < numAverages; k++) {
-      const start = k * frameLenSamples;
+      const start = k * stepSamples;
       const tArr: number[] = [];
       const yArr: number[] = [];
       for (let n = 0; n < frameLenSamples; n++) {
@@ -154,23 +161,33 @@ export default function Home() {
         tArr.push(n * dt);
         yArr.push(noisySamples[idx]);
       }
-      frames.push({ t0: k * Twindow, t1: (k + 1) * Twindow });
+      frames.push({ t0: k * stepT, t1: k * stepT + Twindow });
       framesData.push({ t: tArr, y: yArr });
     }
     // Force x-axis span to T * N (full span) for both linear and overlap visualization
     xAxisMax = Twindow * numAverages;
 
-    // If overlap mode, we want to visualize bars at the actual start times with overlap
-    if (averagingMode === 'overlap') {
-      const ov = Math.min(90, Math.max(0, overlapPercent));
-      const stepT = Twindow * (1 - ov / 100);
-      overlapBars = [];
-      for (let k = 0; k < numAverages; k++) {
-        const x0 = k * stepT;
-        overlapBars.push({ x0, x1: x0 + Twindow });
-      }
+    // Visualize bars at their actual start times (stepT defined above)
+    overlapBars = [];
+    for (let k = 0; k < numAverages; k++) {
+      const x0 = k * stepT;
+      overlapBars.push({ x0, x1: x0 + Twindow });
     }
   }
+
+  // Ensure visibleFrames length matches framesData when framesData changes
+  useEffect(() => {
+    if (typeof framesData === 'undefined' || framesData.length === 0) {
+      setVisibleFrames([]);
+    } else {
+      setVisibleFrames(prev => {
+        if (prev.length === framesData.length) return prev;
+        const next = new Array(framesData.length).fill(true);
+        for (let i = 0; i < Math.min(prev.length, next.length); i++) next[i] = prev[i];
+        return next;
+      });
+    }
+  }, [framesData]);
 
 
   const framesForSpectrum = (averagingMode === 'linear' && typeof framesData !== 'undefined') ? framesData.map(fd => {
@@ -193,6 +210,8 @@ export default function Home() {
   // compute windowed sampled waveform (overlay). Use the window of length numSamples applied to cleanSamples.
   let windowedT: number[] | undefined = undefined;
   let windowedY: number[] | undefined = undefined;
+  // per-frame windowed overlays (absolute times) to pass to TimePlot
+  let windowedFrames: Array<{ t: number[]; y: number[] }> | undefined = undefined;
   try {
     if (showWindowed) {
       // compute the desired window duration (seconds) from LOR and fmax
@@ -222,6 +241,9 @@ export default function Home() {
   if ((averagingMode === 'linear' || averagingMode === 'overlap') && typeof framesData !== 'undefined' && framesData.length > 0) {
     const Twindow = lor / Math.max(fmax, 1e-12);
     const frameLenSamples = Math.max(1, Math.round(Twindow * fs));
+    const ov = averagingMode === 'overlap' ? Math.min(90, Math.max(0, overlapPercent)) : 0;
+    const stepSamples = Math.max(1, Math.round(frameLenSamples * (1 - ov / 100)));
+    const stepT = stepSamples / fs;
     const totalSamples = tSamples.length;
     const appendedSampledT: number[] = [];
     const appendedSampledY: number[] = [];
@@ -229,12 +251,12 @@ export default function Home() {
     const appendedAnalogY: number[] = [];
     for (let k = 0; k < framesData.length; k++) {
       const fd = framesData[k];
-      const start = k * frameLenSamples;
+      const start = k * stepSamples;
       for (let n = 0; n < fd.t.length; n++) {
         const idx = (start + n) % totalSamples;
         const tRel = fd.t[n];
-  appendedSampledT.push(k * Twindow + tRel);
-  appendedSampledY.push(noisySamples[idx]);
+        appendedSampledT.push(k * stepT + tRel);
+        appendedSampledY.push(noisySamples[idx]);
         // find closest analog index
         let ai = 0;
         while (ai < tAnalog.length - 1 && tAnalog[ai] < tSamples[idx]) ai++;
@@ -244,7 +266,7 @@ export default function Home() {
           const d1 = Math.abs(tAnalog[ai - 1] - tSamples[idx]);
           if (d1 < d0) chosen = ai - 1;
         }
-        appendedAnalogT.push(k * Twindow + tRel);
+        appendedAnalogT.push(k * stepT + tRel);
         appendedAnalogY.push(analog[chosen]);
       }
     }
@@ -255,17 +277,42 @@ export default function Home() {
   ySamplesPlotFinal = appendedSampledY;
 
   // If windowed overlay exists and linear/overlap averaging, expand it to span all frames (if not already done)
-  if (windowedT && windowedY && windowedT.length <= frameLenSamples) {
+    if (windowedT && windowedY && windowedT.length <= frameLenSamples) {
       const appendedWT: number[] = [];
       const appendedWY: number[] = [];
       for (let k = 0; k < framesData.length; k++) {
         for (let n = 0; n < windowedY.length; n++) {
-          appendedWT.push(k * Twindow + (windowedT[n] - windowedT[0]));
+          appendedWT.push(k * stepT + (windowedT[n] - windowedT[0]));
           appendedWY.push(windowedY[n]);
         }
       }
       windowedT = appendedWT;
       windowedY = appendedWY;
+    }
+
+    // Compute per-frame windowed traces (apply the same window to each frame's samples) so overlapping windows can be toggled
+    if (showWindowed && framesData && framesData.length > 0) {
+      windowedFrames = [];
+      for (let k = 0; k < framesData.length; k++) {
+        if (!visibleFrames[k]) {
+          windowedFrames.push({ t: [], y: [] });
+          continue;
+        }
+        const fd = framesData[k];
+        const Lw = Math.min(fd.t.length, windowedY ? windowedY.length : fd.t.length);
+        // create window
+        const w = getWindow(windowType, Lw);
+        const seg = new Float64Array(Lw);
+        for (let i = 0; i < Lw; i++) seg[i] = fd.y[i] ?? 0;
+        const yw = applyWindow(seg, w);
+        const tarr: number[] = [];
+        const yarr: number[] = [];
+        for (let i = 0; i < Lw; i++) {
+          tarr.push(k * stepT + fd.t[i]);
+          yarr.push(yw[i]);
+        }
+        windowedFrames.push({ t: tarr, y: yarr });
+      }
     }
 
     // (individual signals expansion moved later to run for any averaging mode when framesData is available)
@@ -417,6 +464,23 @@ export default function Home() {
               <label className="ml-4">Max Revolutions: <input type="number" min={1} max={20} value={maxRevolutions} onChange={e => setMaxRevolutions(Number(e.target.value))} className="w-16 ml-1 border rounded px-1" disabled={showWindowed} /></label>
               {showWindowed && <span className="text-xs text-gray-500 ml-2">(auto for window: shows full T)</span>}
             </div>
+            {/* Frame toggles when averaging active */}
+            {framesData && framesData.length > 0 && (
+              <div className="flex items-center gap-2 mt-2 text-sm">
+                <div className="text-xs text-gray-600">Frames:</div>
+                <div className="flex gap-1 flex-wrap">
+                  {framesData.map((_, i) => (
+                    <button key={i} type="button" onClick={() => setVisibleFrames(prev => {
+                      const next = [...prev];
+                      next[i] = !next[i];
+                      return next;
+                    })} className={`px-2 py-1 rounded text-xs ${visibleFrames[i] ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
+                      {i + 1}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <TimePlot
               tAnalog={tAnalogPlotFinal}
               yAnalog={yAnalogPlotFinal}
@@ -424,6 +488,7 @@ export default function Home() {
               ySamples={ySamplesPlotFinal}
               frames={undefined}
               framesData={undefined}
+              windowedFrames={windowedFrames}
               windowedT={windowedT}
               windowedY={windowedY}
               individualSignals={showIndividuals ? individualSignalsPlot : []}

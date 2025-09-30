@@ -46,8 +46,27 @@ export const SignalControls: React.FC<SignalControlsProps> = ({ signals, setSign
                 <option value="noise">Noise</option>
                 <option value="am">Amp. Modulation</option>
                 <option value="fm">Freq. Modulation</option>
+                <option value="machine">Machine (composite)</option>
               </select>
             </div>
+
+            {sig.type === 'machine' && (
+              <div>
+                <label className="block text-xs">Machine preset</label>
+                <select value={sig.machinePreset ?? 'default'} onChange={e => updateSignal(idx, 'machinePreset', e.target.value)} className="w-full rounded border p-1">
+                  <option value="default">Default (harmonics + sidebands)</option>
+                  <option value="bearing">Bearing-like (multiple tones)</option>
+                  <option value="gear">Gear mesh (harmonic-rich)</option>
+                </select>
+              </div>
+            )}
+            {sig.type === 'machine' && (
+              <div>
+                <label className="block text-xs">Complexity</label>
+                <input type="range" min={1} max={8} step={1} value={sig.machineComplexity ?? 3} onChange={e => updateSignal(idx, 'machineComplexity', Number(e.target.value))} className="w-full" />
+                <div className="text-xs text-gray-600">{`Components: ${sig.machineComplexity ?? 3}`}</div>
+              </div>
+            )}
             <div>
               <label className="block text-xs">Amplitude</label>
               <input type="number" value={sig.amplitude} onChange={e => updateSignal(idx, 'amplitude', Number(e.target.value))} className="w-full rounded border p-1" min={0} step={0.1} />

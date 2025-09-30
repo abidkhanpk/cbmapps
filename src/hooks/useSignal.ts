@@ -1,7 +1,7 @@
 'use client';
 import { useMemo } from 'react';
 
-export type SignalType = 'sine' | 'square' | 'chirp' | 'noise' | 'am' | 'fm';
+export type SignalType = 'sine' | 'square' | 'chirp' | 'noise' | 'am' | 'fm' | 'machine';
 
 export interface SingleSignalParams {
   type: SignalType;
@@ -15,6 +15,10 @@ export interface SingleSignalParams {
   modulationIndex?: number;
   // FM parameters
   frequencyDeviation?: number; // peak frequency deviation (Hz)
+  // machine preset name (optional)
+  machinePreset?: string;
+  // machine complexity (1..5) controls number of components/harmonics
+  machineComplexity?: number;
 }
 
 export interface MultiSignalParams {
@@ -79,6 +83,38 @@ function generateSample(
     }
     case 'noise':
       return amp * (2 * Math.random() - 1);
+    case 'machine': {
+      // richer machine model: sum of multiple narrowband components, harmonics, sidebands and FM jitter
+      const base = f;
+      const complexity = Math.max(1, Math.min(8, Math.round((k as number) || 3)));
+      // complexity controls number of components (up to 8). Use integer k passed as machineComplexity.
+      const numComponents = complexity;
+      let out = 0;
+      // per-component deterministic offsets (small, reproducible using index-like constants)
+      for (let c = 0; c < numComponents; c++) {
+        // component amplitude fraction
+        const frac = [0.6, 0.35, 0.25, 0.18, 0.12, 0.09, 0.06, 0.04][c] ?? 0.03;
+        // small frequency offset to create multiple nearby tones
+        const freqOffset = (c === 0) ? 0 : (c * 0.15 * base + (c % 2 === 0 ? 0.5 : -0.4));
+        // harmonics count depends on complexity
+        const harmonics = 1 + Math.floor(complexity / 2);
+        // FM jitter depth (Hz)
+        const fmJitter = 0.1 * base * (0.05 + 0.02 * c);
+        // instantaneous frequency modulation via small sinusoid
+        const instFreq = base + freqOffset + (fmJitter * Math.sin(2 * Math.PI * (0.5 + 0.3 * c) * t + c));
+        for (let h = 1; h <= harmonics; h++) {
+          const harmAmp = frac * (1 / h);
+          // sideband modulation at low freq
+          const sb = 2 * Math.PI * (0.2 + 0.1 * c) * Math.sin(2 * Math.PI * (0.5 + 0.2 * c) * t + c * 0.7);
+          out += amp * harmAmp * Math.sin(2 * Math.PI * h * instFreq * t + phi + sb);
+        }
+      }
+      // overall low-freq AM to simulate load modulation
+      out *= 1 + 0.04 * Math.sin(2 * Math.PI * 0.5 * t + 0.2);
+      // small broadband noise/jitter added
+      out += amp * 0.02 * (2 * Math.random() - 1);
+      return out;
+    }
   }
 }
 
@@ -138,6 +174,9 @@ export function useSignal(params: MultiSignalParams): SignalOutputs {
       } else if (sig.type === 'fm') {
         f0 = sig.modulationFrequency ?? 0;
         k = sig.frequencyDeviation ?? 0;
+      } else if (sig.type === 'machine') {
+        // pass machine complexity through k param to generator
+        k = sig.machineComplexity ?? 3;
       }
 
       // Individual sampled
@@ -156,17 +195,21 @@ export function useSignal(params: MultiSignalParams): SignalOutputs {
         indAnalog[i] = s;
         analog[i] += s;
       }
+      const label =
+        sig.type === 'am'
+          ? `am (fc=${sig.frequency} Hz, fm=${sig.modulationFrequency ?? 0} Hz, m=${sig.modulationIndex ?? 0})`
+          : sig.type === 'fm'
+          ? `fm (fc=${sig.frequency} Hz, fm=${sig.modulationFrequency ?? 0} Hz, df=${sig.frequencyDeviation ?? 0} Hz)`
+          : sig.type === 'machine'
+          ? `machine (fc=${sig.frequency} Hz, c=${sig.machineComplexity ?? 3}${sig.machinePreset ? `, ${sig.machinePreset}` : ''})`
+          : `${sig.type} (${sig.frequency} Hz)`;
+
       individualSignals.push({
         tSamples,
         cleanSamples: indClean,
         tAnalog,
         analog: indAnalog,
-        label:
-          sig.type === 'am'
-            ? `am (fc=${sig.frequency} Hz, fm=${sig.modulationFrequency ?? 0} Hz, m=${sig.modulationIndex ?? 0})`
-            : sig.type === 'fm'
-            ? `fm (fc=${sig.frequency} Hz, fm=${sig.modulationFrequency ?? 0} Hz, df=${sig.frequencyDeviation ?? 0} Hz)`
-            : `${sig.type} (${sig.frequency} Hz)`,
+        label,
       });
     });
 
