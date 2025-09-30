@@ -255,7 +255,8 @@ export default function Home() {
       for (let n = 0; n < fd.t.length; n++) {
         const idx = (start + n) % totalSamples;
         const tRel = fd.t[n];
-        appendedSampledT.push(k * stepT + tRel);
+        // display-time aligned to k * Twindow so total shown time equals N * Twindow (same as linear)
+        appendedSampledT.push(k * Twindow + tRel);
         appendedSampledY.push(noisySamples[idx]);
         // find closest analog index
         let ai = 0;
@@ -266,7 +267,7 @@ export default function Home() {
           const d1 = Math.abs(tAnalog[ai - 1] - tSamples[idx]);
           if (d1 < d0) chosen = ai - 1;
         }
-        appendedAnalogT.push(k * stepT + tRel);
+        appendedAnalogT.push(k * Twindow + tRel);
         appendedAnalogY.push(analog[chosen]);
       }
     }
@@ -464,23 +465,7 @@ export default function Home() {
               <label className="ml-4">Max Revolutions: <input type="number" min={1} max={20} value={maxRevolutions} onChange={e => setMaxRevolutions(Number(e.target.value))} className="w-16 ml-1 border rounded px-1" disabled={showWindowed} /></label>
               {showWindowed && <span className="text-xs text-gray-500 ml-2">(auto for window: shows full T)</span>}
             </div>
-            {/* Frame toggles when averaging active */}
-            {framesData && framesData.length > 0 && (
-              <div className="flex items-center gap-2 mt-2 text-sm">
-                <div className="text-xs text-gray-600">Frames:</div>
-                <div className="flex gap-1 flex-wrap">
-                  {framesData.map((_, i) => (
-                    <button key={i} type="button" onClick={() => setVisibleFrames(prev => {
-                      const next = [...prev];
-                      next[i] = !next[i];
-                      return next;
-                    })} className={`px-2 py-1 rounded text-xs ${visibleFrames[i] ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
-                      {i + 1}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Frame buttons removed: use legend to toggle overlays if needed */}
             <TimePlot
               tAnalog={tAnalogPlotFinal}
               yAnalog={yAnalogPlotFinal}
