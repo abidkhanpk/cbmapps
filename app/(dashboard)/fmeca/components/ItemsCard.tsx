@@ -41,6 +41,16 @@ export default function ItemsCard({
 }: ItemsCardProps) {
   const [expandedId, setExpandedId] = useState<string | null>(initialExpandedId || null)
 
+  function closeAddItemCollapse() {
+    if (typeof document === 'undefined') return
+    const el = document.getElementById('add-fmeca-item')
+    if (el) {
+      el.classList.remove('show')
+      ;(el as HTMLElement).style.height = ''
+      ;(el as HTMLElement).setAttribute('aria-expanded', 'false')
+    }
+  }
+
   return (
     <div className="row g-4 mt-1">
       <div className="col-12">
@@ -68,7 +78,7 @@ export default function ItemsCard({
             <div id="add-fmeca-item" className="collapse">
               <div className="border rounded p-3 mb-3">
                 <div className="fw-semibold mb-2">Add FMECA Item</div>
-                <form action={addItem} className="row g-2">
+                <form action={addItem} className="row g-2" onSubmit={() => closeAddItemCollapse()}>
                   <input type="hidden" name="study_id" value={study.id} />
                   <div className="col-12">
                     <label className="form-label">Component</label>
@@ -250,7 +260,7 @@ export default function ItemsCard({
                               <div className="col-lg-6">
                                 <div className="border rounded p-3">
                                   <div className="fw-semibold mb-2">Edit FMECA Item</div>
-                                  <form action={updateItem} className="row g-2">
+                                  <form action={updateItem} className="row g-2" onSubmit={() => setExpandedId(null)}>
                                     <input type="hidden" name="item_id" value={it.id} />
                                     <input type="hidden" name="study_id" value={study.id} />
                                     <div className="col-12">
@@ -354,7 +364,10 @@ export default function ItemsCard({
                                           <details>
                                             <summary className="btn btn-sm btn-outline-secondary">Edit</summary>
                                             <div className="mt-2">
-                                              <form action={updateAction} className="row g-2">
+                                              <form action={updateAction} className="row g-2" onSubmit={(e) => {
+                                                const det = e.currentTarget.closest('details') as HTMLDetailsElement | null
+                                                if (det) det.open = false
+                                              }}>
                                                 <input type="hidden" name="action_id" value={a.id} />
                                                 <input type="hidden" name="study_id" value={study.id} />
                                                 <input type="hidden" name="item_id" value={it.id} />

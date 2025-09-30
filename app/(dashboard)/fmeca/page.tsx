@@ -237,7 +237,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
       },
     })
     const study_id = String(formData.get('study_id') || '')
-    revalidatePath(`/fmeca?study=${study_id || ''}&expand=${id}`)
+    revalidatePath(`/fmeca?study=${study_id || ''}`)
   }
 
   async function deleteItem(formData: FormData) {
