@@ -135,14 +135,16 @@ export const TimePlot: React.FC<TimePlotProps> = ({
   }
   // add overlap bars stacked downward from a small offset above the x-axis when provided
   if (overlapBars && overlapBars.length > 0) {
-  const barHeight = 0.03;
-  const barGap = 0.005;
-  // Increase bottom margin so bars and tick labels have room (slightly smaller)
-  layout.margin = { ...(layout.margin ?? {}), b: Math.max((layout.margin?.b as number) ?? 40, 44) };
-  // Ensure the top margin leaves room for the legend placed above plot
-  layout.margin = { ...(layout.margin ?? {}), t: Math.max((layout.margin?.t as number) ?? 60, 70) };
-  // Vertical offset to move bars slightly below the x-axis ticks (make smaller so bars are closer to ticks)
-  const barVerticalOffset = 0.009; // how far below the x-axis (in paper coords)
+    const barHeight = 0.03;
+    const barGap = 0.005;
+    // Ensure the top margin leaves room for the legend placed above plot
+    layout.margin = { ...(layout.margin ?? {}), t: Math.max((layout.margin?.t as number) ?? 60, 70) };
+    // Base bottom margin (keep a sensible minimum so ticks/labels still have room)
+    const baseBottom = Math.max((layout.margin?.b as number) ?? 40, 44);
+
+    // Vertical offset to move bars slightly below the x-axis ticks (in paper coords)
+    const barVerticalOffset = 0.009;
+
     // Compute bar shapes positioned below the plot area (negative paper y values)
     const barShapes = overlapBars.map((b, idx) => {
       const yTop = -barVerticalOffset - idx * (barHeight + barGap);
@@ -160,9 +162,34 @@ export const TimePlot: React.FC<TimePlotProps> = ({
       } as unknown;
     }) as unknown as NonNullable<Layout['shapes']>;
     layout.shapes = [...(layout.shapes ?? []), ...barShapes];
-    // Reserve the lower portion of the plot for bars and ticks by moving the waveform domain upward
-    // Use a small reserved domain so bars are close to axis but do not overlap ticks; legend sits above plot
-    const reserveDomainBottom = 0.06; // waveform will occupy [reserveDomainBottom, 1]
+
+    // We want to increase the bottom margin (in pixels) so that all stacked bars are visible below the x-axis.
+    // Plot height is fixed by the component style (360px). We'll compute the extra margin required using
+    // a mapping between paper coordinates and pixel height of the plot area.
+    const totalHeightPx = 360; // matches the inline style height below
+    const topMarginPx = (layout.margin?.t as number) ?? 70;
+    const bottomMarginPx = baseBottom;
+
+    // Compute how far (in paper coords) the lowest point of the stacked bars extends below the plot (positive value)
+    const numBars = overlapBars.length;
+    const lowestPaperY = Math.abs(-barVerticalOffset - (numBars - 1) * (barHeight + barGap) - barHeight);
+
+    // K is the initial plot-area height in pixels (before adding extra bottom margin)
+    const K = totalHeightPx - topMarginPx - bottomMarginPx;
+
+    // Solve for extra pixels (E) needed to accommodate the negative paper-space extent using the relation:
+    // E = A * (K - E)  => E = (A * K) / (1 + A), where A = lowestPaperY
+    const A = lowestPaperY;
+    let extraBottomPx = 0;
+    if (A > 0 && K > 0) {
+      extraBottomPx = Math.ceil((A * K) / (1 + A));
+    }
+
+    const finalBottom = bottomMarginPx + extraBottomPx;
+    layout.margin = { ...(layout.margin ?? {}), b: finalBottom };
+
+    // Reserve a small bottom domain so the waveform doesn't overlap the bars; keep the reserved fraction small
+    const reserveDomainBottom = 0.06;
     layout.yaxis = { ...(layout.yaxis ?? {}), domain: [reserveDomainBottom, 1] };
   }
   const config: Partial<Config> = { responsive: true, displaylogo: false };
