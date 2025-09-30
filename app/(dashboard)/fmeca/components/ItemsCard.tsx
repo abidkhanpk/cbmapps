@@ -18,6 +18,7 @@ interface ItemsCardProps {
   addAction: (formData: FormData) => void
   updateAction: (formData: FormData) => void
   deleteAction: (formData: FormData) => void
+  ratingScales: { name: string; dimension: string; values: { id: string; value: number; label: string; description: string }[] }[]
 }
 
 export default function ItemsCard({
@@ -36,6 +37,7 @@ export default function ItemsCard({
   addAction,
   updateAction,
   deleteAction,
+  ratingScales,
 }: ItemsCardProps) {
   const [expandedId, setExpandedId] = useState<string | null>(initialExpandedId || null)
 
@@ -106,15 +108,27 @@ export default function ItemsCard({
                   </div>
                   <div className="col-4">
                     <label className="form-label">Severity</label>
-                    <input type="number" name="severity" className="form-control form-control-sm" min={1} max={10} defaultValue={5} required />
+                    <select name="severity" className="form-select form-select-sm" defaultValue={5} required>
+                      {(ratingScales.find(rs => rs.name === 'Severity Scale')?.values || []).map(v => (
+                        <option key={v.id} value={v.value}>{v.value} — {v.description}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="col-4">
                     <label className="form-label">Occurrence</label>
-                    <input type="number" name="occurrence" className="form-control form-control-sm" min={1} max={10} defaultValue={5} required />
+                    <select name="occurrence" className="form-select form-select-sm" defaultValue={5} required>
+                      {(ratingScales.find(rs => rs.name === 'Occurrence Scale')?.values || []).map(v => (
+                        <option key={v.id} value={v.value}>{v.value} — {v.description}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="col-4">
                     <label className="form-label">Detectability</label>
-                    <input type="number" name="detectability" className="form-control form-control-sm" min={1} max={10} defaultValue={5} required />
+                    <select name="detectability" className="form-select form-select-sm" defaultValue={5} required>
+                      {(ratingScales.find(rs => rs.name === 'Detectability Scale')?.values || []).map(v => (
+                        <option key={v.id} value={v.value}>{v.value} — {v.description}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="col-12">
                     <button className="btn btn-sm btn-primary" type="submit">
@@ -257,15 +271,27 @@ export default function ItemsCard({
                                     </div>
                                     <div className="col-4">
                                       <label className="form-label">Severity</label>
-                                      <input type="number" name="severity" min={1} max={10} defaultValue={it.severity} className="form-control form-control-sm" />
+                                      <select name="severity" className="form-select form-select-sm" defaultValue={it.severity}>
+                                        {(ratingScales.find(rs => rs.name === 'Severity Scale')?.values || []).map(v => (
+                                          <option key={v.id} value={v.value}>{v.value} — {v.description}</option>
+                                        ))}
+                                      </select>
                                     </div>
                                     <div className="col-4">
                                       <label className="form-label">Occurrence</label>
-                                      <input type="number" name="occurrence" min={1} max={10} defaultValue={it.occurrence} className="form-control form-control-sm" />
+                                      <select name="occurrence" className="form-select form-select-sm" defaultValue={it.occurrence}>
+                                        {(ratingScales.find(rs => rs.name === 'Occurrence Scale')?.values || []).map(v => (
+                                          <option key={v.id} value={v.value}>{v.value} — {v.description}</option>
+                                        ))}
+                                      </select>
                                     </div>
                                     <div className="col-4">
                                       <label className="form-label">Detectability</label>
-                                      <input type="number" name="detectability" min={1} max={10} defaultValue={it.detectability} className="form-control form-control-sm" />
+                                      <select name="detectability" className="form-select form-select-sm" defaultValue={it.detectability}>
+                                        {(ratingScales.find(rs => rs.name === 'Detectability Scale')?.values || []).map(v => (
+                                          <option key={v.id} value={v.value}>{v.value} — {v.description}</option>
+                                        ))}
+                                      </select>
                                     </div>
                                     <div className="col-12">
                                       <button className="btn btn-sm btn-secondary" type="submit">Save</button>

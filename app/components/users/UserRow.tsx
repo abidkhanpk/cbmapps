@@ -2,6 +2,8 @@
 
 import { useId, useState } from "react"
 
+export type RoleOption = { id: string; name: string }
+
 export type UserRowProps = {
   user: {
     id: string
@@ -11,13 +13,16 @@ export type UserRowProps = {
     created_at: string | Date
     user_roles?: { role: { name: string } }[]
   }
+  roles: RoleOption[]
   updateUser: (formData: FormData) => void
 }
 
-export default function UserRow({ user, updateUser }: UserRowProps) {
+export default function UserRow({ user, roles, updateUser }: UserRowProps) {
   const [editing, setEditing] = useState(false)
   const formId = useId()
   const onSubmit = () => setTimeout(() => setEditing(false), 0)
+
+  const currentRoleName = (user.user_roles || [])[0]?.role?.name || ''
 
   return (
     <tr>
@@ -41,8 +46,34 @@ export default function UserRow({ user, updateUser }: UserRowProps) {
           <input name="email" form={formId} className="form-control form-control-sm" defaultValue={user.email} />
         )}
       </td>
-      {/* Roles */}
-      <td>{(user.user_roles || []).map((ur) => ur.role.name).join(", ") || "-"}</td>
+      {/* Role + Password */}
+      <td>
+        {!editing ? (
+          currentRoleName || "-"
+        ) : (
+          <div className="d-flex flex-column gap-2">
+            <div>
+              <label className="form-label small mb-1">Role</label>
+              <select name="role_id" form={formId} className="form-select form-select-sm" defaultValue={roles.find(r => r.name === currentRoleName)?.id || ''}>
+                <option value="">Select role...</option>
+                {roles.map((r) => (
+                  <option key={r.id} value={r.id} className="text-capitalize">{r.name.replace(/_/g, ' ')}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="form-label small mb-1">New password</label>
+              <input
+                type="password"
+                name="new_password"
+                form={formId}
+                className="form-control form-control-sm"
+                placeholder="Leave blank to keep existing"
+              />
+            </div>
+          </div>
+        )}
+      </td>
       {/* Active */}
       <td>
         {!editing ? (

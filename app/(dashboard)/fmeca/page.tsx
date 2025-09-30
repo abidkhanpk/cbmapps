@@ -35,7 +35,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
   const expandedItemId = typeof searchParams?.expand === 'string' ? searchParams!.expand : undefined
 
   // Data for list and selects
-  const [studies, components, failureModes, assets] = await Promise.all([
+  const [studies, components, failureModes, assets, ratingScales] = await Promise.all([
     prisma.fmecaStudy.findMany({
       orderBy: { created_at: 'desc' },
       include: {
@@ -55,6 +55,10 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
       select: { id: true, name: true, tag_code: true },
       orderBy: [{ tag_code: 'asc' }, { name: 'asc' }],
       take: 500,
+    }),
+    prisma.ratingScale.findMany({
+      where: { name: { in: ['Severity Scale', 'Occurrence Scale', 'Detectability Scale'] } },
+      include: { values: { orderBy: { value: 'asc' } } },
     }),
   ])
 
@@ -421,6 +425,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
           addAction={addAction}
           updateAction={updateAction}
           deleteAction={deleteAction}
+          ratingScales={ratingScales}
         />
       )}
     </div>

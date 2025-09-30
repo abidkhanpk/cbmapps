@@ -351,7 +351,46 @@ async function main() {
     },
   });
 
-  // Create rating scale values
+  // Create rating scale values with quantitative descriptions
+  const severityDescriptions = [
+    'No effect on performance or safety',
+    'Very minor effect, hardly noticeable',
+    'Minor effect, slight annoyance',
+    'Low effect, some performance degradation',
+    'Moderate effect, noticeable performance loss',
+    'Significant effect, customer dissatisfaction',
+    'Major effect, system inoperable with workaround',
+    'Very high effect, system inoperable',
+    'Hazardous with warning, safety risk',
+    'Hazardous without warning, severe safety risk',
+  ];
+
+  const occurrenceDescriptions = [
+    'Remote: failure almost never occurs (~1 in 1,500,000)',
+    'Very low: isolated occurrence (~1 in 150,000)',
+    'Low: infrequent (~1 in 15,000)',
+    'Moderately low (~1 in 2,000)',
+    'Moderate (~1 in 400)',
+    'Moderately high (~1 in 80)',
+    'High (~1 in 20)',
+    'Very high (~1 in 8)',
+    'Almost certain (~1 in 3)',
+    'Failure almost inevitable (>= 1 in 2)',
+  ];
+
+  const detectabilityDescriptions = [
+    'Almost certain detection: controls will almost always detect',
+    'Very high chance of detection',
+    'High chance of detection',
+    'Moderately high chance of detection',
+    'Moderate chance of detection',
+    'Low-moderate chance of detection',
+    'Low chance of detection',
+    'Very low chance of detection',
+    'Remote chance of detection',
+    'Absolute uncertainty: controls will likely not detect',
+  ];
+
   for (let i = 1; i <= 10; i++) {
     await prisma.ratingScaleValue.upsert({
       where: {
@@ -360,12 +399,15 @@ async function main() {
           value: i,
         },
       },
-      update: {},
+      update: {
+        label: `S${i}`,
+        description: severityDescriptions[i - 1],
+      },
       create: {
         scale_id: severityScale.id,
         value: i,
-        label: `Severity ${i}`,
-        description: `Severity level ${i}`,
+        label: `S${i}`,
+        description: severityDescriptions[i - 1],
       },
     });
 
@@ -376,12 +418,15 @@ async function main() {
           value: i,
         },
       },
-      update: {},
+      update: {
+        label: `O${i}`,
+        description: occurrenceDescriptions[i - 1],
+      },
       create: {
         scale_id: occurrenceScale.id,
         value: i,
-        label: `Occurrence ${i}`,
-        description: `Occurrence level ${i}`,
+        label: `O${i}`,
+        description: occurrenceDescriptions[i - 1],
       },
     });
 
@@ -392,12 +437,15 @@ async function main() {
           value: i,
         },
       },
-      update: {},
+      update: {
+        label: `D${i}`,
+        description: detectabilityDescriptions[i - 1],
+      },
       create: {
         scale_id: detectabilityScale.id,
         value: i,
-        label: `Detectability ${i}`,
-        description: `Detectability level ${i}`,
+        label: `D${i}`,
+        description: detectabilityDescriptions[i - 1],
       },
     });
   }

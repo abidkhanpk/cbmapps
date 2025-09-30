@@ -587,13 +587,16 @@ async function ActionsView() {
 
 async function UsersView() {
   const { prisma } = await import('@/lib/db');
-  const users = await prisma.user.findMany({
-    take: 50,
-    orderBy: { created_at: 'desc' },
-    include: {
-      user_roles: { include: { role: true } },
-    },
-  });
+  const [users, roles] = await Promise.all([
+    prisma.user.findMany({
+      take: 50,
+      orderBy: { created_at: 'desc' },
+      include: {
+        user_roles: { include: { role: true } },
+      },
+    }),
+    prisma.role.findMany({ orderBy: { name: 'asc' } }),
+  ]);
 
   async function createUser(formData: FormData) {
     'use server'
@@ -614,6 +617,7 @@ async function UsersView() {
   async function updateUser(formData: FormData) {
     'use server'
     const { prisma } = await import('@/lib/db');
+    const bcrypt = await import('bcryptjs')
     const session = await getServerSession(getAuthOptions())
     const id = String(formData.get('user_id') || '')
     if (!id) return
@@ -621,19 +625,38 @@ async function UsersView() {
     const email = String(formData.get('email') || '')
     const is_active_raw = String(formData.get('is_active') || '')
     const is_active = is_active_raw ? (is_active_raw === 'true' || is_active_raw === 'on') : undefined
-    await prisma.user.update({
-      where: { id },
-      data: {
-        ...(full_name ? { full_name } : {}),
-        ...(email ? { email } : {}),
-        ...(typeof is_active === 'boolean' ? { is_active } : {}),
-      },
+    const new_password = String(formData.get('new_password') || '')
+    const role_id = String(formData.get('role_id') || '')
+
+    const updateData: any = {
+      ...(full_name ? { full_name } : {}),
+      ...(email ? { email } : {}),
+      ...(typeof is_active === 'boolean' ? { is_active } : {}),
+    }
+
+    if (new_password) {
+      updateData.password_hash = await bcrypt.hash(new_password, 10)
+    }
+
+    await prisma.$transaction(async (tx: any) => {
+      await tx.user.update({
+        where: { id },
+        data: updateData,
+      })
+      // Ensure only a single role
+      await tx.userRole.deleteMany({ where: { user_id: id } })
+      if (role_id) {
+        await tx.userRole.create({ data: { user_id: id, role_id } })
+      }
     })
+
     if (session?.user?.id) {
       await AuditService.logUpdate((session.user as any).id, 'user', id, {
         ...(full_name ? { full_name } : {}),
         ...(email ? { email } : {}),
         ...(typeof is_active === 'boolean' ? { is_active } : {}),
+        ...(role_id ? { role_id } : {}),
+        ...(new_password ? { password_changed: true } : {}),
       })
     }
   }
@@ -682,7 +705,7 @@ async function UsersView() {
             </thead>
             <tbody>
               {users.map((u: any) => (
-                <UserRow key={u.id} user={u} updateUser={updateUser} />
+                <UserRow key={u.id} user={u} roles={roles} updateUser={updateUser} />
               ))}
               {users.length === 0 && (
                 <tr>
