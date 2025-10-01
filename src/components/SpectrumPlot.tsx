@@ -40,7 +40,7 @@ export const SpectrumPlot: React.FC<SpectrumPlotProps> = ({ freq, magSingle, fre
     });
   }
   if (filteredFreq && filteredMag) {
-    traces.push({ x: Array.from(filteredFreq), y: Array.from(filteredMag), type: 'scatter', mode: 'lines', line: { color: '#059669', width: 2, dash: 'dash' }, name: 'Filtered FFT' });
+    traces.push({ x: Array.from(filteredFreq), y: Array.from(filteredMag), type: 'scatter', mode: 'lines', line: { color: '#0ea5a0', width: 2 }, name: 'Filtered FFT' });
   }
 
   const nyquist = fs / 2;

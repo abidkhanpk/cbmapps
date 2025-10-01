@@ -105,7 +105,7 @@ export const TimePlot: React.FC<TimePlotProps> = ({
       y: Array.from(yFiltered),
       type: 'scatter',
       mode: 'lines',
-      line: { color: '#059669', width: 2, dash: 'dash' },
+      line: { color: '#0ea5a0', width: 2 },
       name: 'Filtered (demo)',
     });
   }
