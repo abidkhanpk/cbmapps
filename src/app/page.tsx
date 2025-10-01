@@ -9,6 +9,7 @@ import { SpectrumPlot } from '@/components/SpectrumPlot';
 import { useSignal, SignalType } from '@/hooks/useSignal';
 import { useSpectrum, AveragingMode } from '@/hooks/useSpectrum';
 import { getWindow, applyWindow } from '@/lib/dsp';
+import FFT from 'fft.js';
 import type { WindowType } from '@/lib/dsp';
 import type { SingleSignalParams } from '@/hooks/useSignal';
 
@@ -239,78 +240,79 @@ export default function Home() {
     windowedY = undefined;
   }
 
-  // --- Simple FIR filter helpers (for demo only) ---
-  const sinc = (x: number) => {
-    if (Math.abs(x) < 1e-12) return 1;
-    return Math.sin(Math.PI * x) / (Math.PI * x);
-  };
-
-  const designLowpass = (fc: number, fsLocal: number, M: number) => {
-    const h: number[] = [];
-    const fcNorm = fc / fsLocal; // cycles/sample
-    const mid = (M - 1) / 2;
-    for (let n = 0; n < M; n++) {
-      const val = 2 * fcNorm * sinc(2 * fcNorm * (n - mid));
-      // Hamming window
-      const w = 0.54 - 0.46 * Math.cos((2 * Math.PI * n) / (M - 1));
-      h.push(val * w);
-    }
-    return h;
-  };
-
-  const convolve = (x: number[], h: number[]) => {
-    const y = new Array(x.length).fill(0);
-    const M = h.length;
-    for (let n = 0; n < x.length; n++) {
-      let acc = 0;
-      for (let k = 0; k < M; k++) {
-        const xi = x[n - k] ?? 0;
-        acc += xi * h[k];
-      }
-      y[n] = acc;
-    }
-    return y;
-  };
-
-  // Compute filtered arrays for demonstration
+  // Compute filtered arrays using ideal frequency-domain masking (FFT)
   let tFiltered: number[] | undefined = undefined;
   let yFiltered: number[] | undefined = undefined;
+  // Also compute filtered FFT (for plotting) and filter lines
+  let filteredFreq: Float64Array | undefined = undefined;
+  let filteredMag: Float64Array | undefined = undefined;
+  let filterLines: number[] = [];
   try {
     if (filterType !== 'none') {
-      // choose filter coefficients
-      const M = Math.max(3, filterOrder | 1);
-      let h: number[] = [];
-      if (filterType === 'low') {
-        h = designLowpass(Math.max(1e-6, Math.min(cutoffLow, fs / 2 - 1)), fs, M);
-      } else if (filterType === 'high') {
-        // spectral inversion of lowpass
-        const hl = designLowpass(Math.max(1e-6, Math.min(cutoffLow, fs / 2 - 1)), fs, M);
-        h = hl.map((v, i) => (i === Math.floor((M - 1) / 2) ? 1 - v : -v));
-      } else if (filterType === 'bandpass' || filterType === 'bandstop') {
-        const low = Math.max(1e-6, Math.min(cutoffLow, fs / 2 - 1));
-        const high = Math.max(low + 1e-6, Math.min(cutoffHigh, fs / 2 - 1));
-        const hL = designLowpass(low, fs, M);
-        const hH = designLowpass(high, fs, M);
-        // bandpass = high - low; bandstop = low + (1 - high)
-        if (filterType === 'bandpass') {
-          h = hH.map((v, i) => v - hL[i]);
-        } else {
-          h = hL.map((v, i) => v + (i === Math.floor((M - 1) / 2) ? 1 - hH[i] : -hH[i]));
-        }
+      const N = noisySamples.length;
+      const fft = new FFT(N);
+      const data = fft.createComplexArray();
+      const out = fft.createComplexArray();
+      // fill time-domain data with sampled noisy signal
+      for (let i = 0; i < N; i++) {
+        data[2 * i] = noisySamples[i] as number;
+        data[2 * i + 1] = 0;
+      }
+      fft.transform(out, data);
+
+      // construct mask over frequencies (bins 0..N-1) using signed frequency
+      for (let k = 0; k < N; k++) {
+        const freq = (k <= N / 2) ? (k * fs) / N : ((k - N) * fs) / N; // signed freq
+        let pass = false;
+        const af = Math.abs(freq);
+        if (filterType === 'low') pass = af <= cutoffLow;
+        else if (filterType === 'high') pass = af >= cutoffLow;
+        else if (filterType === 'bandpass') pass = af >= cutoffLow && af <= cutoffHigh;
+        else if (filterType === 'bandstop') pass = !(af >= cutoffLow && af <= cutoffHigh);
+        const m = pass ? 1 : 0;
+        out[2 * k] *= m;
+        out[2 * k + 1] *= m;
       }
 
-      // optionally apply simple antialiasing: if enabled and cutoff >= fs/2, reduce filter (demo behavior)
-      const samplesArr = Array.from(noisySamples);
-      const analogArr = Array.from(analog);
-      const yA = convolve(analogArr, h);
-      tFiltered = Array.from(tAnalog);
-      // choose to show filtered analog by default
-      yFiltered = yA;
+      // inverse FFT to get filtered time waveform using conjugation trick
+      const conjIn = fft.createComplexArray();
+      for (let i = 0; i < N; i++) {
+        conjIn[2 * i] = out[2 * i];
+        conjIn[2 * i + 1] = -out[2 * i + 1];
+      }
+      const temp = fft.createComplexArray();
+      fft.transform(temp, conjIn);
+      // conjugate and normalize by N
+      const yf: number[] = new Array(N);
+      for (let i = 0; i < N; i++) {
+        yf[i] = temp[2 * i] / N; // real part after conjugation
+      }
+      tFiltered = Array.from(tSamples);
+      yFiltered = yf;
+
+      // compute filtered magnitude spectrum for positive frequencies
+      const half = Math.floor(N / 2);
+      const mag = new Float64Array(half + 1);
+      const freqArr = new Float64Array(half + 1);
+      for (let k = 0; k <= half; k++) {
+        const re = out[2 * k];
+        const im = out[2 * k + 1];
+        mag[k] = (2 / N) * Math.hypot(re, im);
+        freqArr[k] = (k * fs) / N;
+      }
+      filteredFreq = freqArr;
+      filteredMag = mag;
+
+      // filter lines for plotting: single cutoff for low/high, both for band filters
+      if (filterType === 'low' || filterType === 'high') filterLines = [cutoffLow];
+      else filterLines = [cutoffLow, cutoffHigh];
     }
   } catch {
-    // ignore filter errors
     tFiltered = undefined;
     yFiltered = undefined;
+    filteredFreq = undefined;
+    filteredMag = undefined;
+    filterLines = [];
   }
 
   // If linear averaging is active, build appended sampled & analog arrays so the time waveform equals N * Twindow
@@ -539,14 +541,24 @@ export default function Home() {
                           <option value="bandstop">Band-stop</option>
                         </select>
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium">Cutoff Low (Hz)</label>
-                        <input type="number" value={cutoffLow} onChange={e => setCutoffLow(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium">Cutoff High (Hz)</label>
-                        <input type="number" value={cutoffHigh} onChange={e => setCutoffHigh(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" />
-                      </div>
+                      {(filterType === 'low' || filterType === 'high') && (
+                        <div>
+                          <label className="block text-sm font-medium">Cutoff (Hz)</label>
+                          <input type="number" value={cutoffLow} onChange={e => setCutoffLow(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" />
+                        </div>
+                      )}
+                      {(filterType === 'bandpass' || filterType === 'bandstop') && (
+                        <>
+                          <div>
+                            <label className="block text-sm font-medium">Cutoff Low (Hz)</label>
+                            <input type="number" value={cutoffLow} onChange={e => setCutoffLow(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium">Cutoff High (Hz)</label>
+                            <input type="number" value={cutoffHigh} onChange={e => setCutoffHigh(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" />
+                          </div>
+                        </>
+                      )}
                       <div>
                         <label className="block text-sm font-medium">Filter Order (odd)</label>
                         <input type="number" min={3} step={2} value={filterOrder} onChange={e => setFilterOrder(Math.max(3, Number(e.target.value) | 1))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" />
@@ -596,7 +608,16 @@ export default function Home() {
             />
           </div>
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 md:p-4">
-            <SpectrumPlot freq={single.freq} magSingle={single.mag} freqAveraged={averaged?.freq} magAveraged={averaged?.mag} fs={fs} />
+            <SpectrumPlot
+              freq={single.freq}
+              magSingle={single.mag}
+              freqAveraged={averaged?.freq}
+              magAveraged={averaged?.mag}
+              fs={fs}
+              filteredFreq={filteredFreq}
+              filteredMag={filteredMag}
+              filterLines={filterLines}
+            />
           </div>
         </main>
       </div>
