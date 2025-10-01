@@ -56,7 +56,7 @@ export default function Home() {
   const [cutoffLow, setCutoffLow] = useState<number>(10);
   const [cutoffHigh, setCutoffHigh] = useState<number>(100);
   const [filterOrder, setFilterOrder] = useState<number>(51);
-  const [antialiasing, setAntialiasing] = useState<boolean>(true);
+  // antialiasing removed per user request
   // per-frame visibility toggles (for showing each windowed frame individually)
   const [visibleFrames, setVisibleFrames] = useState<boolean[]>([]);
 
@@ -315,6 +315,31 @@ export default function Home() {
     filterLines = [];
   }
 
+  // Ensure filtered time waveform doesn't extend beyond the displayed sampling/averaging span.
+  // If averaging is active and we built concatenated sampled display arrays, map the filtered
+  // samples onto the concatenated display times so the filtered trace length matches the displayed sampled waveform.
+  if ((averagingMode === 'linear' || averagingMode === 'overlap') && typeof framesData !== 'undefined' && framesData.length > 0 && tFiltered && yFiltered) {
+    // Build concatenated display times as done below for sampled traces
+    const Twindow = lor / Math.max(fmax, 1e-12);
+    const frameLenSamples = Math.max(1, Math.round(Twindow * fs));
+    const ov = averagingMode === 'overlap' ? Math.min(90, Math.max(0, overlapPercent)) : 0;
+    const stepSamples = Math.max(1, Math.round(frameLenSamples * (1 - ov / 100)));
+    const totalSamples = tSamples.length;
+    const appendedSampledT: number[] = [];
+    const appendedSampledY: number[] = [];
+    for (let k = 0; k < framesData.length; k++) {
+      const start = k * stepSamples;
+      for (let n = 0; n < framesData[k].t.length; n++) {
+        const idx = (start + n) % totalSamples;
+        const tRel = framesData[k].t[n];
+        appendedSampledT.push(k * Twindow + tRel);
+        appendedSampledY.push(yFiltered[idx]);
+      }
+    }
+    tFiltered = appendedSampledT;
+    yFiltered = appendedSampledY;
+  }
+
   // If linear averaging is active, build appended sampled & analog arrays so the time waveform equals N * Twindow
   let tAnalogPlotFinal = tAnalogPlot;
   let yAnalogPlotFinal = yAnalogPlot;
@@ -563,9 +588,7 @@ export default function Home() {
                         <label className="block text-sm font-medium">Filter Order (odd)</label>
                         <input type="number" min={3} step={2} value={filterOrder} onChange={e => setFilterOrder(Math.max(3, Number(e.target.value) | 1))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" />
                       </div>
-                      <div className="flex items-center gap-2">
-                        <label><input type="checkbox" checked={antialiasing} onChange={e => setAntialiasing(e.target.checked)} /> Antialiasing</label>
-                      </div>
+                      {/* Antialiasing control removed - filtering is ideal mask only */}
                     </div>
                   </Collapsible>
               </Accordion>
