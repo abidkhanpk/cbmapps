@@ -52,22 +52,7 @@ export const SpectrumPlot: React.FC<SpectrumPlotProps> = ({ freq, magSingle, fre
     margin: { l: 60, r: 20, t: 40, b: 40 },
     xaxis: { title: 'Frequency (Hz)', gridcolor: '#eee', range: [0, fmax], zeroline: false },
     yaxis: { title: 'Magnitude', gridcolor: '#eee' },
-    // mark the user-configured Fmax as the right-most vertical guide
-    shapes: [
-      {
-        type: 'line',
-        x0: fmax,
-        x1: fmax,
-        y0: 0,
-        y1: 1,
-        xref: 'x',
-        yref: 'paper',
-        line: { color: '#555', width: 1, dash: 'dot' },
-      }
-    ],
-    annotations: [
-      { x: fmax, y: 1, xref: 'x', yref: 'paper', text: 'Fmax', showarrow: false, xanchor: 'left', yanchor: 'top', font: { size: 10, color: '#555' } }
-    ],
+    // Fmax guide/annotation removed per user preference
     paper_bgcolor: 'transparent',
     plot_bgcolor: 'transparent',
   };
@@ -81,21 +66,22 @@ export const SpectrumPlot: React.FC<SpectrumPlotProps> = ({ freq, magSingle, fre
     // Add shaded stop-band areas (darker) to highlight removed frequencies
     const nyq = fs / 2;
   const shaded: Array<Record<string, unknown>> = [];
+    // Make shaded stop-band more visible (darker reddish tint)
     if (filterType === 'low') {
       const fc = filterLines[0];
-      shaded.push({ type: 'rect', x0: fc, x1: nyq, y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: 'rgba(239,68,68,0.14)', line: { width: 0 } });
+      shaded.push({ type: 'rect', x0: fc, x1: nyq, y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: 'rgba(220,38,38,0.28)', line: { width: 0 } });
     } else if (filterType === 'high') {
       const fc = filterLines[0];
-      shaded.push({ type: 'rect', x0: 0, x1: fc, y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: 'rgba(239,68,68,0.14)', line: { width: 0 } });
+      shaded.push({ type: 'rect', x0: 0, x1: fc, y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: 'rgba(220,38,38,0.28)', line: { width: 0 } });
     } else if (filterType === 'bandpass') {
       const lo = filterLines[0];
       const hi = filterLines[1];
-      shaded.push({ type: 'rect', x0: 0, x1: lo, y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: 'rgba(239,68,68,0.14)', line: { width: 0 } });
-      shaded.push({ type: 'rect', x0: hi, x1: nyq, y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: 'rgba(239,68,68,0.14)', line: { width: 0 } });
+      shaded.push({ type: 'rect', x0: 0, x1: lo, y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: 'rgba(220,38,38,0.28)', line: { width: 0 } });
+      shaded.push({ type: 'rect', x0: hi, x1: nyq, y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: 'rgba(220,38,38,0.28)', line: { width: 0 } });
     } else if (filterType === 'bandstop') {
       const lo = filterLines[0];
       const hi = filterLines[1];
-      shaded.push({ type: 'rect', x0: lo, x1: hi, y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: 'rgba(239,68,68,0.20)', line: { width: 0 } });
+      shaded.push({ type: 'rect', x0: lo, x1: hi, y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: 'rgba(220,38,38,0.36)', line: { width: 0 } });
     }
     if (shaded.length > 0) layout.shapes = ((layout.shapes ?? []) as NonNullable<Layout['shapes']>).concat(shaded as unknown as NonNullable<Layout['shapes']>);
   }

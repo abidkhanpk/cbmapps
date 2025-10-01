@@ -340,6 +340,14 @@ export default function Home() {
     yFiltered = appendedSampledY;
   }
 
+  // Non-averaging case: ensure filtered arrays are limited to sampling display length
+  if (!(averagingMode === 'linear' || averagingMode === 'overlap') && tFiltered && yFiltered) {
+    // Trim to same length as tSamplesPlot/ySamplesPlot (the un-averaged display)
+    const L = Math.min(tFiltered.length, tSamplesPlot.length);
+    tFiltered = tFiltered.slice(0, L);
+    yFiltered = yFiltered.slice(0, L);
+  }
+
   // If linear averaging is active, build appended sampled & analog arrays so the time waveform equals N * Twindow
   let tAnalogPlotFinal = tAnalogPlot;
   let yAnalogPlotFinal = yAnalogPlot;
