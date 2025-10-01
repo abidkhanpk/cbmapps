@@ -56,6 +56,9 @@ export default function Home() {
   const [cutoffLow, setCutoffLow] = useState<number>(10);
   const [cutoffHigh, setCutoffHigh] = useState<number>(100);
   const [filterOrder, setFilterOrder] = useState<number>(51);
+  // UI for colored bands
+  const [showBands, setShowBands] = useState<boolean>(false);
+  const [transitionWidth, setTransitionWidth] = useState<number>(0);
   // antialiasing removed per user request
   // per-frame visibility toggles (for showing each windowed frame individually)
   const [visibleFrames, setVisibleFrames] = useState<boolean[]>([]);
@@ -596,6 +599,15 @@ export default function Home() {
                         <label className="block text-sm font-medium">Filter Order (odd)</label>
                         <input type="number" min={3} step={2} value={filterOrder} onChange={e => setFilterOrder(Math.max(3, Number(e.target.value) | 1))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" />
                       </div>
+                      <div>
+                        <label className="block text-sm font-medium">Show colored bands</label>
+                        <input type="checkbox" className="mt-2" checked={showBands} onChange={e => setShowBands(e.target.checked)} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium">Transition width (Hz)</label>
+                        <input type="number" min={0} value={transitionWidth} onChange={e => setTransitionWidth(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" />
+                        <div className="text-xs text-gray-500">Set {'>'}0 to visualize transition bands (half-width)</div>
+                      </div>
                       {/* Antialiasing control removed - filtering is ideal mask only */}
                     </div>
                   </Collapsible>
@@ -648,6 +660,9 @@ export default function Home() {
               filteredFreq={filteredFreq}
               filteredMag={filteredMag}
               filterLines={filterLines}
+              filterType={filterType}
+              showBands={showBands}
+              transitionWidth={transitionWidth}
             />
           </div>
         </main>

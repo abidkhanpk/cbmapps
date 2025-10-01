@@ -19,8 +19,12 @@ export interface SpectrumPlotProps {
   filterLines?: number[];
   // filter type to decide shaded stop area
   filterType?: 'none' | 'low' | 'high' | 'bandpass' | 'bandstop';
+  // show colored pass/transition/stop bands
+  showBands?: boolean;
+  // transition band half-width in Hz (full transition width will be used as-is)
+  transitionWidth?: number;
 }
-export const SpectrumPlot: React.FC<SpectrumPlotProps> = ({ freq, magSingle, freqAveraged, magAveraged, fs, filteredFreq, filteredMag, filterLines, filterType = 'none' }) => {
+export const SpectrumPlot: React.FC<SpectrumPlotProps> = ({ freq, magSingle, freqAveraged, magAveraged, fs, filteredFreq, filteredMag, filterLines, filterType = 'none', showBands = false, transitionWidth = 0 }) => {
   const traces: Data[] = [
     // area traces for shaded stop-bands will be prepended here if needed
     {
@@ -57,6 +61,46 @@ export const SpectrumPlot: React.FC<SpectrumPlotProps> = ({ freq, magSingle, fre
     paper_bgcolor: 'transparent',
     plot_bgcolor: 'transparent',
   };
+  
+  // If user requested colored bands, create shapes for pass/transition/stop bands.
+  if (filterLines && filterLines.length > 0 && showBands) {
+    const shapes: Array<Record<string, unknown>> = [];
+    const tw = Math.max(0, transitionWidth || 0);
+    const passColor = 'rgba(144,238,144,0.35)';
+    const transColor = 'rgba(173,216,230,0.28)';
+    const stopColor = 'rgba(255,200,200,0.36)';
+    const nyq = Math.round(fs / 2.56);
+
+    if (filterType === 'low') {
+      const fc = filterLines[0];
+      shapes.push({ type: 'rect', x0: 0, x1: Math.max(0, fc - tw / 2), y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: passColor, line: { width: 0 }, layer: 'below' });
+      if (tw > 0) shapes.push({ type: 'rect', x0: Math.max(0, fc - tw / 2), x1: Math.min(nyq, fc + tw / 2), y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: transColor, line: { width: 0 }, layer: 'below' });
+      shapes.push({ type: 'rect', x0: Math.min(nyq, fc + tw / 2), x1: nyq, y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: stopColor, line: { width: 0 }, layer: 'below' });
+    } else if (filterType === 'high') {
+      const fc = filterLines[0];
+      shapes.push({ type: 'rect', x0: 0, x1: Math.max(0, fc - tw / 2), y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: stopColor, line: { width: 0 }, layer: 'below' });
+      if (tw > 0) shapes.push({ type: 'rect', x0: Math.max(0, fc - tw / 2), x1: Math.min(nyq, fc + tw / 2), y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: transColor, line: { width: 0 }, layer: 'below' });
+      shapes.push({ type: 'rect', x0: Math.min(nyq, fc + tw / 2), x1: nyq, y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: passColor, line: { width: 0 }, layer: 'below' });
+    } else if (filterType === 'bandpass') {
+      const lo = filterLines[0];
+      const hi = filterLines[1];
+      shapes.push({ type: 'rect', x0: 0, x1: Math.max(0, lo - tw / 2), y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: stopColor, line: { width: 0 }, layer: 'below' });
+      if (tw > 0) shapes.push({ type: 'rect', x0: Math.max(0, lo - tw / 2), x1: Math.min(nyq, lo + tw / 2), y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: transColor, line: { width: 0 }, layer: 'below' });
+      shapes.push({ type: 'rect', x0: Math.min(nyq, lo + tw / 2), x1: Math.max(lo + tw / 2, hi - tw / 2), y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: passColor, line: { width: 0 }, layer: 'below' });
+      if (tw > 0) shapes.push({ type: 'rect', x0: Math.max(0, hi - tw / 2), x1: Math.min(nyq, hi + tw / 2), y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: transColor, line: { width: 0 }, layer: 'below' });
+      shapes.push({ type: 'rect', x0: Math.min(nyq, hi + tw / 2), x1: nyq, y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: stopColor, line: { width: 0 }, layer: 'below' });
+    } else if (filterType === 'bandstop') {
+      const lo = filterLines[0];
+      const hi = filterLines[1];
+      shapes.push({ type: 'rect', x0: 0, x1: Math.max(0, lo - tw / 2), y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: passColor, line: { width: 0 }, layer: 'below' });
+      if (tw > 0) shapes.push({ type: 'rect', x0: Math.max(0, lo - tw / 2), x1: Math.min(nyq, lo + tw / 2), y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: transColor, line: { width: 0 }, layer: 'below' });
+      shapes.push({ type: 'rect', x0: Math.min(nyq, lo + tw / 2), x1: Math.max(lo + tw / 2, hi - tw / 2), y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: stopColor, line: { width: 0 }, layer: 'below' });
+      if (tw > 0) shapes.push({ type: 'rect', x0: Math.max(0, hi - tw / 2), x1: Math.min(nyq, hi + tw / 2), y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: transColor, line: { width: 0 }, layer: 'below' });
+      shapes.push({ type: 'rect', x0: Math.min(nyq, hi + tw / 2), x1: nyq, y0: 0, y1: 1, xref: 'x', yref: 'paper', fillcolor: passColor, line: { width: 0 }, layer: 'below' });
+    }
+
+    layout.shapes = ((layout.shapes ?? []) as NonNullable<Layout['shapes']>).concat(shapes as unknown as NonNullable<Layout['shapes']>);
+  }
   // Build explicit filled-area traces for stop-bands so the shaded region is always visible.
   const areaTraces: Data[] = [];
   const magsAll: number[] = [];
