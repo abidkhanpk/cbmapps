@@ -50,6 +50,12 @@ export default function Home() {
   const [segmentLength, setSegmentLength] = useState<number>(256);
   const [numAverages, setNumAverages] = useState<number>(5);
   const [overlapPercent, setOverlapPercent] = useState<number>(50);
+  // Filters
+  const [filterType, setFilterType] = useState<'none' | 'low' | 'high' | 'bandpass' | 'bandstop'>('none');
+  const [cutoffLow, setCutoffLow] = useState<number>(10);
+  const [cutoffHigh, setCutoffHigh] = useState<number>(100);
+  const [filterOrder, setFilterOrder] = useState<number>(51);
+  const [antialiasing, setAntialiasing] = useState<boolean>(true);
   // per-frame visibility toggles (for showing each windowed frame individually)
   const [visibleFrames, setVisibleFrames] = useState<boolean[]>([]);
 
@@ -231,6 +237,80 @@ export default function Home() {
     // defensive: do nothing on error
     windowedT = undefined;
     windowedY = undefined;
+  }
+
+  // --- Simple FIR filter helpers (for demo only) ---
+  const sinc = (x: number) => {
+    if (Math.abs(x) < 1e-12) return 1;
+    return Math.sin(Math.PI * x) / (Math.PI * x);
+  };
+
+  const designLowpass = (fc: number, fsLocal: number, M: number) => {
+    const h: number[] = [];
+    const fcNorm = fc / fsLocal; // cycles/sample
+    const mid = (M - 1) / 2;
+    for (let n = 0; n < M; n++) {
+      const val = 2 * fcNorm * sinc(2 * fcNorm * (n - mid));
+      // Hamming window
+      const w = 0.54 - 0.46 * Math.cos((2 * Math.PI * n) / (M - 1));
+      h.push(val * w);
+    }
+    return h;
+  };
+
+  const convolve = (x: number[], h: number[]) => {
+    const y = new Array(x.length).fill(0);
+    const M = h.length;
+    for (let n = 0; n < x.length; n++) {
+      let acc = 0;
+      for (let k = 0; k < M; k++) {
+        const xi = x[n - k] ?? 0;
+        acc += xi * h[k];
+      }
+      y[n] = acc;
+    }
+    return y;
+  };
+
+  // Compute filtered arrays for demonstration
+  let tFiltered: number[] | undefined = undefined;
+  let yFiltered: number[] | undefined = undefined;
+  try {
+    if (filterType !== 'none') {
+      // choose filter coefficients
+      const M = Math.max(3, filterOrder | 1);
+      let h: number[] = [];
+      if (filterType === 'low') {
+        h = designLowpass(Math.max(1e-6, Math.min(cutoffLow, fs / 2 - 1)), fs, M);
+      } else if (filterType === 'high') {
+        // spectral inversion of lowpass
+        const hl = designLowpass(Math.max(1e-6, Math.min(cutoffLow, fs / 2 - 1)), fs, M);
+        h = hl.map((v, i) => (i === Math.floor((M - 1) / 2) ? 1 - v : -v));
+      } else if (filterType === 'bandpass' || filterType === 'bandstop') {
+        const low = Math.max(1e-6, Math.min(cutoffLow, fs / 2 - 1));
+        const high = Math.max(low + 1e-6, Math.min(cutoffHigh, fs / 2 - 1));
+        const hL = designLowpass(low, fs, M);
+        const hH = designLowpass(high, fs, M);
+        // bandpass = high - low; bandstop = low + (1 - high)
+        if (filterType === 'bandpass') {
+          h = hH.map((v, i) => v - hL[i]);
+        } else {
+          h = hL.map((v, i) => v + (i === Math.floor((M - 1) / 2) ? 1 - hH[i] : -hH[i]));
+        }
+      }
+
+      // optionally apply simple antialiasing: if enabled and cutoff >= fs/2, reduce filter (demo behavior)
+      const samplesArr = Array.from(noisySamples);
+      const analogArr = Array.from(analog);
+      const yA = convolve(analogArr, h);
+      tFiltered = Array.from(tAnalog);
+      // choose to show filtered analog by default
+      yFiltered = yA;
+    }
+  } catch {
+    // ignore filter errors
+    tFiltered = undefined;
+    yFiltered = undefined;
   }
 
   // If linear averaging is active, build appended sampled & analog arrays so the time waveform equals N * Twindow
@@ -447,6 +527,35 @@ export default function Home() {
                   />
                 </div>
               </Collapsible>
+                  <Collapsible id="filters" title="Filters" defaultOpen={false}>
+                    <div className="grid grid-cols-1 gap-2">
+                      <div>
+                        <label className="block text-sm font-medium">Filter Type</label>
+                        <select value={filterType} onChange={e => setFilterType(e.target.value as 'none' | 'low' | 'high' | 'bandpass' | 'bandstop')} className="mt-1 w-full rounded border p-2 bg-white text-gray-800">
+                          <option value="none">None</option>
+                          <option value="low">Low-pass</option>
+                          <option value="high">High-pass</option>
+                          <option value="bandpass">Band-pass</option>
+                          <option value="bandstop">Band-stop</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium">Cutoff Low (Hz)</label>
+                        <input type="number" value={cutoffLow} onChange={e => setCutoffLow(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium">Cutoff High (Hz)</label>
+                        <input type="number" value={cutoffHigh} onChange={e => setCutoffHigh(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium">Filter Order (odd)</label>
+                        <input type="number" min={3} step={2} value={filterOrder} onChange={e => setFilterOrder(Math.max(3, Number(e.target.value) | 1))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label><input type="checkbox" checked={antialiasing} onChange={e => setAntialiasing(e.target.checked)} /> Antialiasing</label>
+                      </div>
+                    </div>
+                  </Collapsible>
               </Accordion>
             </div>
           
@@ -476,6 +585,8 @@ export default function Home() {
               windowedFrames={windowedFrames}
               windowedT={windowedT}
               windowedY={windowedY}
+              tFiltered={tFiltered}
+              yFiltered={yFiltered}
               individualSignals={showIndividuals ? individualSignalsPlot : []}
               showAnalog={showAnalog}
               showDigitized={showDigitized}
