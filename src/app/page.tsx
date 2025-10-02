@@ -14,7 +14,7 @@ import type { WindowType } from '@/lib/dsp';
 import type { SingleSignalParams } from '@/hooks/useSignal';
 
 export default function Home() {
-  const [maxRevolutions, setMaxRevolutions] = useState(5);
+  // maxRevolutions removed - time window length will be driven by LOR / Fmax (Twindow)
   // Multi-signal state: array of signal parameter objects
   const [signals, setSignals] = useState<SingleSignalParams[]>([
     {
@@ -45,8 +45,7 @@ export default function Home() {
 
   const [windowType, setWindowType] = useState<WindowType>('hanning');
   const [showWindowed, setShowWindowed] = useState<boolean>(false);
-  // remember previous manual maxRevolutions to restore when toggling off
-  const [prevMaxRevolutions, setPrevMaxRevolutions] = useState<number>(5);
+  // previous maxRevolutions removed
   const [averagingMode, setAveragingMode] = useState<AveragingMode>('none');
   const [segmentLength, setSegmentLength] = useState<number>(256);
   const [numAverages, setNumAverages] = useState<number>(5);
@@ -100,29 +99,14 @@ export default function Home() {
     setFs(Math.round(fmInt * 2.56));
   };
 
-  // Auto-adjust maxRevolutions when showWindowed toggles. Use effect to avoid state changes during render.
-  useEffect(() => {
-    if (showWindowed) {
-      if (fmax > 0 && lor > 0) {
-        const Twindow = lor / fmax; // seconds
-        const needed = Math.max(1, Math.ceil(Twindow / Math.max(period, 1e-12)));
-        if (needed !== maxRevolutions) {
-          setPrevMaxRevolutions(maxRevolutions);
-          setMaxRevolutions(needed);
-        }
-      }
-    } else {
-      if (prevMaxRevolutions && prevMaxRevolutions !== maxRevolutions) {
-        setMaxRevolutions(prevMaxRevolutions);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showWindowed, fmax, lor]);
-
-  const maxTime = maxRevolutions * period;
+  // Determine display time window.
+  // For single (no averaging) case we use Twindow = LOR / Fmax (period of lines). For averaging modes, frames and concatenation logic will set the display span.
+  const Twindow = lor / Math.max(fmax, 1e-12);
+  const maxTime = (averagingMode === 'none') ? Twindow : undefined;
   // Filter time waveform data
   const filterByTime = (tArr: Float64Array | number[], yArr: Float64Array | number[]) => {
-    const idx = tArr.findIndex(t => t > maxTime);
+    if (typeof maxTime === 'undefined') return [Array.from(tArr), Array.from(yArr)];
+    const idx = tArr.findIndex(t => t > (maxTime as number));
     const endIdx = idx === -1 ? tArr.length : idx;
     return [Array.from(tArr).slice(0, endIdx), Array.from(yArr).slice(0, endIdx)];
   };
@@ -624,8 +608,7 @@ export default function Home() {
               <label><input type="checkbox" checked={showAnalog} onChange={e => setShowAnalog(e.target.checked)} /> Analog</label>
               <label><input type="checkbox" checked={showDigitized} onChange={e => setShowDigitized(e.target.checked)} /> Digitized</label>
               <label><input type="checkbox" checked={showIndividuals} onChange={e => setShowIndividuals(e.target.checked)} /> Individual Signals</label>
-              <label className="ml-4">Max Revolutions: <input type="number" min={1} max={20} value={maxRevolutions} onChange={e => setMaxRevolutions(Number(e.target.value))} className="w-16 ml-1 border rounded px-1" disabled={showWindowed} /></label>
-              {showWindowed && <span className="text-xs text-gray-500 ml-2">(auto for window: shows full T)</span>}
+              {/* Max Revolutions removed - display span controlled by LOR / Fmax or averaging mode */}
             </div>
             {/* Frame buttons removed: use legend to toggle overlays if needed */}
             <TimePlot
