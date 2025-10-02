@@ -56,8 +56,8 @@ export default function Home() {
   const [cutoffLow, setCutoffLow] = useState<number>(10);
   const [cutoffHigh, setCutoffHigh] = useState<number>(100);
   const [filterOrder, setFilterOrder] = useState<number>(51);
-  // UI for colored bands
-  const [showBands, setShowBands] = useState<boolean>(false);
+  // UI for colored bands (checked by default)
+  const [showBands, setShowBands] = useState<boolean>(true);
   const [transitionWidth, setTransitionWidth] = useState<number>(0);
   // antialiasing removed per user request
   // per-frame visibility toggles (for showing each windowed frame individually)
@@ -614,9 +614,7 @@ export default function Home() {
               </Accordion>
             </div>
           
-          <div className="text-xs text-gray-500 pt-1">
-            Tip: Use the camera icon on each plot to export as PNG.
-          </div>
+          {/* tip removed per user request */}
         </aside>
 
         {/* Plots Panel */}

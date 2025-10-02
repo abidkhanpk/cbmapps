@@ -114,7 +114,7 @@ export const SpectrumPlot: React.FC<SpectrumPlotProps> = ({ freq, magSingle, fre
   // Build explicit filled-area traces for stop-bands so the shaded region is always visible.
   const areaTraces: Data[] = [];
 
-  if (filterLines && filterLines.length > 0) {
+  if (filterLines && filterLines.length > 0 && showBands) {
     // Draw vertical cutoff lines using data y coordinates so they line up with the axis baseline
     const cutoffShapes = (filterLines || []).map((f) => ({ type: 'line', x0: f, x1: f, y0: 0, y1: yTop, xref: 'x', yref: 'y', line: { color: 'rgba(220,38,38,0.9)', width: 2, dash: 'solid' }, layer: 'above' }));
     layout.shapes = ((layout.shapes ?? []) as NonNullable<Layout['shapes']>).concat(cutoffShapes as unknown as NonNullable<Layout['shapes']>);
