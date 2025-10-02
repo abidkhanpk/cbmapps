@@ -27,7 +27,7 @@ export default function Home() {
     },
   ]);
     const maxFreq = signals.reduce((max, sig) => Math.max(max, sig.frequency), 0);
-    const period = maxFreq > 0 ? 1 / maxFreq : 1;
+  // const period = maxFreq > 0 ? 1 / maxFreq : 1; // unused
   // Signal visibility state
   const [showAnalog, setShowAnalog] = useState(true);
   const [showDigitized, setShowDigitized] = useState(true);
@@ -58,6 +58,12 @@ export default function Home() {
   // UI for colored bands (checked by default)
   const [showBands, setShowBands] = useState<boolean>(true);
   const [transitionWidth, setTransitionWidth] = useState<number>(0);
+  // Optional analog anti-alias filter (disabled by default)
+  const [antiAliasEnabled, setAntiAliasEnabled] = useState<boolean>(false);
+  // initialize cutoff to current fmax mapping; keep a 'touched' flag so user's
+  // manual edits aren't overwritten when fmax changes.
+  const [antiAliasCutoff, setAntiAliasCutoff] = useState<number>(Math.round(fmax));
+  const [antiAliasTouched, setAntiAliasTouched] = useState<boolean>(false);
   // antialiasing removed per user request
   // per-frame visibility toggles (for showing each windowed frame individually)
   const [visibleFrames, setVisibleFrames] = useState<boolean[]>([]);
@@ -68,6 +74,7 @@ export default function Home() {
     fs,
     noiseLevel,
     numSamples,
+    antiAlias: { enabled: antiAliasEnabled, cutoffHz: antiAliasCutoff },
   });
 
   // Sync handlers between samples <-> LOR and fs <-> fmax
@@ -92,12 +99,25 @@ export default function Home() {
     setFmax(Math.round(f / 2.56));
   };
 
+  // keep antiAliasCutoff in sync with fmax unless the user has manually edited it
+  useEffect(() => {
+    if (!antiAliasTouched) setAntiAliasCutoff(Math.round(fmax));
+  }, [fmax, antiAliasTouched]);
+
   const handleSetFmax = (fm: number) => {
     if (isNaN(fm) || fm <= 0) return;
     const fmInt = Math.round(fm);
     setFmax(fmInt);
     setFs(Math.round(fmInt * 2.56));
   };
+
+  // when the user enables anti-aliasing, default the cutoff to current fmax if they
+  // haven't manually chosen a cutoff yet
+  useEffect(() => {
+    if (antiAliasEnabled && !antiAliasTouched) {
+      setAntiAliasCutoff(Math.round(fmax));
+    }
+  }, [antiAliasEnabled, antiAliasTouched, fmax]);
 
   // Determine display time window.
   // For single (no averaging) case we use Twindow = LOR / Fmax (period of lines). For averaging modes, frames and concatenation logic will set the display span.
@@ -592,7 +612,15 @@ export default function Home() {
                         <input type="number" min={0} value={transitionWidth} onChange={e => setTransitionWidth(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" />
                         <div className="text-xs text-gray-500">Set {'>'}0 to visualize transition bands (half-width)</div>
                       </div>
-                      {/* Antialiasing control removed - filtering is ideal mask only */}
+                      <div>
+                        <label className="block text-sm font-medium">Enable analog anti-alias filter</label>
+                        <input type="checkbox" className="mt-2" checked={antiAliasEnabled} onChange={e => setAntiAliasEnabled(e.target.checked)} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium">Anti-alias cutoff (Hz)</label>
+                        <input type="number" min={1} value={antiAliasCutoff} onChange={e => { setAntiAliasCutoff(Number(e.target.value)); setAntiAliasTouched(true); }} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" />
+                        <div className="text-xs text-gray-500">Apply low-pass to analog waveform before sampling when enabled. Default is current Fmax mapping.</div>
+                      </div>
                     </div>
                   </Collapsible>
               </Accordion>

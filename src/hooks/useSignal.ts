@@ -1,5 +1,6 @@
-'use client';
+ 'use client';
 import { useMemo } from 'react';
+import FFT from 'fft.js';
 
 export type SignalType = 'sine' | 'square' | 'chirp' | 'noise' | 'am' | 'fm' | 'machine';
 
@@ -21,11 +22,17 @@ export interface SingleSignalParams {
   machineComplexity?: number;
 }
 
+export interface AntiAliasOptions {
+  enabled?: boolean;
+  cutoffHz?: number; // cutoff frequency to apply to analog waveform before sampling
+}
+
 export interface MultiSignalParams {
   signals: SingleSignalParams[];
   fs: number;
   noiseLevel: number;
   numSamples: number;
+  antiAlias?: AntiAliasOptions;
 }
 
 export interface SignalOutputs {
@@ -119,7 +126,7 @@ function generateSample(
 }
 
 export function useSignal(params: MultiSignalParams): SignalOutputs {
-  const { signals, fs, noiseLevel, numSamples } = params;
+  const { signals, fs, noiseLevel, numSamples, antiAlias } = params;
 
   const outputs = useMemo<SignalOutputs>(() => {
     const N = Math.max(2, Math.floor(numSamples));
@@ -214,12 +221,57 @@ export function useSignal(params: MultiSignalParams): SignalOutputs {
     });
 
     // Add noise to summed signal
-    // Add noise to the analog waveform (so analog contains noise). Then sample noisy analog to produce digitized noisySamples.
+    // Add noise to the analog waveform (so analog contains noise).
     const totalAmp = signals.reduce((sum, sig) => sum + sig.amplitude, 0);
     const noisyAnalog = new Float64Array(analogCount);
     for (let i = 0; i < analogCount; i++) {
       const noise = noiseLevel * totalAmp * (2 * Math.random() - 1);
       noisyAnalog[i] = analog[i] + noise;
+    }
+
+    // If anti-aliasing is requested, apply an ideal frequency-domain low-pass to the noisyAnalog
+    // before sampling. This simulates an analog anti-alias filter. The antiAlias.cutoffHz is
+    // interpreted relative to the analog sampling rate (analogFs).
+    if (antiAlias && antiAlias.enabled) {
+      try {
+        const cutoffHz = Math.max(0, antiAlias.cutoffHz ?? Math.floor(fs / 2));
+        // perform FFT on noisyAnalog: pad to next power-of-two length for stability
+        const M0 = analogCount;
+        const nextPow2 = (n: number) => (n <= 1 ? 1 : 1 << Math.ceil(Math.log2(n)));
+        const M = nextPow2(M0);
+        const fft = new FFT(M);
+        const inArr = fft.createComplexArray();
+        const out = fft.createComplexArray();
+        // copy noisyAnalog into input buffer and zero-pad remainder
+        for (let i = 0; i < M; i++) {
+          inArr[2 * i] = i < M0 ? noisyAnalog[i] : 0;
+          inArr[2 * i + 1] = 0;
+        }
+        fft.transform(out, inArr);
+        const dtAnalog = tAnalog[1] - tAnalog[0];
+        const fsAnalog = 1 / dtAnalog;
+        for (let k = 0; k < M; k++) {
+          const freq = (k <= M / 2) ? (k * fsAnalog) / M : ((k - M) * fsAnalog) / M;
+          if (Math.abs(freq) > cutoffHz) {
+            out[2 * k] = 0;
+            out[2 * k + 1] = 0;
+          }
+        }
+        // inverse FFT (using conjugation trick) and copy back the first M0 samples
+        const conjIn = fft.createComplexArray();
+        const temp = fft.createComplexArray();
+        for (let i = 0; i < M; i++) {
+          conjIn[2 * i] = out[2 * i];
+          conjIn[2 * i + 1] = -out[2 * i + 1];
+        }
+        fft.transform(temp, conjIn);
+        for (let i = 0; i < M0; i++) {
+          // conjugate and normalize by M
+          noisyAnalog[i] = temp[2 * i] / M;
+        }
+      } catch {
+        // If FFT fails or module unavailable, skip anti-aliasing silently
+      }
     }
 
     // Sample noisyAnalog at the sample times to build noisySamples
@@ -238,7 +290,7 @@ export function useSignal(params: MultiSignalParams): SignalOutputs {
 
   // Return noisy analog (so analog plot shows noise) while individualSignals keep their clean analog components.
   return { tSamples, cleanSamples, noisySamples, tAnalog, analog: noisyAnalog, individualSignals };
-  }, [signals, fs, noiseLevel, numSamples]);
+  }, [signals, fs, noiseLevel, numSamples, JSON.stringify(params.antiAlias ?? {})]);
 
   return outputs;
 }
