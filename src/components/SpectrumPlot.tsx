@@ -1,4 +1,4 @@
-'use client';
+ 'use client';
 import React from 'react';
 import dynamic from 'next/dynamic';
 import type { PlotParams } from 'react-plotly.js';
@@ -25,6 +25,7 @@ export interface SpectrumPlotProps {
   transitionWidth?: number;
 }
 export const SpectrumPlot: React.FC<SpectrumPlotProps> = ({ freq, magSingle, freqAveraged, magAveraged, fs, filteredFreq, filteredMag, filterLines, filterType = 'none', showBands = false, transitionWidth = 0 }) => {
+  // ...existing code...
   const traces: Data[] = [
     // area traces for shaded stop-bands will be prepended here if needed
     {
@@ -63,14 +64,20 @@ export const SpectrumPlot: React.FC<SpectrumPlotProps> = ({ freq, magSingle, fre
   const fmax = Math.round(fs / 2.56);
   const layout: Partial<Layout> = {
     title: 'Magnitude Spectrum',
-    uirevision: 'spectrumplot',
+    // include fmax in uirevision so reset/double-click restores to the current fmax range
+    uirevision: `spectrumplot-${fmax}`,
     margin: { l: 60, r: 20, t: 40, b: 40 },
-    xaxis: { title: 'Frequency (Hz)', gridcolor: '#eee', range: [0, fmax], zeroline: false },
+  xaxis: { title: 'Frequency (Hz)', gridcolor: '#eee', range: [0, fmax], autorange: false, zeroline: false },
     yaxis: { title: 'Magnitude', gridcolor: '#eee' },
     // Fmax guide/annotation removed per user preference
     paper_bgcolor: 'transparent',
     plot_bgcolor: 'transparent',
   };
+
+  // We force React to remount the Plot component whenever `fmax` changes by
+  // using a key that includes fmax. This ensures Plotly's internal "initial
+  // range" (used by the reset/double-click) corresponds to the current fmax
+  // without importing plotly.js directly or calling relayout.
   
   // If user requested colored bands, create shapes for pass/transition/stop bands.
   if (filterLines && filterLines.length > 0 && showBands) {
@@ -153,7 +160,7 @@ export const SpectrumPlot: React.FC<SpectrumPlotProps> = ({ freq, magSingle, fre
 
   return (
     <div className="w-full">
-      <Plot data={traces} layout={layout} config={config} style={{ width: '100%', height: '380px' }} />
+      <Plot data={traces} layout={layout} config={config} style={{ width: '100%', height: '380px' }} key={`spectrum-${fmax}`} />
     </div>
   );
 };
