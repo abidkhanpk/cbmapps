@@ -1,9 +1,8 @@
 import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 import getAuthOptions from '@/lib/auth/config';
-import Sidebar from '@/app/components/Sidebar';
-import TopNavbar from '@/app/components/TopNavbar';
 import { SessionProvider } from '@/app/components/SessionProvider';
+import Frame from '@/app/components/layout/Frame';
 
 export default async function DashboardLayout({
   children,
@@ -18,15 +17,9 @@ export default async function DashboardLayout({
 
   return (
     <SessionProvider session={session}>
-      <div className="d-flex">
-        <Sidebar />
-        <div className="main-content flex-grow-1">
-          <TopNavbar />
-          <main className="p-4">
-            {children}
-          </main>
-        </div>
-      </div>
+      <Frame>
+        {children}
+      </Frame>
     </SessionProvider>
   );
 }

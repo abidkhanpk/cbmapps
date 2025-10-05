@@ -21,7 +21,7 @@ const menuItems = [
   {
     href: '/fmeca',
     icon: 'bi-clipboard-data',
-    label: 'FMECA Studies',
+    label: 'FMECA',
     permission: PERMISSIONS.VIEW_FMECA_STUDY,
   },
   {
@@ -68,9 +68,9 @@ export default function Sidebar() {
   return (
     <nav className="sidebar" id="sidebar">
       <div className="p-3 d-flex justify-content-between align-items-center">
-        <Link href="/dashboard" className="navbar-brand text-white text-decoration-none d-flex align-items-center">
+        <Link href="/home" className="navbar-brand text-white text-decoration-none d-flex align-items-center">
           <i className="bi bi-clipboard-data me-2 brand-icon"></i>
-          <span className="label">FMECA System</span>
+          <span className="label">Reliability Suite</span>
         </Link>
         <button
           className="btn btn-sm btn-outline-light d-none d-md-inline"

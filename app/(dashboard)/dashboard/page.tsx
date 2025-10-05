@@ -93,7 +93,7 @@ export default async function DashboardPage() {
     <div className="container-fluid">
       <div className="row mb-4">
         <div className="col">
-          <h1 className="h3 mb-0">Dashboard</h1>
+          <h1 className="h3 mb-0">Home</h1>
           <p className="text-muted">Welcome back, {session?.user?.name}</p>
         </div>
       </div>
