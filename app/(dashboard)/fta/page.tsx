@@ -1,6 +1,6 @@
 import ClientImage from '@/app/components/ClientImage'
 
-export const metadata = { title: 'FTA | Reliability Suite' }
+export const metadata = { title: 'FTA | CBMAPPS' }
 
 export default function FtaComingSoon() {
   return (

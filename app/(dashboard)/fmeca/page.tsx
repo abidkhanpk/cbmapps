@@ -328,8 +328,8 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
     <div className="container-fluid">
       <div className="row mb-4">
         <div className="col">
-          <h1 className="h3 mb-0">FMECA Studies</h1>
-          <p className="text-muted">Create new FMECA studies and manage analysis items. Link corrective actions to each item using the expandable row.</p>
+          <h1 className="h3 mb-0">FMECA</h1>
+          <p className="text-muted">Create and manage FMECA studies and analysis items. Link corrective actions to each item using the expandable row.</p>
         </div>
       </div>
 

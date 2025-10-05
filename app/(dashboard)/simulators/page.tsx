@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-export const metadata = { title: 'Simulators | Reliability Suite' }
+export const metadata = { title: 'Simulators | CBMAPPS' }
 
 export default function SimulatorsIndex() {
   return (

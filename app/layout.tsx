@@ -6,8 +6,8 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'FMECA - Failure Mode, Effects, and Criticality Analysis',
-  description: 'Comprehensive FMECA and Condition Monitoring Management System',
+  title: 'CBMAPPS - Reliability and Risk Suite',
+  description: 'Comprehensive Reliability Suite including FMECA, FTA, Asset Register, and Simulators',
 };
 
 // Force Node.js runtime for all routes to ensure Prisma/NextAuth compatibility on Vercel

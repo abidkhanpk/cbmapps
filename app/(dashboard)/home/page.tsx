@@ -3,7 +3,7 @@ import getAuthOptions from '@/lib/auth/config'
 import Link from 'next/link'
 
 export const metadata = {
-  title: 'Home | Reliability Suite',
+  title: 'Home | CBMAPPS',
 }
 
 export default async function HomePage() {

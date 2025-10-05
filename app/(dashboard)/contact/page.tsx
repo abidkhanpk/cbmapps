@@ -1,5 +1,5 @@
 import ClientImage from '@/app/components/ClientImage'
-export const metadata = { title: 'Contact Us | Reliability Suite' }
+export const metadata = { title: 'Contact Us | CBMAPPS' }
 
 export default function ContactPage() {
   return (

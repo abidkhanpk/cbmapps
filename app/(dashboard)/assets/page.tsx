@@ -118,40 +118,45 @@ export default async function AssetsPage({ searchParams }: { searchParams?: Reco
           <div className="card">
             <div className="card-header"><strong>Hierarchy</strong></div>
             <div className="card-body" style={{maxHeight: 600, overflow: 'auto'}}>
-              <ul className="list-unstyled">
+              <ul className="asset-tree">
                 {sites.map((site: any) => (
-                  <li key={site.id} className="mb-2">
-                    <div className="d-flex align-items-center">
-                      <a href={`/assets?site=${site.id}`} className="text-decoration-none">
-                        <i className="bi bi-diagram-3 me-2" />{site.name}
-                      </a>
-                    </div>
+                  <li key={site.id}>
+                    <a href={`/assets?site=${site.id}`} className={`tree-item text-decoration-none ${site.id === siteSel ? 'selected' : ''}`}>
+                      <i className="bi bi-diagram-3"></i>
+                      <span>{site.name}</span>
+                    </a>
                     {site.id === siteSel && (
-                      <ul className="list-unstyled ms-4 mt-1">
+                      <ul className="asset-tree tree-children">
                         {site.areas.map((area: any) => (
-                          <li key={area.id} className="mb-1">
-                            <a href={`/assets?site=${site.id}&area=${area.id}`} className="text-decoration-none">
-                              <i className="bi bi-diagram-3-fill me-2" />{area.name}
+                          <li key={area.id}>
+                            <a href={`/assets?site=${site.id}&area=${area.id}`} className={`tree-item text-decoration-none ${area.id === areaSel ? 'selected' : ''}`}>
+                              <i className="bi bi-diagram-3-fill"></i>
+                              <span>{area.name}</span>
                             </a>
                             {area.id === areaSel && (
-                              <ul className="list-unstyled ms-4 mt-1">
+                              <ul className="asset-tree tree-children">
                                 {area.systems.map((sys: any) => (
-                                  <li key={sys.id} className="mb-1">
-                                    <a href={`/assets?site=${site.id}&area=${area.id}&system=${sys.id}`} className="text-decoration-none">
-                                      <i className="bi bi-cpu me-2" />{sys.name}
+                                  <li key={sys.id}>
+                                    <a href={`/assets?site=${site.id}&area=${area.id}&system=${sys.id}`} className={`tree-item text-decoration-none ${sys.id === systemSel ? 'selected' : ''}`}>
+                                      <i className="bi bi-cpu"></i>
+                                      <span>{sys.name}</span>
                                     </a>
                                     {sys.id === systemSel && (
-                                      <ul className="list-unstyled ms-4 mt-1">
+                                      <ul className="asset-tree tree-children">
                                         {sys.assets.map((as: any) => (
-                                          <li key={as.id} className="mb-1">
-                                            <a href={`/assets?site=${site.id}&area=${area.id}&system=${sys.id}&asset=${as.id}`} className="text-decoration-none">
-                                              <i className="bi bi-hdd-network me-2" />{as.tag_code || as.name}
+                                          <li key={as.id}>
+                                            <a href={`/assets?site=${site.id}&area=${area.id}&system=${sys.id}&asset=${as.id}`} className={`tree-item text-decoration-none ${as.id === assetSel ? 'selected' : ''}`}>
+                                              <i className="bi bi-hdd-network"></i>
+                                              <span>{as.tag_code || as.name}</span>
                                             </a>
                                             {as.id === assetSel && (
-                                              <ul className="list-unstyled ms-4 mt-1">
+                                              <ul className="asset-tree tree-children">
                                                 {as.components.map((c: any) => (
-                                                  <li key={c.id} className="mb-1">
-                                                    <span className="text-muted"><i className="bi bi-box-seam me-2" />{c.name}</span>
+                                                  <li key={c.id}>
+                                                    <span className="tree-item text-muted">
+                                                      <i className="bi bi-box-seam"></i>
+                                                      <span>{c.name}</span>
+                                                    </span>
                                                   </li>
                                                 ))}
                                               </ul>

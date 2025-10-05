@@ -3,7 +3,7 @@ export default function Footer() {
   return (
     <footer className="border-top bg-white">
       <div className="container-fluid py-3 d-flex justify-content-between align-items-center">
-        <span className="text-muted small">© {year} Reliability Suite</span>
+        <span className="text-muted small">© {year} CBMAPPS</span>
         <span className="text-muted small">v1.0</span>
       </div>
     </footer>

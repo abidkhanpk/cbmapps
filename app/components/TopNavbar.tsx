@@ -1,13 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import { useState } from 'react';
 
 export default function TopNavbar() {
   const { data: session } = useSession();
-  const pathname = usePathname();
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleSearch = (e: React.FormEvent) => {
@@ -21,14 +19,12 @@ export default function TopNavbar() {
     signOut({ callbackUrl: '/login' });
   };
 
-  const isActive = (href: string) => pathname === href;
-
   return (
-    <nav className="navbar navbar-expand-lg top-navbar">
+    <nav className="navbar top-navbar">
       <div className="container-fluid">
-        {/* Sidebar toggle for mobile (FMECA sidebar) */}
+        {/* Sidebar toggle for mobile */}
         <button
-          className="btn btn-link d-lg-none me-2"
+          className="btn btn-link text-white d-lg-none me-2"
           type="button"
           onClick={() => {
             if (typeof window !== 'undefined') {
@@ -42,66 +38,24 @@ export default function TopNavbar() {
         </button>
 
         {/* Brand */}
-        <Link href="/home" className="navbar-brand d-flex align-items-center">
+        <Link href="/home" className="navbar-brand d-flex align-items-center text-white">
           <i className="bi bi-clipboard-data me-2"></i>
-          <span>Reliability Suite</span>
+          <span>CBMAPPS</span>
         </Link>
 
-        {/* Main menu burger */}
-        <button
-          className="navbar-toggler"
-          type="button"
-          data-bs-toggle="collapse"
-          data-bs-target="#mainMenu"
-          aria-controls="mainMenu"
-          aria-expanded="false"
-          aria-label="Toggle navigation"
-        >
-          <span className="navbar-toggler-icon"></span>
-        </button>
-
-        <div className="collapse navbar-collapse" id="mainMenu">
-          <ul className="navbar-nav me-auto mb-2 mb-lg-0">
-            <li className="nav-item">
-              <Link href="/home" className={`nav-link ${isActive('/home') ? 'active' : ''}`}>Home</Link>
-            </li>
-            <li className="nav-item dropdown">
-              <a className="nav-link dropdown-toggle" href="#" id="simDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                Simulators
-              </a>
-              <ul className="dropdown-menu" aria-labelledby="simDropdown">
-                <li><Link className="dropdown-item" href="/simulators/signal-generator">Signal Generator</Link></li>
-                <li><Link className="dropdown-item" href="/simulators/spring-mass-system">Spring Mass System</Link></li>
-                <li><Link className="dropdown-item" href="/simulators/mode-shapes-simulator">Mode Shapes Simulator</Link></li>
-                <li><Link className="dropdown-item" href="/simulators/rotating-machine">Rotating Machine</Link></li>
-              </ul>
-            </li>
-            <li className="nav-item">
-              <Link href="/assets" className={`nav-link ${isActive('/assets') ? 'active' : ''}`}>Asset Register</Link>
-            </li>
-            <li className="nav-item">
-              <Link href="/fmeca" className={`nav-link ${isActive('/fmeca') ? 'active' : ''}`}>FMECA</Link>
-            </li>
-            <li className="nav-item">
-              <Link href="/fta" className={`nav-link ${isActive('/fta') ? 'active' : ''}`}>FTA</Link>
-            </li>
-            <li className="nav-item">
-              <Link href="/contact" className={`nav-link ${isActive('/contact') ? 'active' : ''}`}>Contact Us</Link>
-            </li>
-          </ul>
-
+        <div className="d-flex align-items-center ms-auto">
           {/* Search */}
-          <form className="d-flex me-3" onSubmit={handleSearch}>
-            <div className="input-group">
+          <form className="d-none d-md-flex me-3" onSubmit={handleSearch}>
+            <div className="input-group input-group-sm">
               <input
                 className="form-control"
                 type="search"
-                placeholder="Search assets, components..."
+                placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ width: '260px' }}
+                style={{ width: '220px' }}
               />
-              <button className="btn btn-outline-secondary" type="submit">
+              <button className="btn btn-outline-light" type="submit">
                 <i className="bi bi-search"></i>
               </button>
             </div>
@@ -110,7 +64,7 @@ export default function TopNavbar() {
           {/* User menu */}
           <div className="dropdown">
             <button
-              className="btn btn-link text-decoration-none dropdown-toggle"
+              className="btn btn-link text-white text-decoration-none dropdown-toggle"
               type="button"
               data-bs-toggle="dropdown"
             >
