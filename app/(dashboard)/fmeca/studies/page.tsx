@@ -3,30 +3,26 @@ import getAuthOptions from '@/lib/auth/config'
 import prisma from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import ItemsCard from './components/ItemsCard'
-import DeleteStudyForm from './components/DeleteStudyForm'
+import ItemsCard from '../components/ItemsCard'
+import DeleteStudyForm from '../components/DeleteStudyForm'
 import Link from 'next/link'
 
-// Utility
-function computeRpn(sev: number, occ: number, det: number) {
-  return sev * occ * det
-}
+export const metadata = { title: 'FMECA Studies | CBMAPPS' }
+
+function computeRpn(sev: number, occ: number, det: number) { return sev * occ * det }
 function computeCriticality(rpn: number): 'low' | 'medium' | 'high' {
   if (rpn >= 200) return 'high'
   if (rpn >= 100) return 'medium'
   return 'low'
 }
 
-// Server Actions - FMECA
 async function ensureDefaultCompany() {
   const company = await prisma.company.findFirst({})
   if (company) return company
-  return prisma.company.create({
-    data: { name: 'Default Company', code: 'DEF' },
-  })
+  return prisma.company.create({ data: { name: 'Default Company', code: 'DEF' } })
 }
 
-export default async function FmecaPage({ searchParams }: { searchParams?: { [key: string]: string | string[] | undefined } }) {
+export default async function FmecaStudiesPage({ searchParams }: { searchParams?: { [key: string]: string | string[] | undefined } }) {
   const session = await getServerSession(getAuthOptions())
   if (!session?.user?.id) redirect('/login')
   const userId = (session.user as any).id as string
@@ -34,68 +30,36 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
   const selectedStudyId = typeof searchParams?.study === 'string' ? searchParams!.study : undefined
   const expandedItemId = typeof searchParams?.expand === 'string' ? searchParams!.expand : undefined
 
-  // Data for list and selects
   const [studies, components, failureModes, assets, ratingScales] = await Promise.all([
     prisma.fmecaStudy.findMany({
       orderBy: { created_at: 'desc' },
-      include: {
-        _count: { select: { items: true } },
-        owner: { select: { full_name: true, email: true } },
-      },
+      include: { _count: { select: { items: true } }, owner: { select: { full_name: true, email: true } } },
     }),
-    prisma.component.findMany({
-      orderBy: { name: 'asc' },
-      include: {
-        asset: { select: { name: true, tag_code: true } },
-      },
-      take: 200,
-    }),
+    prisma.component.findMany({ orderBy: { name: 'asc' }, include: { asset: { select: { name: true, tag_code: true } } }, take: 200 }),
     prisma.failureMode.findMany({ orderBy: { title: 'asc' }, take: 200 }),
-    prisma.asset.findMany({
-      select: { id: true, name: true, tag_code: true },
-      orderBy: [{ tag_code: 'asc' }, { name: 'asc' }],
-      take: 500,
-    }),
-    prisma.ratingScale.findMany({
-      where: { name: { in: ['Severity Scale', 'Occurrence Scale', 'Detectability Scale'] } },
-      include: { values: { orderBy: { value: 'asc' } } },
-    }),
+    prisma.asset.findMany({ select: { id: true, name: true, tag_code: true }, orderBy: [{ tag_code: 'asc' }, { name: 'asc' }], take: 500 }),
+    prisma.ratingScale.findMany({ where: { name: { in: ['Severity Scale', 'Occurrence Scale', 'Detectability Scale'] } }, include: { values: { orderBy: { value: 'asc' } } } }),
   ])
 
   const selectedStudy = selectedStudyId
     ? await prisma.fmecaStudy.findUnique({
         where: { id: selectedStudyId },
         include: {
-          items: {
-            orderBy: { id: 'asc' },
-            include: {
-              component: { include: { asset: true } },
-              failure_mode: true,
-            },
-          },
+          items: { orderBy: { id: 'asc' }, include: { component: { include: { asset: true } }, failure_mode: true } },
           owner: { select: { full_name: true, email: true } },
         },
       })
     : null
 
-  // Users for assignee dropdowns (minimal fields)
   const users = selectedStudy
-    ? await prisma.user.findMany({
-        select: { id: true, full_name: true, email: true },
-        orderBy: { full_name: 'asc' },
-        take: 200,
-      })
+    ? await prisma.user.findMany({ select: { id: true, full_name: true, email: true }, orderBy: { full_name: 'asc' }, take: 200 })
     : []
 
-  // Fetch Actions linked to FMECA items
   const itemIds = (selectedStudy?.items ?? []).map((i: { id: string }) => i.id)
   const actions = itemIds.length
     ? await prisma.action.findMany({
         where: { entity_type: 'fmeca_item', entity_id: { in: itemIds } },
-        include: {
-          assignee: { select: { full_name: true, email: true } },
-          comments: true,
-        },
+        include: { assignee: { select: { full_name: true, email: true } }, comments: true },
         orderBy: { created_at: 'desc' },
       })
     : []
@@ -105,7 +69,6 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
     return acc
   }, {} as Record<string, any[]>)
 
-  // Server Actions in-scope of the page
   async function createStudy(formData: FormData) {
     'use server'
     const session = await getServerSession(getAuthOptions())
@@ -126,7 +89,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
         status: 'draft',
       },
     })
-    revalidatePath('/fmeca')
+    revalidatePath('/fmeca/studies')
   }
 
   async function updateStudyStatus(formData: FormData) {
@@ -135,7 +98,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
     const status = String(formData.get('status') || 'draft') as any
     if (!id) return
     await prisma.fmecaStudy.update({ where: { id }, data: { status } })
-    revalidatePath(`/fmeca?study=${id}`)
+    revalidatePath(`/fmeca/studies?study=${id}`)
   }
 
   async function deleteStudy(formData: FormData) {
@@ -144,7 +107,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
     if (!id) return
     await prisma.fmecaItem.deleteMany({ where: { study_id: id } })
     await prisma.fmecaStudy.delete({ where: { id } })
-    revalidatePath('/fmeca')
+    revalidatePath('/fmeca/studies')
   }
 
   async function createComponent(formData: FormData) {
@@ -155,15 +118,8 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
     const component_code = String(formData.get('component_code') || '').trim()
     const type = String(formData.get('type') || 'other') as any
     if (!asset_id || !name || !component_code) return
-    await prisma.component.create({
-      data: {
-        asset_id,
-        name,
-        component_code,
-        type,
-      },
-    })
-    revalidatePath(`/fmeca?study=${study_id}`)
+    await prisma.component.create({ data: { asset_id, name, component_code, type } })
+    revalidatePath(`/fmeca/studies?study=${study_id}`)
   }
 
   async function addItem(formData: FormData) {
@@ -203,7 +159,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
         criticality,
       },
     })
-    revalidatePath(`/fmeca?study=${study_id}`)
+    revalidatePath(`/fmeca/studies?study=${study_id}`)
   }
 
   async function updateItem(formData: FormData) {
@@ -224,20 +180,10 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
 
     await prisma.fmecaItem.update({
       where: { id },
-      data: {
-        function: func,
-        effect,
-        cause,
-        detection,
-        severity,
-        occurrence,
-        detectability,
-        rpn,
-        criticality,
-      },
+      data: { function: func, effect, cause, detection, severity, occurrence, detectability, rpn, criticality },
     })
     const study_id = String(formData.get('study_id') || '')
-    revalidatePath(`/fmeca?study=${study_id || ''}`)
+    revalidatePath(`/fmeca/studies?study=${study_id || ''}`)
   }
 
   async function deleteItem(formData: FormData) {
@@ -245,10 +191,9 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
     const id = String(formData.get('item_id') || '')
     if (!id) return
     const item = await prisma.fmecaItem.delete({ where: { id } })
-    revalidatePath(`/fmeca?study=${item.study_id}`)
+    revalidatePath(`/fmeca/studies?study=${item.study_id}`)
   }
 
-  // Server Actions - Corrective Actions
   async function addAction(formData: FormData) {
     'use server'
     const session = await getServerSession(getAuthOptions())
@@ -278,7 +223,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
       },
     })
 
-    revalidatePath(`/fmeca?study=${study_id}&expand=${item_id}`)
+    revalidatePath(`/fmeca/studies?study=${study_id}&expand=${item_id}`)
   }
 
   async function updateAction(formData: FormData) {
@@ -311,7 +256,7 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
       },
     })
 
-    revalidatePath(`/fmeca?study=${study_id}&expand=${item_id}`)
+    revalidatePath(`/fmeca/studies?study=${study_id}&expand=${item_id}`)
   }
 
   async function deleteAction(formData: FormData) {
@@ -321,17 +266,103 @@ export default async function FmecaPage({ searchParams }: { searchParams?: { [ke
     const item_id = String(formData.get('item_id') || '')
     if (!action_id) return
     await prisma.action.delete({ where: { id: action_id } })
-    revalidatePath(`/fmeca?study=${study_id}&expand=${item_id}`)
+    revalidatePath(`/fmeca/studies?study=${study_id}&expand=${item_id}`)
   }
 
-  // Redirect users to new routes depending on presence of study param
-  // If any study is selected, better handled in /fmeca/studies
-  // Otherwise show the overview
-  if (selectedStudyId) {
-    redirect(`/fmeca/studies?study=${selectedStudyId}${expandedItemId ? `&expand=${expandedItemId}` : ''}`)
-  } else {
-    redirect('/fmeca/overview')
-  }
+  return (
+    <div className="container-fluid">
+      <div className="row mb-4">
+        <div className="col">
+          <h1 className="h3 mb-0">FMECA Studies</h1>
+          <p className="text-muted">Create new FMECA studies and manage analysis items.</p>
+        </div>
+      </div>
 
-  return null
+      <div className="row g-4">
+        <div className="col-12">
+          <div className="card">
+            <div className="card-header d-flex justify-content-between align-items-center">
+              <strong>Existing Studies</strong>
+              <button className="btn btn-sm btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#create-study" aria-expanded="false" aria-controls="create-study" title="Create FMECA Study">
+                <i className="bi bi-plus-circle" />
+                <span className="d-none d-md-inline ms-1">Create Study</span>
+              </button>
+            </div>
+            <div id="create-study" className="collapse">
+              <div className="card-body">
+                <form action={createStudy} className="row g-3">
+                  <div className="col-12">
+                    <label className="form-label">Title</label>
+                    <input name="title" className="form-control" placeholder="e.g. Conveyor System FMECA" required />
+                  </div>
+                  <div className="col-12">
+                    <label className="form-label">Scope</label>
+                    <textarea name="scope" className="form-control" rows={3} placeholder="Optional study scope" />
+                  </div>
+                  <div className="col-12 d-flex gap-2">
+                    <button className="btn btn-primary" type="submit">
+                      <i className="bi bi-plus-circle me-2" />Create Study
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+            <div className="card-body table-responsive">
+              <table className="table table-striped table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>Status</th>
+                    <th>Owner</th>
+                    <th>Items</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {studies.map((s: any) => (
+                    <tr key={s.id}>
+                      <td>{s.title}</td>
+                      <td className="text-capitalize">{s.status}</td>
+                      <td>{s.owner?.full_name || s.owner?.email}</td>
+                      <td>{(s as any)._count?.items ?? 0}</td>
+                      <td className="d-flex gap-2">
+                        <Link className="btn btn-sm btn-outline-primary" href={{ pathname: '/fmeca/studies', query: { study: s.id } }} prefetch title="Edit">
+                          <i className="bi bi-pencil-square" />
+                        </Link>
+                        <DeleteStudyForm deleteStudy={deleteStudy} studyId={s.id} />
+                      </td>
+                    </tr>
+                  ))}
+                  {studies.length === 0 && (
+                    <tr><td colSpan={5} className="text-center text-muted">No studies created yet</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {selectedStudy && (
+        <ItemsCard
+          study={selectedStudy}
+          components={components}
+          failureModes={failureModes}
+          assets={assets}
+          users={users}
+          actionsByItem={actionsByItem}
+          userId={userId}
+          initialExpandedId={expandedItemId}
+          addItem={addItem}
+          updateItem={updateItem}
+          deleteItem={deleteItem}
+          createComponent={createComponent}
+          addAction={addAction}
+          updateAction={updateAction}
+          deleteAction={deleteAction}
+          ratingScales={ratingScales}
+        />
+      )}
+    </div>
+  )
 }

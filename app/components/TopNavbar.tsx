@@ -34,7 +34,11 @@ export default function TopNavbar() {
           aria-label="Toggle sidebar"
           title="Toggle sidebar"
         >
-          <i className="bi bi-list"></i>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <rect x="3" y="6" width="18" height="2.6" rx="1.3" fill="currentColor"/>
+            <rect x="3" y="11" width="18" height="2.6" rx="1.3" fill="currentColor"/>
+            <rect x="3" y="16" width="18" height="2.6" rx="1.3" fill="currentColor"/>
+          </svg>
         </button>
 
         {/* Brand */}
