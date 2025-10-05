@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { hasPermission, PERMISSIONS } from '@/lib/rbac/permissions';
 import { useEffect, useState } from 'react';
@@ -43,6 +43,7 @@ const menu: MenuItem[] = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { data: session } = useSession();
   const userRoles = (session?.user as any)?.roles || [];
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -68,7 +69,21 @@ export default function Sidebar() {
 
   const canView = (item: MenuItem) => !item.permission || hasPermission(userRoles, item.permission);
 
-  const isActive = (href?: string) => !!href && pathname === href;
+  const isActive = (href?: string) => {
+    if (!href) return false;
+    try {
+      const [hrefPath, hrefQuery] = href.split('?');
+      if (pathname !== hrefPath) return false;
+      if (!hrefQuery) return true;
+      const hrefParams = new URLSearchParams(hrefQuery);
+      for (const [k, v] of Array.from(hrefParams.entries())) {
+        if (searchParams.get(k) !== v) return false;
+      }
+      return true;
+    } catch {
+      return pathname === href;
+    }
+  };
 
   const renderItem = (item: MenuItem, parentKey?: string) => {
     if (!canView(item)) return null;

@@ -25,6 +25,7 @@
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   background-color: #f1f5f9;
+  padding-top: var(--navbar-height);
 }
 
 /* Sidebar Styles */
@@ -151,10 +152,12 @@ body.sidebar-collapsed .main-content { margin-left: 64px; }
   color: white;
   border-bottom: none;
   padding: 0.5rem 1rem;
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  width: 100%;
+  height: var(--navbar-height);
   z-index: 1050; /* above the sidebar */
-  transition: margin-left 0.3s ease-in-out;
 }
 
 .top-navbar .navbar-brand {
