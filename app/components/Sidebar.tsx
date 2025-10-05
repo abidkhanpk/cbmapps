@@ -172,7 +172,7 @@ export default function Sidebar() {
         </button>
       </div>
       <ul className="nav nav-pills flex-column">
-        {menu.map(renderItem)}
+        {menu.map((item) => renderItem(item))}
       </ul>
     </nav>
   );
