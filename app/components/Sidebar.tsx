@@ -48,6 +48,16 @@ export default function Sidebar() {
   const userRoles = (session?.user as any)?.roles || [];
   const [open, setOpen] = useState<Record<string, boolean>>({});
 
+  // Start collapsed by default and keep content width at collapsed size
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const sidebar = document.querySelector('.sidebar');
+      sidebar?.classList.add('collapsed');
+      document.body.classList.add('sidebar-collapsed');
+      document.querySelector('.main-content')?.classList.add('expanded');
+    }
+  }, []);
+
   // Ensure default open group based on current route, including cross-module children
   useEffect(() => {
     const defaults: Record<string, boolean> = {};
@@ -99,15 +109,6 @@ export default function Sidebar() {
             title={item.label}
             aria-label={item.label}
             onClick={() => {
-              if (typeof window !== 'undefined') {
-                const sidebar = document.querySelector('.sidebar');
-                if (sidebar?.classList.contains('collapsed')) {
-                  sidebar.classList.remove('collapsed');
-                  document.querySelector('.main-content')?.classList.remove('expanded');
-                  document.body.classList.remove('sidebar-collapsed');
-                  document.body.classList.add('sidebar-auto-expanded');
-                }
-              }
               // Only one expanded at a time
               setOpen({ [key]: !expanded } as any);
             }}
@@ -139,17 +140,6 @@ export default function Sidebar() {
             } else {
               setOpen({});
             }
-            if (typeof window !== 'undefined') {
-              const body = document.body;
-              const sidebar = document.querySelector('.sidebar');
-              // Only auto-collapse if we auto-expanded from collapsed
-              if (body.classList.contains('sidebar-auto-expanded') && sidebar && !sidebar.classList.contains('collapsed')) {
-                sidebar.classList.add('collapsed');
-                document.querySelector('.main-content')?.classList.add('expanded');
-                body.classList.add('sidebar-collapsed');
-                body.classList.remove('sidebar-auto-expanded');
-              }
-            }
           }}
         >
           <i className={`${item.icon} me-2`}></i>
@@ -161,31 +151,6 @@ export default function Sidebar() {
 
   return (
     <nav className="sidebar" id="sidebar">
-      <div className="p-3 d-flex justify-content-between align-items-center">
-        <Link href="/home" className="navbar-brand text-white text-decoration-none d-flex align-items-center">
-          <i className="bi bi-clipboard-data me-2 brand-icon"></i>
-          <span className="label">CBMAPPS</span>
-        </Link>
-        <button
-          className="btn btn-link text-white p-1 d-none d-md-inline"
-          type="button"
-          onClick={() => {
-            if (typeof window !== 'undefined') {
-              document.querySelector('.sidebar')?.classList.toggle('collapsed');
-              document.querySelector('.main-content')?.classList.toggle('expanded');
-              document.body.classList.toggle('sidebar-collapsed');
-            }
-          }}
-          title="Toggle sidebar"
-          aria-label="Toggle sidebar"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <rect x="3" y="6" width="18" height="2.6" rx="1.3" fill="currentColor"/>
-            <rect x="3" y="11" width="18" height="2.6" rx="1.3" fill="currentColor"/>
-            <rect x="3" y="16" width="18" height="2.6" rx="1.3" fill="currentColor"/>
-          </svg>
-        </button>
-      </div>
       <ul className="nav nav-pills flex-column">
         {menu.map((item) => renderItem(item))}
       </ul>

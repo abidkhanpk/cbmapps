@@ -52,8 +52,7 @@ body {
   width: 64px;
 }
 
-.sidebar.collapsed .label,
-.sidebar.collapsed .brand-icon {
+.sidebar.collapsed .label {
   display: none;
 }
 
@@ -132,9 +131,31 @@ body {
 /* Hover shape for icons in collapsed mode */
 .sidebar.collapsed .nav-link:hover { border-radius: 8px; }
 
+/* Expand collapsed sidebar on hover without pushing content */
+.sidebar.collapsed:hover {
+  width: var(--sidebar-width);
+}
+.sidebar.collapsed:hover .label,
+.sidebar.collapsed:hover .brand-icon {
+  display: inline !important;
+}
+.sidebar.collapsed:hover .nav-item > button.nav-link .bi-chevron-down,
+.sidebar.collapsed:hover .nav-item > button.nav-link .bi-chevron-up {
+  display: inline !important;
+}
+.sidebar.collapsed:hover .nav .nav .nav-link {
+  padding-left: 2rem; /* restore indentation when expanded */
+}
+.sidebar.collapsed:hover .nav-link {
+  justify-content: flex-start;
+}
+
+/* Keep main content fixed to collapsed width margin so hover expansion overlaps */
+body.sidebar-collapsed .main-content { margin-left: 64px; }
+
 /* Main Content */
 .main-content {
-  margin-left: var(--sidebar-width);
+  margin-left: 64px;
   min-height: 100vh;
   transition: margin-left 0.3s ease-in-out;
 }
@@ -152,7 +173,7 @@ body.sidebar-collapsed .main-content { margin-left: 64px; }
   color: white;
   border-bottom: none;
   padding: 0.5rem 1rem;
-  position: fixed;
+  position: fixed !important;
   top: 0;
   left: 0;
   width: 100%;
