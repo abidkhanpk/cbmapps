@@ -35,7 +35,10 @@
     "uuid": "^9.0.1",
     "chart.js": "^4.4.1",
     "date-fns": "^3.0.6",
-    "next-safe": "^3.4.0"
+    "next-safe": "^3.4.0",
+    "fft.js": "^4.0.4",
+    "plotly.js": "^3.1.0",
+    "react-plotly.js": "^2.6.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.6",
