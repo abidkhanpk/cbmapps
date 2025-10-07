@@ -18,7 +18,7 @@
   --brand-secondary: #334155;
   --sidebar-width: 240px;
   --sidebar-collapsed-width: 56px;
-  --sidebar-accent: #6366f1;
+  --sidebar-accent: #4f46e5;
   --brand-gradient: linear-gradient(180deg, var(--brand-primary), var(--bs-dark));
   --navbar-height: 56px; /* keep sidebar perfectly aligned under header */
 }
@@ -36,13 +36,13 @@ body {
   left: 0;
   height: calc(100vh - var(--navbar-height));
   width: var(--sidebar-width);
-  background: #ffffff;
+  background: #f9fafb;
   color: #0f172a;
   z-index: 1030; /* header stays above; sidebar sits below */
   transition: transform 0.3s ease-in-out, width 0.3s ease-in-out;
   overflow-x: hidden;
   overflow-y: auto; /* allow vertical scroll if needed */
-  border-right: 1px solid #e5e7eb;
+  border-right: 1px solid #d1d5db;
 }
 
 .sidebar .navbar-brand {
@@ -67,12 +67,12 @@ body {
 
 .sidebar .nav-link:hover {
   color: #111827;
-  background-color: #f3f4f6;
+  background-color: #e5e7eb;
 }
 
 .sidebar .nav-link.active {
   color: #111827;
-  background-color: #eef2ff; /* indigo-50 bubble */
+  background-color: #e0e7ff; /* indigo-100 bubble */
   position: relative;
 }
 .sidebar .nav-link.active::before {
@@ -88,7 +88,7 @@ body {
 
 /* collapsed selected indicator */
 .sidebar.collapsed .nav-link.active {
-  background-color: #eef2ff;
+  background-color: #e0e7ff;
   color: #111827;
 }
 .sidebar.collapsed .nav-link.active::before {
@@ -183,9 +183,9 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed-widt
 
 /* Top Navbar */
 .top-navbar {
-  background: #ffffff;
+  background: #f9fafb;
   color: #111827;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #d1d5db;
   padding: 0.5rem 1rem;
   position: fixed !important;
   top: 0;
@@ -202,16 +202,16 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed-widt
 /* header is full-width now; no margin-left shifting with sidebar */
 
 .top-navbar .form-control {
-  border-color: #e5e7eb;
-  background: #ffffff;
+  border-color: #d1d5db;
+  background: #f9fafb;
 }
 
 .top-navbar .btn-outline-light {
-  border-color: #cbd5e1;
+  border-color: #94a3b8;
   color: #111827;
 }
 .top-navbar .btn-outline-light:hover {
-  background-color: #f3f4f6;
+  background-color: #e5e7eb;
 }
 
 /* Cards */

@@ -506,8 +506,16 @@ export default function SignalGenerator() {
   }
 
   return (
-    <div style={{ visibility: twReady ? 'visible' : 'hidden' }} className="mx-n4 min-h-screen text-gray-900">
-      <div className="grid grid-cols-1 md:grid-cols-[360px_1fr] gap-6 p-0">
+    <div className="position-relative">
+      {!twReady && (
+        <div className="d-flex align-items-center justify-content-center position-absolute top-0 start-0 w-100" style={{ height: 'calc(100vh - var(--navbar-height))', zIndex: 10, background: 'rgba(249,250,251,0.9)' }}>
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+        </div>
+      )}
+      <div style={{ visibility: twReady ? 'visible' : 'hidden' }} className="mx-n4 min-h-screen text-gray-900">
+        <div className="grid grid-cols-1 md:grid-cols-[360px_1fr] gap-6 p-0">
         {/* Controls Sidebar */}
         <aside className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-5 space-y-6 h-fit">
           <h1 className="text-lg font-semibold">Signal Generator</h1>
@@ -716,6 +724,7 @@ export default function SignalGenerator() {
             />
           </div>
         </main>
+      </div>
       </div>
     </div>
   );
