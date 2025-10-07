@@ -320,3 +320,31 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed-widt
 .bg-criticality-low { background-color: var(--criticality-low) !important; }
 .bg-criticality-medium { background-color: var(--criticality-medium) !important; }
 .bg-criticality-high { background-color: var(--criticality-high) !important; }
+
+/* Sidebar stability (prevent icon vertical jitter on hover) */
+.sidebar { will-change: width; }
+.sidebar .nav-link {
+  display: flex;
+  align-items: center;
+  height: 40px;           /* fixed row height */
+  line-height: 1;         /* stable baseline */
+  padding-top: 0.5rem;    /* consistent vertical padding */
+  padding-bottom: 0.5rem;
+}
+.sidebar .nav-link i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;         /* keep icon box fixed */
+  height: 1.25rem;
+}
+/* Keep the same metrics when collapsed and on hover so rows do not jump */
+.sidebar.collapsed .nav-link,
+.sidebar.collapsed:hover .nav-link,
+.sidebar .nav .nav .nav-link {
+  height: 40px;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+/* Avoid animating layout properties for inner elements */
+.sidebar .nav-link *, .sidebar .nav-link::before { transition-property: color, background-color, border-color; }
