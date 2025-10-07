@@ -327,5 +327,35 @@ $(document).ready(function() {
     });
   }
 
+  // Prevent sidebar hover expansion while interacting with asset tree or clicking outside sidebar
+  function addSidebarShield() {
+    if ($('#sidebar-hover-shield').length === 0) {
+      $('body').append('<div id="sidebar-hover-shield" style="position:fixed;left:0;top:var(--navbar-height);height:calc(100vh - var(--navbar-height));width:64px;z-index:1049;pointer-events:auto;background:transparent;"></div>');
+    }
+    $('body').addClass('sidebar-hover-block');
+  }
+  function removeSidebarShield() {
+    $('#sidebar-hover-shield').remove();
+    $('body').removeClass('sidebar-hover-block');
+  }
+
+  $(document).on('mouseenter', '.asset-tree, .asset-tree *', function() {
+    addSidebarShield();
+  });
+  $(document).on('mouseleave', '.asset-tree, .asset-tree *', function() {
+    removeSidebarShield();
+  });
+
+  // Guard during any click outside the sidebar (prevents transient hover on sidebar)
+  $(document).on('mousedown', function(e) {
+    if (!$(e.target).closest('.sidebar').length) {
+      addSidebarShield();
+    }
+  });
+  $(document).on('mouseup', function(e) {
+    // Small delay helps cover SPA navigation/re-render
+    setTimeout(removeSidebarShield, 250);
+  });
+
   console.log('FMECA Application initialized');
 });

@@ -506,8 +506,8 @@ export default function SignalGenerator() {
   }
 
   return (
-    <div style={{ visibility: twReady ? 'visible' : 'hidden' }} className="min-h-screen bg-gray-50 text-gray-900">
-      <div className="grid grid-cols-1 md:grid-cols-[360px_1fr] gap-6 p-4 md:p-6">
+    <div style={{ visibility: twReady ? 'visible' : 'hidden' }} className="mx-n4 min-h-screen text-gray-900">
+      <div className="grid grid-cols-1 md:grid-cols-[360px_1fr] gap-6 p-0">
         {/* Controls Sidebar */}
         <aside className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-5 space-y-6 h-fit">
           <h1 className="text-lg font-semibold">Signal Generator</h1>

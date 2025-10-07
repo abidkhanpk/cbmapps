@@ -48,16 +48,7 @@ export default function Sidebar() {
   const userRoles = (session?.user as any)?.roles || [];
   const [open, setOpen] = useState<Record<string, boolean>>({});
 
-  // Start collapsed by default and keep content width at collapsed size
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const sidebar = document.querySelector('.sidebar');
-      sidebar?.classList.add('collapsed');
-      document.body.classList.add('sidebar-collapsed');
-      document.querySelector('.main-content')?.classList.add('expanded');
-    }
-  }, []);
-
+  
   // Ensure default open group based on current route, including cross-module children
   useEffect(() => {
     const defaults: Record<string, boolean> = {};
@@ -150,7 +141,7 @@ export default function Sidebar() {
   };
 
   return (
-    <nav className="sidebar" id="sidebar">
+    <nav className="sidebar collapsed" id="sidebar">
       <ul className="nav nav-pills flex-column">
         {menu.map((item) => renderItem(item))}
       </ul>

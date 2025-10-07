@@ -21,6 +21,8 @@ export default async function AssetsPage({ searchParams }: { searchParams?: Reco
   const areaSel = typeof searchParams?.area === 'string' ? searchParams!.area : undefined
   const systemSel = typeof searchParams?.system === 'string' ? searchParams!.system : undefined
   const assetSel = typeof searchParams?.asset === 'string' ? searchParams!.asset : undefined
+  const editType = typeof searchParams?.edit === 'string' ? (searchParams!.edit as string) : undefined
+  const editId = typeof searchParams?.edit_id === 'string' ? (searchParams!.edit_id as string) : undefined
 
   // Fetch hierarchy
   const sites = await prisma.site.findMany({
@@ -95,6 +97,64 @@ export default async function AssetsPage({ searchParams }: { searchParams?: Reco
     if (!asset_id || !name || !component_code) return
     await prisma.component.create({ data: { asset_id, name, component_code, type } })
     revalidatePath(`/assets?site=${searchParams?.site || ''}&area=${searchParams?.area || ''}&system=${searchParams?.system || ''}&asset=${asset_id}`)
+  }
+
+  // Update actions
+  async function updateSite(formData: FormData) {
+    'use server'
+    const id = String(formData.get('id') || '')
+    const name = String(formData.get('name') || '').trim()
+    const code = String(formData.get('code') || '').trim()
+    if (!id || !name || !code) return
+    await prisma.site.update({ where: { id }, data: { name, code } })
+    revalidatePath(`/assets?site=${id}`)
+  }
+  async function updateArea(formData: FormData) {
+    'use server'
+    const id = String(formData.get('id') || '')
+    const site_id = String(formData.get('site_id') || '')
+    const name = String(formData.get('name') || '').trim()
+    const code = String(formData.get('code') || '').trim()
+    if (!id || !site_id || !name || !code) return
+    await prisma.area.update({ where: { id }, data: { name, code } })
+    revalidatePath(`/assets?site=${site_id}`)
+  }
+  async function updateSystem(formData: FormData) {
+    'use server'
+    const id = String(formData.get('id') || '')
+    const site_id = String(formData.get('site_id') || siteSel || '')
+    const area_id = String(formData.get('area_id') || '')
+    const name = String(formData.get('name') || '').trim()
+    const code = String(formData.get('code') || '').trim()
+    if (!id || !area_id || !name || !code) return
+    await prisma.system.update({ where: { id }, data: { name, code } })
+    revalidatePath(`/assets?site=${site_id}&area=${area_id}`)
+  }
+  async function updateAsset(formData: FormData) {
+    'use server'
+    const id = String(formData.get('id') || '')
+    const site_id = String(formData.get('site_id') || siteSel || '')
+    const area_id = String(formData.get('area_id') || areaSel || '')
+    const system_id = String(formData.get('system_id') || '')
+    const name = String(formData.get('name') || '').trim()
+    const tag_code = String(formData.get('tag_code') || '').trim()
+    if (!id || !system_id || !name || !tag_code) return
+    await prisma.asset.update({ where: { id }, data: { name, tag_code } })
+    revalidatePath(`/assets?site=${site_id}&area=${area_id}&system=${system_id}`)
+  }
+  async function updateComponent(formData: FormData) {
+    'use server'
+    const id = String(formData.get('id') || '')
+    const site_id = String(formData.get('site_id') || siteSel || '')
+    const area_id = String(formData.get('area_id') || areaSel || '')
+    const system_id = String(formData.get('system_id') || systemSel || '')
+    const asset_id = String(formData.get('asset_id') || assetSel || '')
+    const name = String(formData.get('name') || '').trim()
+    const component_code = String(formData.get('component_code') || '').trim()
+    const type = String(formData.get('type') || 'other') as any
+    if (!id || !asset_id || !name || !component_code) return
+    await prisma.component.update({ where: { id }, data: { name, component_code, type } })
+    revalidatePath(`/assets?site=${site_id}&area=${area_id}&system=${system_id}&asset=${asset_id}`)
   }
 
   // Simple helpers to find selected nodes
@@ -209,7 +269,29 @@ export default async function AssetsPage({ searchParams }: { searchParams?: Reco
 
               {siteSel && !areaSel && (
                 <div>
-                  <div className="fw-semibold mb-2">Manage Areas in: {selectedSite?.name}</div>
+                  <div className="d-flex align-items-center justify-content-between mb-2">
+                    <div className="fw-semibold">Manage Areas in: {selectedSite?.name}</div>
+                    {siteSel && (
+                      <a href={`/assets?site=${siteSel}&edit=site&edit_id=${siteSel}`} className="btn btn-sm btn-link p-0" title="Edit site">
+                        <i className="bi bi-pencil-square"></i>
+                      </a>
+                    )}
+                  </div>
+                  {editType === 'site' && editId === siteSel && (
+                    <form action={updateSite} className="row g-2 mb-3">
+                      <input type="hidden" name="id" value={siteSel} />
+                      <div className="col-7">
+                        <input name="name" defaultValue={selectedSite?.name} className="form-control form-control-sm" placeholder="Site name" required />
+                      </div>
+                      <div className="col-5">
+                        <input name="code" defaultValue={selectedSite?.code} className="form-control form-control-sm" placeholder="Code" required />
+                      </div>
+                      <div className="col-12 d-flex gap-2">
+                        <button className="btn btn-sm btn-primary" type="submit">Save</button>
+                        <a className="btn btn-sm btn-outline-secondary" href={`/assets?site=${siteSel}`}>Cancel</a>
+                      </div>
+                    </form>
+                  )}
                   <form action={addArea} className="row g-2 mb-3">
                     <input type="hidden" name="site_id" value={siteSel} />
                     <div className="col-7">
@@ -223,13 +305,42 @@ export default async function AssetsPage({ searchParams }: { searchParams?: Reco
                     </div>
                   </form>
                   <table className="table table-sm">
-                    <thead><tr><th>Name</th><th>Code</th></tr></thead>
+                    <thead><tr><th>Name</th><th>Code</th><th>Actions</th></tr></thead>
                     <tbody>
                       {selectedSite?.areas.map((a: any) => (
-                        <tr key={a.id}><td>{a.name}</td><td>{a.code}</td></tr>
+                        (editType === 'area' && editId === a.id) ? (
+                          <tr key={a.id}>
+                            <td colSpan={3}>
+                              <form action={updateArea} className="row g-2 align-items-center">
+                                <input type="hidden" name="id" value={a.id} />
+                                <input type="hidden" name="site_id" value={siteSel} />
+                                <div className="col-5">
+                                  <input name="name" defaultValue={a.name} className="form-control form-control-sm" placeholder="Area name" required />
+                                </div>
+                                <div className="col-4">
+                                  <input name="code" defaultValue={a.code} className="form-control form-control-sm" placeholder="Code" required />
+                                </div>
+                                <div className="col-3 d-flex gap-2">
+                                  <button className="btn btn-sm btn-primary" type="submit">Save</button>
+                                  <a className="btn btn-sm btn-outline-secondary" href={`/assets?site=${siteSel}`}>Cancel</a>
+                                </div>
+                              </form>
+                            </td>
+                          </tr>
+                        ) : (
+                          <tr key={a.id}>
+                            <td>{a.name}</td>
+                            <td>{a.code}</td>
+                            <td>
+                              <a href={`/assets?site=${siteSel}&edit=area&edit_id=${a.id}`} className="btn btn-sm btn-link p-0" title="Edit area">
+                                <i className="bi bi-pencil-square"></i>
+                              </a>
+                            </td>
+                          </tr>
+                        )
                       ))}
                       {(selectedSite?.areas.length ?? 0) === 0 && (
-                        <tr><td colSpan={2} className="text-muted">No areas</td></tr>
+                        <tr><td colSpan={3} className="text-muted">No areas</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -252,13 +363,43 @@ export default async function AssetsPage({ searchParams }: { searchParams?: Reco
                     </div>
                   </form>
                   <table className="table table-sm">
-                    <thead><tr><th>Name</th><th>Code</th></tr></thead>
+                    <thead><tr><th>Name</th><th>Code</th><th>Actions</th></tr></thead>
                     <tbody>
                       {selectedArea?.systems.map((sy: any) => (
-                        <tr key={sy.id}><td>{sy.name}</td><td>{sy.code}</td></tr>
+                        (editType === 'system' && editId === sy.id) ? (
+                          <tr key={sy.id}>
+                            <td colSpan={3}>
+                              <form action={updateSystem} className="row g-2 align-items-center">
+                                <input type="hidden" name="id" value={sy.id} />
+                                <input type="hidden" name="site_id" value={siteSel} />
+                                <input type="hidden" name="area_id" value={areaSel} />
+                                <div className="col-5">
+                                  <input name="name" defaultValue={sy.name} className="form-control form-control-sm" placeholder="Equipment name" required />
+                                </div>
+                                <div className="col-4">
+                                  <input name="code" defaultValue={sy.code} className="form-control form-control-sm" placeholder="Code" required />
+                                </div>
+                                <div className="col-3 d-flex gap-2">
+                                  <button className="btn btn-sm btn-primary" type="submit">Save</button>
+                                  <a className="btn btn-sm btn-outline-secondary" href={`/assets?site=${siteSel}&area=${areaSel}`}>Cancel</a>
+                                </div>
+                              </form>
+                            </td>
+                          </tr>
+                        ) : (
+                          <tr key={sy.id}>
+                            <td>{sy.name}</td>
+                            <td>{sy.code}</td>
+                            <td>
+                              <a href={`/assets?site=${siteSel}&area=${areaSel}&edit=system&edit_id=${sy.id}`} className="btn btn-sm btn-link p-0" title="Edit equipment">
+                                <i className="bi bi-pencil-square"></i>
+                              </a>
+                            </td>
+                          </tr>
+                        )
                       ))}
                       {(selectedArea?.systems.length ?? 0) === 0 && (
-                        <tr><td colSpan={2} className="text-muted">No equipment</td></tr>
+                        <tr><td colSpan={3} className="text-muted">No equipment</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -281,13 +422,44 @@ export default async function AssetsPage({ searchParams }: { searchParams?: Reco
                     </div>
                   </form>
                   <table className="table table-sm">
-                    <thead><tr><th>Name</th><th>Tag</th></tr></thead>
+                    <thead><tr><th>Name</th><th>Tag</th><th>Actions</th></tr></thead>
                     <tbody>
                       {selectedSystem?.assets.map((as: any) => (
-                        <tr key={as.id}><td>{as.name}</td><td>{as.tag_code}</td></tr>
+                        (editType === 'asset' && editId === as.id) ? (
+                          <tr key={as.id}>
+                            <td colSpan={3}>
+                              <form action={updateAsset} className="row g-2 align-items-center">
+                                <input type="hidden" name="id" value={as.id} />
+                                <input type="hidden" name="site_id" value={siteSel} />
+                                <input type="hidden" name="area_id" value={areaSel} />
+                                <input type="hidden" name="system_id" value={systemSel} />
+                                <div className="col-5">
+                                  <input name="name" defaultValue={as.name} className="form-control form-control-sm" placeholder="Asset name" required />
+                                </div>
+                                <div className="col-4">
+                                  <input name="tag_code" defaultValue={as.tag_code} className="form-control form-control-sm" placeholder="Tag code" required />
+                                </div>
+                                <div className="col-3 d-flex gap-2">
+                                  <button className="btn btn-sm btn-primary" type="submit">Save</button>
+                                  <a className="btn btn-sm btn-outline-secondary" href={`/assets?site=${siteSel}&area=${areaSel}&system=${systemSel}`}>Cancel</a>
+                                </div>
+                              </form>
+                            </td>
+                          </tr>
+                        ) : (
+                          <tr key={as.id}>
+                            <td>{as.name}</td>
+                            <td>{as.tag_code}</td>
+                            <td>
+                              <a href={`/assets?site=${siteSel}&area=${areaSel}&system=${systemSel}&edit=asset&edit_id=${as.id}`} className="btn btn-sm btn-link p-0" title="Edit asset">
+                                <i className="bi bi-pencil-square"></i>
+                              </a>
+                            </td>
+                          </tr>
+                        )
                       ))}
                       {(selectedSystem?.assets.length ?? 0) === 0 && (
-                        <tr><td colSpan={2} className="text-muted">No assets</td></tr>
+                        <tr><td colSpan={3} className="text-muted">No assets</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -320,13 +492,56 @@ export default async function AssetsPage({ searchParams }: { searchParams?: Reco
                     </div>
                   </form>
                   <table className="table table-sm">
-                    <thead><tr><th>Name</th><th>Code</th><th>Type</th></tr></thead>
+                    <thead><tr><th>Name</th><th>Code</th><th>Type</th><th>Actions</th></tr></thead>
                     <tbody>
                       {selectedAsset?.components.map((c: any) => (
-                        <tr key={c.id}><td>{c.name}</td><td>{c.component_code}</td><td className="text-capitalize">{c.type}</td></tr>
+                        (editType === 'component' && editId === c.id) ? (
+                          <tr key={c.id}>
+                            <td colSpan={4}>
+                              <form action={updateComponent} className="row g-2 align-items-center">
+                                <input type="hidden" name="id" value={c.id} />
+                                <input type="hidden" name="site_id" value={siteSel} />
+                                <input type="hidden" name="area_id" value={areaSel} />
+                                <input type="hidden" name="system_id" value={systemSel} />
+                                <input type="hidden" name="asset_id" value={assetSel} />
+                                <div className="col-4">
+                                  <input name="name" defaultValue={c.name} className="form-control form-control-sm" placeholder="Component name" required />
+                                </div>
+                                <div className="col-3">
+                                  <input name="component_code" defaultValue={c.component_code} className="form-control form-control-sm" placeholder="Code" required />
+                                </div>
+                                <div className="col-3">
+                                  <select name="type" defaultValue={c.type} className="form-select form-select-sm">
+                                    <option value="mechanical">Mechanical</option>
+                                    <option value="electrical">Electrical</option>
+                                    <option value="instrumentation">Instrumentation</option>
+                                    <option value="rotating">Rotating</option>
+                                    <option value="static">Static</option>
+                                    <option value="other">Other</option>
+                                  </select>
+                                </div>
+                                <div className="col-2 d-flex gap-2">
+                                  <button className="btn btn-sm btn-primary" type="submit">Save</button>
+                                  <a className="btn btn-sm btn-outline-secondary" href={`/assets?site=${siteSel}&area=${areaSel}&system=${systemSel}&asset=${assetSel}`}>Cancel</a>
+                                </div>
+                              </form>
+                            </td>
+                          </tr>
+                        ) : (
+                          <tr key={c.id}>
+                            <td>{c.name}</td>
+                            <td>{c.component_code}</td>
+                            <td className="text-capitalize">{c.type}</td>
+                            <td>
+                              <a href={`/assets?site=${siteSel}&area=${areaSel}&system=${systemSel}&asset=${assetSel}&edit=component&edit_id=${c.id}`} className="btn btn-sm btn-link p-0" title="Edit component">
+                                <i className="bi bi-pencil-square"></i>
+                              </a>
+                            </td>
+                          </tr>
+                        )
                       ))}
                       {(selectedAsset?.components.length ?? 0) === 0 && (
-                        <tr><td colSpan={3} className="text-muted">No components</td></tr>
+                        <tr><td colSpan={4} className="text-muted">No components</td></tr>
                       )}
                     </tbody>
                   </table>

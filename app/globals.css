@@ -135,6 +135,18 @@ body {
 .sidebar.collapsed:hover {
   width: var(--sidebar-width);
 }
+/* Disable hover expansion while interacting with asset tree */
+body.sidebar-hover-block .sidebar.collapsed:hover {
+  width: 64px !important;
+}
+body.sidebar-hover-block .sidebar.collapsed:hover .label,
+body.sidebar-hover-block .sidebar.collapsed:hover .brand-icon {
+  display: none !important;
+}
+body.sidebar-hover-block .sidebar {
+  pointer-events: none;
+  transition: none !important;
+}
 .sidebar.collapsed:hover .label,
 .sidebar.collapsed:hover .brand-icon {
   display: inline !important;
