@@ -16,6 +16,45 @@ import type { SingleSignalParams } from './hooks/useSignal';
 // metadata is defined at a higher level; client components cannot export metadata in Next.js
 
 export default function SignalGenerator() {
+  const [twReady, setTwReady] = useState(false);
+  useEffect(() => {
+    const hasTailwindStyles = () => {
+      if (typeof window === 'undefined') return false;
+      try {
+        for (const style of Array.from(document.querySelectorAll('style'))) {
+          if (style.textContent && style.textContent.includes('--tw')) return true;
+        }
+      } catch {}
+      return false;
+    };
+
+    if (hasTailwindStyles()) { setTwReady(true); return; }
+
+    // Fallback injection if Tailwind CDN hasn't loaded yet (e.g. after client-side nav)
+    const existingCdn = document.querySelector('script[data-tailwind-cdn]');
+    if (!existingCdn) {
+      // config must be defined before the CDN script executes
+      const config = document.createElement('script');
+      config.setAttribute('data-tailwind-config', 'true');
+      config.innerHTML = 'tailwind = { config: { corePlugins: { preflight: false } } }';
+      document.head.appendChild(config);
+
+      const cdn = document.createElement('script');
+      cdn.src = 'https://cdn.tailwindcss.com';
+      cdn.setAttribute('data-tailwind-cdn', 'true');
+      cdn.async = true;
+      document.head.appendChild(cdn);
+    }
+
+    const poll = window.setInterval(() => {
+      if (hasTailwindStyles()) {
+        window.clearInterval(poll);
+        setTwReady(true);
+      }
+    }, 40);
+    const bailout = window.setTimeout(() => { setTwReady(true); }, 3500);
+    return () => { window.clearInterval(poll); window.clearTimeout(bailout); };
+  }, []);
   // maxRevolutions removed - time window length will be driven by LOR / Fmax (Twindow)
   // Multi-signal state: array of signal parameter objects
   const [signals, setSignals] = useState<SingleSignalParams[]>([
@@ -467,7 +506,7 @@ export default function SignalGenerator() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
+    <div style={{ visibility: twReady ? 'visible' : 'hidden' }} className="min-h-screen bg-gray-50 text-gray-900">
       <div className="grid grid-cols-1 md:grid-cols-[360px_1fr] gap-6 p-4 md:p-6">
         {/* Controls Sidebar */}
         <aside className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-5 space-y-6 h-fit">
