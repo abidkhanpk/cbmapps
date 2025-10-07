@@ -16,8 +16,9 @@
   /* Custom brand colors */
   --brand-primary: #1e3a8a; /* darker header/sidebar */
   --brand-secondary: #334155;
-  --sidebar-width: 260px;
-  --sidebar-accent: #60a5fa;
+  --sidebar-width: 240px;
+  --sidebar-collapsed-width: 56px;
+  --sidebar-accent: #6366f1;
   --brand-gradient: linear-gradient(180deg, var(--brand-primary), var(--bs-dark));
   --navbar-height: 56px; /* keep sidebar perfectly aligned under header */
 }
@@ -35,12 +36,13 @@ body {
   left: 0;
   height: calc(100vh - var(--navbar-height));
   width: var(--sidebar-width);
-  background: var(--brand-gradient);
-  color: white;
+  background: #ffffff;
+  color: #0f172a;
   z-index: 1030; /* header stays above; sidebar sits below */
   transition: transform 0.3s ease-in-out, width 0.3s ease-in-out;
   overflow-x: hidden;
   overflow-y: auto; /* allow vertical scroll if needed */
+  border-right: 1px solid #e5e7eb;
 }
 
 .sidebar .navbar-brand {
@@ -49,7 +51,7 @@ body {
 }
 
 .sidebar.collapsed {
-  width: 64px;
+  width: var(--sidebar-collapsed-width);
 }
 
 .sidebar.collapsed .label {
@@ -57,20 +59,20 @@ body {
 }
 
 .sidebar .nav-link {
-  color: rgba(255, 255, 255, 0.9);
+  color: #1f2937;
   padding: 0.6rem 0.75rem;
   border-radius: 0.375rem;
   margin: 0.15rem 0.5rem;
 }
 
 .sidebar .nav-link:hover {
-  color: #fff;
-  background-color: rgba(255, 255, 255, 0.12);
+  color: #111827;
+  background-color: #f3f4f6;
 }
 
 .sidebar .nav-link.active {
-  color: #fff;
-  background-color: rgba(96, 165, 250, 0.2); /* subtle accent bubble */
+  color: #111827;
+  background-color: #eef2ff; /* indigo-50 bubble */
   position: relative;
 }
 .sidebar .nav-link.active::before {
@@ -86,8 +88,8 @@ body {
 
 /* collapsed selected indicator */
 .sidebar.collapsed .nav-link.active {
-  background-color: rgba(255, 255, 255, 0.18);
-  color: #fff;
+  background-color: #eef2ff;
+  color: #111827;
 }
 .sidebar.collapsed .nav-link.active::before {
   content: '';
@@ -137,7 +139,7 @@ body {
 }
 /* Disable hover expansion while interacting with asset tree */
 body.sidebar-hover-block .sidebar.collapsed:hover {
-  width: 64px !important;
+  width: var(--sidebar-collapsed-width) !important;
 }
 body.sidebar-hover-block .sidebar.collapsed:hover .label,
 body.sidebar-hover-block .sidebar.collapsed:hover .brand-icon {
@@ -163,27 +165,27 @@ body.sidebar-hover-block .sidebar {
 }
 
 /* Keep main content fixed to collapsed width margin so hover expansion overlaps */
-body.sidebar-collapsed .main-content { margin-left: 64px; }
+body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed-width); }
 
 /* Main Content */
 .main-content {
-  margin-left: 64px;
+  margin-left: var(--sidebar-collapsed-width);
   min-height: 100vh;
   transition: margin-left 0.3s ease-in-out;
 }
 
 /* Keep content aligned when collapsed */
-body.sidebar-collapsed .main-content { margin-left: 64px; }
+body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed-width); }
 
 .main-content.expanded {
-  margin-left: 64px;
+  margin-left: var(--sidebar-collapsed-width);
 }
 
 /* Top Navbar */
 .top-navbar {
-  background: var(--brand-gradient);
-  color: white;
-  border-bottom: none;
+  background: #ffffff;
+  color: #111827;
+  border-bottom: 1px solid #e5e7eb;
   padding: 0.5rem 1rem;
   position: fixed !important;
   top: 0;
@@ -200,12 +202,16 @@ body.sidebar-collapsed .main-content { margin-left: 64px; }
 /* header is full-width now; no margin-left shifting with sidebar */
 
 .top-navbar .form-control {
-  border-color: rgba(255,255,255,0.2);
-  background: rgba(255,255,255,0.9);
+  border-color: #e5e7eb;
+  background: #ffffff;
 }
 
 .top-navbar .btn-outline-light {
-  border-color: rgba(255,255,255,0.4);
+  border-color: #cbd5e1;
+  color: #111827;
+}
+.top-navbar .btn-outline-light:hover {
+  background-color: #f3f4f6;
 }
 
 /* Cards */
@@ -306,6 +312,7 @@ body.sidebar-collapsed .main-content { margin-left: 64px; }
   .top-navbar { margin-left: 0; padding-left: 3rem; }
 }
 
+.top-navbar .text-white { color: #111827 !important; }
 /* Utility */
 .text-criticality-low { color: var(--criticality-low) !important; }
 .text-criticality-medium { color: var(--criticality-medium) !important; }
