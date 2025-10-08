@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { PlotParams } from "react-plotly.js";
 const Plot = dynamic<PlotParams>(() => import("react-plotly.js"), { ssr: false });
-import { motion, useMotionValue, useMotionValueEvent } from "framer-motion";
+import { useMotionValue, useMotionValueEvent } from "framer-motion";
 
 // Notes:
 // - Uses Tailwind via dynamic CDN injection like your signal generator page to ensure styles after client-side navigation
@@ -211,7 +211,7 @@ export default function SpringMassSystem() {
       <div style={{ visibility: twReady ? 'visible' : 'hidden' }} className="mx-n4 min-h-screen text-gray-900">
         <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 p-0">
           {/* Controls + Plot */}
-          <aside className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-5 space-y-5 h-fit lg:col-span-7 order-1">
+          <aside className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-5 space-y-5 h-fit lg:col-span-7 order-1 min-w-0">
             <div>
               <h1 className="text-lg font-semibold">Spring–Mass–Damper</h1>
               <p className="text-xs text-gray-500 mt-1">Interactive forced vibration simulator. Adjust parameters to see resonance and damping effects.</p>
@@ -265,7 +265,7 @@ export default function SpringMassSystem() {
 
             
             {/* Frequency response chart */}
-            <div className="bg-white rounded border border-gray-200 p-2">
+            <div className="bg-white rounded border border-gray-200 p-2 relative overflow-hidden">
               <Plot
                 data={[
                   {
@@ -314,7 +314,7 @@ export default function SpringMassSystem() {
                 }}
                 config={{ displayModeBar: false, responsive: true }}
                 useResizeHandler
-                style={{ width: '100%', height: '100%' }}
+                style={{ width: '100%', height: 260 }}
               />
                           </div>
           </aside>
@@ -382,28 +382,16 @@ export default function SpringMassSystem() {
                         {/* Damper piston rod */}
                         <line x1={xDamper} y1={damperBodyBottom} x2={xDamper} y2={damperRodBottom} stroke="#0b61a4" strokeWidth={4} strokeLinecap="round" />
 
-                        {/* Moving crossbar, linkage and mass (vertical motion) */}
-                        <motion.g style={{ y: yPx }} transform={`translate(0, ${massBaseY})`}>
-                          {/* Crossbar connecting spring and damper bottoms */}
-                          <line x1={xSpring - 14} y1={0} x2={xDamper + 14} y2={0} stroke="#0b61a4" strokeWidth={6} strokeLinecap="round" />
-                          {/* Joints at crossbar ends */}
-                          <circle cx={xSpring} cy={0} r={5} fill="#ffffff" stroke="#0b61a4" strokeWidth={2} />
-                          <circle cx={xDamper} cy={0} r={5} fill="#ffffff" stroke="#0b61a4" strokeWidth={2} />
-
-                          {/* Horizontal linkage to the mass (right side) */}
-                          {(() => {
-                            const xLink = xDamper + 45;
-                            const xMass = xLink + 12;
-                            return (
-                              <g>
-                                <line x1={xDamper + 14} y1={0} x2={xLink} y2={0} stroke="#0b61a4" strokeWidth={6} strokeLinecap="round" />
-                                <circle cx={xLink} cy={0} r={5} fill="#ffffff" stroke="#0b61a4" strokeWidth={2} />
-                                {/* Mass block centered on linkage height */}
-                                <rect x={xMass} y={-30} width={80} height={60} rx={6} fill="url(#massGrad)" stroke="#0f172a" strokeOpacity={0.25} />
-                              </g>
-                            );
-                          })()}
-                        </motion.g>
+                        {/* Connectors from spring/damper to mass and the mass itself */}
+                        {/* Horizontal rods to the mass left edge at the attachment level */}
+                        <line x1={xSpring} y1={crossbarY} x2={xDamper + 40} y2={crossbarY} stroke="#0b61a4" strokeWidth={6} strokeLinecap="round" />
+                        <line x1={xDamper} y1={crossbarY} x2={xDamper + 40} y2={crossbarY} stroke="#0b61a4" strokeWidth={6} strokeLinecap="round" />
+                        {/* Joint markers at connection points */}
+                        <circle cx={xSpring} cy={crossbarY} r={5} fill="#ffffff" stroke="#0b61a4" strokeWidth={2} />
+                        <circle cx={xDamper} cy={crossbarY} r={5} fill="#ffffff" stroke="#0b61a4" strokeWidth={2} />
+                        <circle cx={xDamper + 40} cy={crossbarY} r={5} fill="#ffffff" stroke="#0b61a4" strokeWidth={2} />
+                        {/* Mass block directly attached to the rods */}
+                        <rect x={xDamper + 45} y={crossbarY - 30} width={80} height={60} rx={6} fill="url(#massGrad)" stroke="#0f172a" strokeOpacity={0.25} />
                       </svg>
                     );
                   })()}
