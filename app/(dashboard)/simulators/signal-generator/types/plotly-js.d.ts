@@ -8,6 +8,7 @@ declare module 'plotly.js' {
     marker?: Partial<{ color?: string; size?: number; symbol?: string }>;
     name?: string;
     hovertemplate?: string;
+    visible?: boolean | 'legendonly';
   }>;
 
   export type Layout = Partial<{

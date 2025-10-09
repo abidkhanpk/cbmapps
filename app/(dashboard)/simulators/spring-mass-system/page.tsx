@@ -3,345 +3,404 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { PlotParams } from "react-plotly.js";
 const Plot = dynamic<PlotParams>(() => import("react-plotly.js"), { ssr: false });
-import { useMotionValue, useMotionValueEvent } from "framer-motion";
+import FFT from "fft.js";
 
-// Notes:
-// - Uses Tailwind via dynamic CDN injection like your signal generator page to ensure styles after client-side navigation
-// - Uses Plotly for amplitude–frequency response, and Framer Motion for the spring–mass animation
-// - All computations assume SI units. Frequency input is in Hz, angular frequency omega = 2πf
+// Utilities
+const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-function clamp(n: number, min: number, max: number) { return Math.min(max, Math.max(min, n)); }
-
-function computeNaturalFreq(k: number, m: number) {
-  // ωn = sqrt(k/m); fn = ωn / (2π)
+// Dynamics helpers
+function naturalFreq(k: number, m: number) {
   const wn = Math.sqrt(k / Math.max(m, 1e-9));
   return { wn, fn: wn / (2 * Math.PI) };
 }
-
-function computeDampingRatio(c: number, k: number, m: number) {
-  // ζ = c / (2*sqrt(k*m))
-  const cc = 2 * Math.sqrt(Math.max(k, 0) * Math.max(m, 0)); // critical damping c_c
-  const zeta = cc > 0 ? c / cc : 0;
-  return { zeta, cc };
-}
-
-function computeSteadyStateAmplitude(k: number, m: number, c: number, omega: number, F0 = 1) {
-  // Standard forced vibration formula (base excitation force):
-  // X = (F0/k) / sqrt((1 - r^2)^2 + (2 ζ r)^2), where r = ω/ωn and ζ = c/(2√(km))
-  const { wn } = computeNaturalFreq(k, m);
-  const { zeta } = computeDampingRatio(c, k, m);
+function forcedResponse(k: number, m: number, zeta: number, omega: number, F0 = 1) {
+  const { wn } = naturalFreq(k, m);
   const r = wn > 0 ? omega / wn : 0;
   const denom = Math.sqrt(Math.pow(1 - r * r, 2) + Math.pow(2 * zeta * r, 2));
   const X = (F0 / Math.max(k, 1e-9)) / Math.max(denom, 1e-9);
-  // phase φ = atan((2 ζ r) / (1 - r^2))
-  const phi = Math.atan2(2 * zeta * r, 1 - r * r);
+  const phi = Math.atan2(2 * zeta * r, 1 - r * r); // radians
   return { X, phi, r };
 }
 
-function computeResonancePeak(k: number, m: number, c: number) {
-  // For ζ < 1/√2, amplitude peak occurs near r_peak = sqrt(1 - 2 ζ^2)
-  const { wn, fn } = computeNaturalFreq(k, m);
-  const { zeta } = computeDampingRatio(c, k, m);
-  const rPeak = zeta < 1 / Math.sqrt(2) ? Math.sqrt(clamp(1 - 2 * zeta * zeta, 0, 1)) : 0; // 0 if overdamped for this context
-  const wPeak = rPeak * wn;
-  const fPeak = wPeak / (2 * Math.PI);
-  const { X } = computeSteadyStateAmplitude(k, m, c, wPeak, 1);
-  return { rPeak, wPeak, fPeak, Xpeak: X };
-}
-
 export default function SpringMassSystem() {
-  // Tailwind CDN readiness (same pattern used in your signal generator page)
+  // Tailwind readiness via runtime CDN injection
   const [twReady, setTwReady] = useState(false);
   useEffect(() => {
-    const hasTailwindStyles = () => {
-      if (typeof window === "undefined") return false;
-      try {
-        for (const style of Array.from(document.querySelectorAll("style"))) {
-          if (style.textContent && style.textContent.includes("--tw")) return true;
-        }
-      } catch {}
+    const hasTw = () => {
+      try { for (const s of Array.from(document.querySelectorAll('style'))) { if (s.textContent && s.textContent.includes('--tw')) return true; } } catch {}
       return false;
     };
-
-    if (hasTailwindStyles()) { setTwReady(true); return; }
-
-    const existingCdn = document.querySelector("script[data-tailwind-cdn]");
-    if (!existingCdn) {
-      const config = document.createElement("script");
-      config.setAttribute("data-tailwind-config", "true");
-      config.innerHTML = "tailwind = { config: { corePlugins: { preflight: false } } }";
-      document.head.appendChild(config);
-
-      const cdn = document.createElement("script");
-      cdn.src = "https://cdn.tailwindcss.com";
-      cdn.setAttribute("data-tailwind-cdn", "true");
-      cdn.async = true;
-      document.head.appendChild(cdn);
+    if (hasTw()) { setTwReady(true); return; }
+    if (!document.querySelector('script[data-tailwind-cdn]')) {
+      const cfg = document.createElement('script'); cfg.setAttribute('data-tailwind-config', 'true'); cfg.innerHTML = "tailwind = { config: { corePlugins: { preflight: false } } }"; document.head.appendChild(cfg);
+      const cdn = document.createElement('script'); cdn.src = 'https://cdn.tailwindcss.com'; cdn.setAttribute('data-tailwind-cdn', 'true'); cdn.async = true; document.head.appendChild(cdn);
     }
-
-    const poll = window.setInterval(() => {
-      if (hasTailwindStyles()) {
-        window.clearInterval(poll);
-        setTwReady(true);
-      }
-    }, 40);
-    const bailout = window.setTimeout(() => { setTwReady(true); }, 3500);
+    const poll = window.setInterval(() => { if (hasTw()) { window.clearInterval(poll); setTwReady(true); } }, 40);
+    const bailout = window.setTimeout(() => setTwReady(true), 3500);
     return () => { window.clearInterval(poll); window.clearTimeout(bailout); };
   }, []);
 
-  // Parameters and derived quantities
-  const [m, setM] = useState(1.0);           // kg
-  const [k, setK] = useState(200);           // N/m
-  const [c, setC] = useState(2 * Math.sqrt(200 * 1) * 0.05); // 5% damping of critical by default
-  const { wn, fn } = useMemo(() => computeNaturalFreq(k, m), [k, m]);
-  const { zeta, cc } = useMemo(() => computeDampingRatio(c, k, m), [c, k, m]);
+  // Parameters (zeta-based damping)
+  const [m, setM] = useState(1.0);    // kg
+  const [k, setK] = useState(200);    // N/m
+  const [zeta, setZeta] = useState(0.05); // damping ratio (0..2)
+  const c = useMemo(() => 2 * zeta * Math.sqrt(Math.max(k, 0) * Math.max(m, 0)), [zeta, k, m]);
+  const { wn, fn } = useMemo(() => naturalFreq(k, m), [k, m]);
 
-  // Frequency control (Hz)
+  // Forcing frequency (Hz) applied to base
   const [freqHz, setFreqHz] = useState<number>(Math.max(0.2, fn));
   const omega = 2 * Math.PI * freqHz;
 
-  // Sweep control
+  // Run/Pause & sweep
   const [running, setRunning] = useState(true);
   const [sweeping, setSweeping] = useState(false);
-  const [sweepRate, setSweepRate] = useState(0.5); // Hz per second
+  const [sweepMult, setSweepMult] = useState(1); // 0.1..2 (x normal)
+  const normalSweepRate = 0.2; // Hz/s baseline (slow). 0.1x => 0.02 Hz/s, 2x => 0.4 Hz/s
   const sweepDir = useRef<1 | -1>(1);
 
-  // Amplitude/current response at the selected frequency
-  const { X, phi, r } = useMemo(() => computeSteadyStateAmplitude(k, m, c, omega, 1), [k, m, c, omega]);
-  const { rPeak, fPeak, Xpeak } = useMemo(() => computeResonancePeak(k, m, c), [k, m, c]);
+  // Real-time waveform buffer (meters)
+  const rtRef = useRef<{ t: number[]; x: number[]; yb: number[] }>({ t: [], x: [], yb: [] });
+  const [rtState, setRtState] = useState<{ t: number[]; x: number[]; yb: number[] }>({ t: [], x: [], yb: [] });
+  const rtStart = useRef<number | null>(null);
+  const lastUiPush = useRef<number>(0);
 
-  // Build frequency response curve up to ~3×fn (auto-scales)
-  const { frqHzArr, ampArr } = useMemo(() => {
+  // Free-vibration transient (nudge)
+  const freeStartRef = useRef<number | null>(null);
+  const freeAmpRef = useRef<number>(0);
+  const nudgeActiveRef = useRef<boolean>(false);
+
+  // Derived response at current freq
+  const { X, phi } = useMemo(() => forcedResponse(k, m, zeta, omega, 1), [k, m, zeta, omega]);
+
+  // Bode precomputed curve (amp & phase)
+  const bode = useMemo(() => {
     const fmax = Math.max(1, fn * 3);
-    const points = 600;
-    const arrF: number[] = new Array(points);
-    const arrA: number[] = new Array(points);
-    for (let i = 0; i < points; i++) {
-      const f = (i / (points - 1)) * fmax;
-      const om = 2 * Math.PI * f;
-      arrF[i] = f;
-      arrA[i] = computeSteadyStateAmplitude(k, m, c, om, 1).X;
+    const N = 600; const f: number[] = new Array(N); const amp: number[] = new Array(N); const ph: number[] = new Array(N);
+    for (let i = 0; i < N; i++) {
+      const fi = (i / (N - 1)) * fmax; const om = 2 * Math.PI * fi;
+      const fr = forcedResponse(k, m, zeta, om, 1);
+      f[i] = fi; amp[i] = fr.X; ph[i] = fr.phi * 180 / Math.PI;
     }
-    return { frqHzArr: arrF, ampArr: arrA };
-  }, [k, m, c, fn]);
+    return { f, amp, ph };
+  }, [k, m, zeta, fn]);
 
-  // Animation state
-  const yPx = useMotionValue(0);
-  const [dispPx, setDispPx] = useState(0); // current pixel displacement used to stretch spring and damper rod
-  const rafRef = useRef<number | null>(null);
-  const t0 = useRef<number | null>(null);
-  const lastTs = useRef<number | null>(null);
-  useMotionValueEvent(yPx, 'change', (latest) => {
-    setDispPx(latest);
-  });
+  // Sweep capture (coast up/down)
+  const upPts = useRef<{ f: number; amp: number; ph: number; }[]>([]);
+  const downPts = useRef<{ f: number; amp: number; ph: number; }[]>([]);
+  const lastCapture = useRef<number>(0);
 
-  // Visual scaling for displacement (pixels per meter). The dynamic amplitude is capped for visualization.
-  const pxPerMeter = 250; // arbitrary scale factor for visual displacement
-  const maxDynPx = 80;    // clamp animation for legibility
-
-  // Frequency bounds (auto based on fn)
-  const fMin = 0;
-  const fMax = Math.max(1, fn * 3);
-
+  // Animation + real-time generation
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!running) return;
-    const loop = (ts: number) => {
-      if (t0.current === null) t0.current = ts;
-      if (lastTs.current === null) lastTs.current = ts;
-      const dt = (ts - lastTs.current) / 1000; // seconds since last frame
-      lastTs.current = ts;
+    let raf: number | null = null; let t0: number | null = null; let last: number | null = null;
+    const pxPerMeter = 250; const baseAmpPx = 6; // small base motion
 
-      // Sweep frequency if enabled
+    const loop = (ts: number) => {
+      if (t0 === null) t0 = ts; if (last === null) last = ts; const dt = (ts - last) / 1000; last = ts;
+      if (rtStart.current === null) rtStart.current = ts;
+      const tsec = (ts - rtStart.current) / 1000;
+
+      // Sweep frequency
       if (sweeping) {
-        const fNew = freqHz + sweepDir.current * sweepRate * dt;
-        if (fNew >= fMax) { sweepDir.current = -1; }
-        if (fNew <= fMin) { sweepDir.current = 1; }
-        const bounded = clamp(fNew, fMin, fMax);
-        if (Math.abs(bounded - freqHz) > 1e-6) setFreqHz(bounded);
+        const actualRate = normalSweepRate * clamp(sweepMult, 0.1, 2);
+        let fNew = freqHz + sweepDir.current * actualRate * dt;
+        const fMin = 0; const fMax = Math.max(1, fn * 3);
+        if (fNew >= fMax) { sweepDir.current = -1; fNew = fMax; }
+        if (fNew <= fMin) { sweepDir.current = 1; fNew = fMin; }
+        setFreqHz(fNew); // keep slider enabled and responsive during sweep
+        // capture sweep traces
+        if (ts - lastCapture.current > 40) {
+          lastCapture.current = ts;
+          const fr = forcedResponse(k, m, zeta, 2 * Math.PI * fNew, 1);
+          const point = { f: fNew, amp: fr.X, ph: fr.phi * 180 / Math.PI };
+          if (sweepDir.current > 0) upPts.current.push(point); else downPts.current.push(point);
+          if (upPts.current.length > 2500) upPts.current.shift();
+          if (downPts.current.length > 2500) downPts.current.shift();
+        }
       }
 
-      // Compute steady-state displacement x(t) = X * sin(ω t - φ)
-      const t = (ts - t0.current) / 1000;
-      const x = X * Math.sin(omega * t - phi); // meters
-      const y = clamp(x * pxPerMeter, -maxDynPx, maxDynPx);
-      yPx.set(y);
+      // Recompute response with updated omega
+      const w = 2 * Math.PI * freqHz;
+      const fr = forcedResponse(k, m, zeta, w, 1);
 
-      rafRef.current = requestAnimationFrame(loop);
+      // Forced steady-state x_f (m), base y_b (m)
+      let xForced = fr.X * Math.sin(w * tsec - fr.phi);
+      let yb = (baseAmpPx / pxPerMeter) * Math.sin(w * tsec);
+
+      // Free-vibration transient component x_free(t)
+      let xFree = 0;
+      if (freeStartRef.current !== null) {
+        const td = (ts - freeStartRef.current) / 1000;
+        const { wn } = naturalFreq(k, m);
+        const A0 = freeAmpRef.current; // meters
+        if (zeta < 1) {
+          const wd = wn * Math.sqrt(1 - zeta * zeta);
+          xFree = A0 * Math.exp(-zeta * wn * td) * Math.sin(wd * td);
+        } else if (Math.abs(zeta - 1) < 1e-6) {
+          xFree = A0 * td * Math.exp(-wn * td);
+        } else {
+          const s = Math.sqrt(zeta * zeta - 1);
+          const term1 = Math.exp(-wn * (zeta - s) * td);
+          const term2 = Math.exp(-wn * (zeta + s) * td);
+          xFree = (A0 / (2 * s)) * (term1 - term2);
+        }
+        // End transient after long enough
+        if (td > 10 / Math.max(wn, 1e-6)) { freeStartRef.current = null; freeAmpRef.current = 0; nudgeActiveRef.current = false; }
+      }
+
+      // If nudge animation is active, show pure free response (no forcing/base)
+      if (nudgeActiveRef.current) { xForced = 0; yb = 0; }
+
+      const xTotal = xForced + xFree; // meters
+
+      // Push to real-time buffer
+      const buf = rtRef.current;
+      buf.t.push(tsec);
+      buf.x.push(xTotal);
+      buf.yb.push(yb);
+      // keep last 12 seconds
+      while (buf.t.length > 0 && tsec - buf.t[0] > 12) { buf.t.shift(); buf.x.shift(); buf.yb.shift(); }
+
+      // Throttle state updates for plots (~16fps)
+      if (ts - lastUiPush.current > 60) {
+        lastUiPush.current = ts;
+        setRtState({ t: [...buf.t], x: [...buf.x], yb: [...buf.yb] });
+      }
+
+      raf = requestAnimationFrame(loop);
     };
-    rafRef.current = requestAnimationFrame(loop);
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = null; t0.current = null; lastTs.current = null;
-    };
-  }, [running, sweeping, freqHz, omega, X, phi, fMin, fMax, sweepRate, yPx]);
+    raf = requestAnimationFrame(loop);
+    return () => { if (raf) cancelAnimationFrame(raf); };
+  }, [running, sweeping, freqHz, k, m, zeta]);
 
-  // Keep damping within [0, 2×critical] as k/m changes to prevent wild ranges
-  useEffect(() => {
-    const maxC = 2 * cc; // allow up to 200% of critical for exploration
-    if (c > maxC) setC(maxC);
-  }, [cc, c]);
+  // Visual mappings
+  const springStroke = useMemo(() => {
+    // map k in [10..2000] -> stroke in [5..14]
+    const t = clamp((k - 10) / (2000 - 10), 0, 1);
+    return lerp(5, 14, t);
+  }, [k]);
+  const massSize = useMemo(() => {
+    // base 90x70 scaled smoothly with m
+    const t = clamp((Math.log(m) - Math.log(0.1)) / (Math.log(10) - Math.log(0.1)), 0, 1);
+    const s = lerp(0.65, 1.45, t);
+    return { w: 90 * s, h: 70 * s };
+  }, [m]);
+  const damperInnerColor = useMemo(() => {
+    // darker with higher zeta (0..2)
+    const norm = clamp(zeta / 2, 0, 1);
+    const lightness = lerp(78, 35, norm);
+    return `hsl(210 80% ${lightness}%)`;
+  }, [zeta]);
 
-  // Render helper: vertical zig‑zag spring with non-scaling stroke
-  const SpringSVG = ({ x = 80, length, coils = 9, radius = 12, color = '#22c55e' }: { x?: number; length: number; coils?: number; radius?: number; color?: string; }) => {
-    const turns = coils;
-    const seg = length / turns;
-    let d = `M ${x} 0`;
-    for (let i = 0; i < turns; i++) {
-      const y1 = seg * (i + 0.5);
-      const y2 = seg * (i + 1);
-      const dir = i % 2 === 0 ? 1 : -1;
-      d += ` L ${x + dir * radius} ${y1} L ${x} ${y2}`;
+  // Tabs and units
+  const [activeTab, setActiveTab] = useState<'fft' | 'time' | 'bode'>('fft');
+  const [freqUnits, setFreqUnits] = useState<'Hz' | 'ratio'>('Hz');
+  const [sweepVersion, setSweepVersion] = useState(0); // force re-render on clear
+
+  // FFT of real-time waveform
+  const fftData = useMemo(() => {
+    const N = rtState.t.length;
+    if (N < 32) return { f: [] as number[], mag: [] as number[] };
+    const tArr = rtState.t; const xArr = rtState.x;
+    const Tspan = tArr[N - 1] - tArr[0];
+    if (Tspan <= 0) return { f: [], mag: [] };
+    const dt = Tspan / Math.max(1, N - 1);
+    const Fs = 1 / dt;
+    // choose nearest lower power of 2
+    let n2 = 1; while ((n2 << 1) <= N) n2 <<= 1;
+    const x = new Float64Array(n2);
+    // take last n2 samples and apply Hann window
+    const start = N - n2; for (let i = 0; i < n2; i++) { const w = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (n2 - 1))); x[i] = (xArr[start + i] ?? 0) * w; }
+    const fft = new (FFT as any)(n2);
+    const out = fft.createComplexArray(); const data = fft.createComplexArray();
+    for (let i = 0; i < n2; i++) { data[2 * i] = x[i]; data[2 * i + 1] = 0; }
+    fft.transform(out, data);
+    const half = Math.floor(n2 / 2);
+    const f: number[] = new Array(half + 1); const mag: number[] = new Array(half + 1);
+    for (let kbin = 0; kbin <= half; kbin++) {
+      const re = out[2 * kbin]; const im = out[2 * kbin + 1];
+      const m = (2 / n2) * Math.hypot(re, im);
+      f[kbin] = (kbin * Fs) / n2;
+      mag[kbin] = m;
     }
-    return (
-      <path d={d} stroke={color} strokeWidth={6} fill="none" strokeLinecap="round" style={{ vectorEffect: 'non-scaling-stroke' as const }} />
-    );
-  };
+    return { f, mag };
+  }, [rtState]);
 
-  
+  // Units mapping for frequency axes
+  const mapFreq = (arr: number[]) => freqUnits === 'Hz' ? arr : arr.map(v => fn > 0 ? v / fn : 0);
+  const freqTitle = freqUnits === 'Hz' ? 'Frequency (Hz)' : 'Frequency Ratio (f/f_n)';
+  const fnMark = freqUnits === 'Hz' ? fn : 1;
+  const bodeXRange = freqUnits === 'Hz' ? [0, Math.max(1, fn * 3)] : [0, 3];
+
+  // Current visual sample (last rtState)
+  const xPx = (rtState.x.length ? rtState.x[rtState.x.length - 1] : 0) * 250;
+  const basePx = (rtState.yb.length ? rtState.yb[rtState.yb.length - 1] : 0) * 250;
+
+  // Collapsible parameters
+  const [showParams, setShowParams] = useState(true);
+
   return (
     <div className="position-relative">
       {!twReady && (
         <div className="d-flex align-items-center justify-content-center position-absolute top-0 start-0 w-100" style={{ height: 'calc(100vh - var(--navbar-height))', zIndex: 10, background: 'rgba(249,250,251,0.9)' }}>
-          <div className="spinner-border text-primary" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
+          <div className="spinner-border text-primary" role="status"><span className="visually-hidden">Loading...</span></div>
         </div>
       )}
-
       <div style={{ visibility: twReady ? 'visible' : 'hidden' }} className="mx-n4 min-h-screen text-gray-900">
         <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 p-0">
-          {/* Controls + Plot */}
-          <aside className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-5 space-y-5 h-fit lg:col-span-7 order-1 min-w-0">
-            <div>
+          {/* Controls + Plots */}
+          <aside className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-5 space-y-4 h-fit lg:col-span-7 order-1 min-w-0">
+            <div className="flex items-center justify-between">
               <h1 className="text-lg font-semibold">Spring–Mass–Damper</h1>
-              <p className="text-xs text-gray-500 mt-1">Interactive forced vibration simulator. Adjust parameters to see resonance and damping effects.</p>
+              <div className="flex items-center gap-3 text-sm">
+                <label className="inline-flex items-center gap-1"><input type="radio" name="units" checked={freqUnits === 'Hz'} onChange={() => setFreqUnits('Hz')} /> Hz</label>
+                <label className="inline-flex items-center gap-1"><input type="radio" name="units" checked={freqUnits === 'ratio'} onChange={() => setFreqUnits('ratio')} /> f/f<sub>n</sub></label>
+              </div>
             </div>
 
-            {/* Parameter sliders */}
-            <div className="space-y-4">
-              <div>
-                <div className="flex items-end justify-between">
-                  <label className="block text-sm font-medium">Mass m (kg)</label>
-                  <div className="text-xs text-gray-600">{m.toFixed(2)}</div>
-                </div>
-                <input type="range" min={0.1} max={10} step={0.1} value={m} onChange={(e) => setM(Number(e.target.value))} className="mt-1 w-full" />
-              </div>
-              <div>
-                <div className="flex items-end justify-between">
-                  <label className="block text-sm font-medium">Stiffness k (N/m)</label>
-                  <div className="text-xs text-gray-600">{k.toFixed(0)}</div>
-                </div>
-                <input type="range" min={10} max={2000} step={10} value={k} onChange={(e) => setK(Number(e.target.value))} className="mt-1 w-full" />
-              </div>
-              <div>
-                <div className="flex items-end justify-between">
-                  <label className="block text-sm font-medium">Damping c (N·s/m)</label>
-                  <div className="text-xs text-gray-600">{c.toFixed(3)}</div>
-                </div>
-                <input type="range" min={0} max={Math.max(0.001, 2 * cc)} step={0.001} value={c} onChange={(e) => setC(Number(e.target.value))} className="mt-1 w-full" />
-                <div className="text-[11px] text-gray-500 mt-1">Critical damping c<sub>c</sub> = {(cc).toFixed(3)} N·s/m</div>
-              </div>
-              <div>
-                <div className="flex items-end justify-between">
-                  <label className="block text-sm font-medium">Excitation Frequency f (Hz)</label>
-                  <div className="text-xs text-gray-600">{freqHz.toFixed(2)}</div>
-                </div>
-                <input type="range" min={fMin} max={fMax} step={0.01} value={freqHz} onChange={(e) => setFreqHz(Number(e.target.value))} disabled={sweeping} className="mt-1 w-full" />
-                <div className="flex items-center gap-3 mt-2">
-                  <button className={`px-3 py-1.5 text-sm rounded border ${running ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-800 border-gray-300'}`} onClick={() => setRunning(v => !v)}>{running ? 'Pause' : 'Run'}</button>
-                  <button className={`px-3 py-1.5 text-sm rounded border ${sweeping ? 'bg-sky-600 text-white border-sky-600' : 'bg-white text-gray-800 border-gray-300'}`} onClick={() => setSweeping(v => !v)}>{sweeping ? 'Stop sweep' : 'Start sweep'}</button>
-                </div>
-                {sweeping && (
-                  <div className="mt-2">
-                    <div className="flex items-end justify-between">
-                      <label className="block text-sm font-medium">Sweep rate (Hz/s)</label>
-                      <div className="text-xs text-gray-600">{sweepRate.toFixed(2)}</div>
+            {/* Collapsible parameters */}
+            <div className="rounded border border-gray-200">
+              <button className="w-full flex items-center justify-between px-3 py-2 text-sm bg-gray-50" onClick={() => setShowParams(s => !s)}>
+                <span className="font-medium">Parameters</span>
+                <span className="text-gray-500">{showParams ? 'Hide' : 'Show'}</span>
+              </button>
+              {showParams && (
+                <div className="p-3 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <div className="flex items-end justify-between"><label className="block text-sm font-medium">Mass m (kg)</label><div className="text-xs text-gray-600">{m.toFixed(2)}</div></div>
+                      <input type="range" min={0.1} max={10} step={0.1} value={m} onChange={e => setM(Number(e.target.value))} className="mt-1 w-full" />
                     </div>
-                    <input type="range" min={0.05} max={3 * Math.max(0.1, fn)} step={0.05} value={sweepRate} onChange={(e) => setSweepRate(Number(e.target.value))} className="mt-1 w-full" />
+                    <div>
+                      <div className="flex items-end justify-between"><label className="block text-sm font-medium">Stiffness k (N/m)</label><div className="text-xs text-gray-600">{k.toFixed(0)}</div></div>
+                      <input type="range" min={10} max={2000} step={10} value={k} onChange={e => setK(Number(e.target.value))} className="mt-1 w-full" />
+                    </div>
+                    <div>
+                      <div className="flex items-end justify-between"><label className="block text-sm font-medium">Damping ζ</label><div className="text-xs text-gray-600">{zeta.toFixed(3)} {zeta < 1 ? '(underdamped)' : zeta === 1 ? '(critical)' : '(overdamped)'}</div></div>
+                      <input type="range" min={0} max={2} step={0.001} value={zeta} onChange={e => setZeta(Number(e.target.value))} className="mt-1 w-full" />
+                    </div>
+                    <div>
+                      <div className="flex items-end justify-between"><label className="block text-sm font-medium">Excitation frequency f (Hz)</label><div className="text-xs text-gray-600">{freqHz.toFixed(2)}</div></div>
+                      {/* Keep enabled during sweep */}
+                      <input type="range" min={0} max={Math.max(1, fn * 3)} step={0.01} value={freqHz} onChange={e => setFreqHz(Number(e.target.value))} className="mt-1 w-full" />
+                    </div>
                   </div>
-                )}
-              </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <button className={`px-3 py-1.5 text-sm rounded border ${running ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-800 border-gray-300'}`} onClick={() => setRunning(v => !v)}>{running ? 'Pause' : 'Run'}</button>
+                    <button className={`px-3 py-1.5 text-sm rounded border ${sweeping ? 'bg-sky-600 text-white border-sky-600' : 'bg-white text-gray-800 border-gray-300'}`} onClick={() => setSweeping(v => !v)}>{sweeping ? 'Stop sweep' : 'Start sweep'}</button>
+                    <button className="px-3 py-1.5 text-sm rounded border bg-white text-gray-800 border-gray-300" onClick={() => { freeStartRef.current = performance.now(); freeAmpRef.current = 0.05; nudgeActiveRef.current = true; }}>Nudge mass</button>
+                  </div>
+
+                  <div>
+                    <div className="flex items-end justify-between"><label className="block text-sm font-medium">Sweep rate multiplier (×)</label><div className="text-xs text-gray-600">{sweepMult.toFixed(2)}×</div></div>
+                    <input type="range" min={0.1} max={2} step={0.1} value={sweepMult} onChange={e => setSweepMult(Number(e.target.value))} className="mt-1 w-full" />
+                    <div className="text-[11px] text-gray-500">Slow (0.1×)  —  Normal (1×)  —  Fast (2×). Baseline 0.2 Hz/s.</div>
+                  </div>
+                </div>
+              )}
             </div>
 
-            
-            {/* Frequency response chart */}
-            <div className="bg-white rounded border border-gray-200 p-2 relative overflow-hidden">
-              <Plot
-                data={[
-                  {
-                    x: frqHzArr,
-                    y: ampArr,
-                    type: 'scatter',
-                    mode: 'lines',
-                    line: { color: 'rgba(2,132,199,1)', width: 2 },
-                    name: 'Amplitude',
-                    hovertemplate: 'f = %{x:.3f} Hz<br>X = %{y:.3e} m<extra></extra>',
-                  },
-                ]}
-                layout={{
-                  autosize: true,
-                  height: 220,
-                  margin: { l: 45, r: 10, t: 10, b: 35 },
-                  xaxis: {
-                    title: 'Frequency (Hz)',
-                    range: [0, Math.max(1, fn * 3)],
-                    showgrid: true,
-                    zeroline: false,
-                  },
-                  yaxis: {
-                    title: 'Amplitude (m)',
-                    type: 'linear',
-                    rangemode: 'tozero',
-                    showgrid: true,
-                    zeroline: false,
-                  },
-                  shapes: [
-                    // Vertical line at fn
-                    {
-                      type: 'line', x0: fn, x1: fn, y0: 0, y1: 1, xref: 'x', yref: 'paper',
-                      line: { color: 'rgba(220,38,38,0.7)', width: 2, dash: 'dot' },
-                    },
-                    // Vertical line at current frequency
-                    {
-                      type: 'line', x0: freqHz, x1: freqHz, y0: 0, y1: 1, xref: 'x', yref: 'paper',
-                      line: { color: 'rgba(22,163,74,0.8)', width: 2 },
-                    },
-                  ],
-                  annotations: [
-                    { x: fn, y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f_n', font: { size: 10, color: '#dc2626' } },
-                    { x: freqHz, y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f', font: { size: 10, color: '#16a34a' } },
-                  ],
-                }}
-                config={{ displayModeBar: false, responsive: true }}
-                useResizeHandler
-                style={{ width: '100%', height: 260 }}
-              />
-                          </div>
+            {/* Tabs */}
+            <div className="mt-1">
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <button className={`px-3 py-1.5 text-sm rounded border ${activeTab === 'fft' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-800 border-gray-300'}`} onClick={() => setActiveTab('fft')}>Default</button>
+                <button className={`px-3 py-1.5 text-sm rounded border ${activeTab === 'time' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-800 border-gray-300'}`} onClick={() => setActiveTab('time')}>Time Waveform</button>
+                <button className={`px-3 py-1.5 text-sm rounded border ${activeTab === 'bode' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-800 border-gray-300'}`} onClick={() => setActiveTab('bode')}>Bode (Amp & Phase)</button>
+              </div>
+
+              {/* FFT Tab: show natural frequency marker */}
+              {activeTab === 'fft' && (
+                <div className="bg-white rounded border border-gray-200 p-2 relative overflow-hidden">
+                  <Plot
+                    data={[{ x: mapFreq(fftData.f), y: fftData.mag, type: 'scatter', mode: 'lines', line: { color: 'rgba(2,132,199,1)', width: 2 }, name: 'FFT |X(f)|' }]}
+                    layout={{ autosize: true, height: 260, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle }, yaxis: { title: '|X(f)| (m)', zeroline: false, showgrid: true }, shapes: [
+                      { type: 'line', x0: fnMark, x1: fnMark, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(220,38,38,0.8)', width: 2, dash: 'dot' } },
+                      { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.9)', width: 2 } }
+                    ], annotations: [
+                      { x: fnMark, y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f_n', font: { size: 10, color: '#dc2626' } },
+                      { x: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f', font: { size: 10, color: '#10b981' } }
+                    ] }}
+                    config={{ displayModeBar: false, responsive: true }} useResizeHandler style={{ width: '100%', height: 260 }}
+                  />
+                </div>
+              )}
+
+              {/* Time Waveform Tab: real-time */}
+              {activeTab === 'time' && (
+                <div className="bg-white rounded border border-gray-200 p-2 relative overflow-hidden">
+                  <Plot
+                    data={[
+                      { x: rtState.t, y: rtState.x, type: 'scatter', mode: 'lines', line: { color: 'rgba(2,132,199,1)', width: 2 }, name: 'Mass x(t)' },
+                      { x: rtState.t, y: rtState.yb, type: 'scatter', mode: 'lines', line: { color: 'rgba(234,88,12,0.8)', width: 1, dash: 'dot' }, name: 'Base yb(t)' },
+                    ]}
+                    layout={{ autosize: true, height: 260, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: 'Time (s)' }, yaxis: { title: 'Displacement (m)', zeroline: false, showgrid: true } }}
+                    config={{ displayModeBar: false, responsive: true }} useResizeHandler style={{ width: '100%', height: 260 }}
+                  />
+                </div>
+              )}
+
+              {/* Bode Tab */}
+              {activeTab === 'bode' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-end gap-2 text-sm">
+                    <button className="px-2.5 py-1 rounded border border-gray-300 bg-white" onClick={() => { upPts.current = []; downPts.current = []; setSweepVersion(v => v + 1); }}>Clear sweep traces</button>
+                  </div>
+                  <div className="bg-white rounded border border-gray-200 p-2 relative overflow-hidden">
+                    <Plot
+                      data={[
+                        { x: mapFreq(bode.f), y: bode.amp, type: 'scatter', mode: 'lines', line: { color: 'rgba(2,132,199,1)', width: 2 }, name: 'Amplitude (model)', visible: 'legendonly' },
+                        ...(upPts.current.length ? [{ x: mapFreq(upPts.current.map(p => p.f)), y: upPts.current.map(p => p.amp), type: 'scatter', mode: 'lines', line: { color: 'rgba(99,102,241,0.9)', width: 2 }, name: 'Coast up' }] : []),
+                        ...(downPts.current.length ? [{ x: mapFreq(downPts.current.map(p => p.f)), y: downPts.current.map(p => p.amp), type: 'scatter', mode: 'lines', line: { color: 'rgba(236,72,153,0.9)', width: 2 }, name: 'Coast down' }] : []),
+                      ]}
+                      layout={{ autosize: true, height: 240, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Amplitude (m)', zeroline: false, showgrid: true }, shapes: [{ type: 'line', x0: fnMark, x1: fnMark, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(220,38,38,0.7)', width: 2, dash: 'dot' } }], annotations: [{ x: fnMark, y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f_n', font: { size: 10, color: '#dc2626' } }] }}
+                      config={{ displayModeBar: false, responsive: true }} useResizeHandler style={{ width: '100%', height: 240 }}
+                    />
+                  </div>
+                  <div className="bg-white rounded border border-gray-200 p-2 relative overflow-hidden">
+                    <Plot
+                      data={[
+                        { x: mapFreq(bode.f), y: bode.ph, type: 'scatter', mode: 'lines', line: { color: 'rgba(234,88,12,1)', width: 2 }, name: 'Phase (model)', visible: 'legendonly' },
+                        ...(upPts.current.length ? [{ x: mapFreq(upPts.current.map(p => p.f)), y: upPts.current.map(p => p.ph), type: 'scatter', mode: 'lines', line: { color: 'rgba(99,102,241,0.9)', width: 2 }, name: 'Coast up' }] : []),
+                        ...(downPts.current.length ? [{ x: mapFreq(downPts.current.map(p => p.f)), y: downPts.current.map(p => p.ph), type: 'scatter', mode: 'lines', line: { color: 'rgba(236,72,153,0.9)', width: 2 }, name: 'Coast down' }] : []),
+                      ]}
+                      layout={{ autosize: true, height: 240, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Phase (deg)', zeroline: false, showgrid: true } }}
+                      config={{ displayModeBar: false, responsive: true }} useResizeHandler style={{ width: '100%', height: 240 }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </aside>
 
-          {/* Animation panel */}
+          {/* Animation (30%) */}
           <main className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-6 flex items-center justify-center lg:col-span-3 order-2">
             <div className="w-full max-w-xl">
               <div className="flex items-center justify-center">
-                {/* Animation */}
+                {/* Animation SVG refined to match schematic */}
                 <div className="relative">
                   {(() => {
-                    // Geometry and dynamic values
-                    const topY = 24;                 // ceiling offset
-                    const springBaseLen = 150;       // un-stretched spring length (px)
-                    const xSpring = 70;              // spring x position
-                    const xDamper = 130;             // damper x position
-                    const springScale = Math.max(0.6, Math.min(1.6, 1 + dispPx / springBaseLen));
-                    const crossbarY = topY + springBaseLen + dispPx; // where spring lower end connects
-                    const massBaseY = crossbarY + 14; // mass top y
+                    const topY = 24; // base nominal Y
+                    const w = 260; const h = 380;
+                    const xLeft = 80;  // damper column
+                    const xRight = 170; // spring column
+                    const link = "#0b61a4";
 
-                    // Damper body
-                    const damperBodyTop = topY + 20;
-                    const damperBodyBottom = damperBodyTop + 90;
-                    const damperRodBottom = crossbarY; // dynamic
+                    // Spring length based on current displacement
+                    const springBaseLen = 180; // px nominal
+                    const springLen = springBaseLen + xPx; // use current mass px displacement
+                    const baseOffset = basePx; // base motion px
+                    const attachY = topY + 10 + springLen; // joint level
+
+                    // mass size and position
+                    const massW = massSize.w; const massH = massSize.h;
+                    const massX = (xLeft + xRight) / 2 - massW / 2;
+                    const massY = attachY - massH / 2;
 
                     return (
-                      <svg viewBox="0 0 220 360" className="w-full h-[300px] md:h-[320px]">
+                      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-[320px]">
                         <defs>
                           <linearGradient id="massGrad" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#4ade80" />
@@ -356,46 +415,54 @@ export default function SpringMassSystem() {
                           </pattern>
                         </defs>
 
-                        {/* Ceiling / fixed support */}
-                        <rect x="20" y="8" width="180" height="10" fill="#9ca3af" rx="2" />
-                        <rect x="20" y="2" width="180" height="6" fill="url(#hatch)" opacity="0.55" />
-
-                        {/* Upper joints */}
-                        <circle cx={xSpring} cy={topY} r={5} fill="#ffffff" stroke="#0b61a4" strokeWidth={2} />
-                        <circle cx={xDamper} cy={topY} r={5} fill="#ffffff" stroke="#0b61a4" strokeWidth={2} />
-
-                        {/* Vertical guides from ceiling to spring/damper tops */}
-                        <line x1={xSpring} y1={18} x2={xSpring} y2={topY} stroke="#0b61a4" strokeOpacity="0.3" strokeWidth={3} />
-                        <line x1={xDamper} y1={18} x2={xDamper} y2={topY} stroke="#0b61a4" strokeOpacity="0.3" strokeWidth={3} />
-
-                        {/* Spring (stretches with mass via scaleY), anchored at topY */}
-                        <g transform={`translate(0, ${topY})`}>
-                          <g transform={`scale(1, ${springScale})`}>
-                            <SpringSVG x={xSpring} length={springBaseLen} coils={9} radius={12} color="url(#springGrad)" />
-                          </g>
+                        {/* Moving base */}
+                        <g transform={`translate(0 ${baseOffset})`}>
+                          <rect x="20" y="8" width="220" height="10" fill="#9ca3af" rx="2" />
+                          <rect x="20" y="2" width="220" height="6" fill="url(#hatch)" opacity="0.55" />
+                          {/* top left and right joints + bracket */}
+                          <circle cx={xLeft} cy={topY} r={5} fill="#fff" stroke={link} strokeWidth={2} />
+                          <circle cx={xRight} cy={topY} r={5} fill="#fff" stroke={link} strokeWidth={2} />
+                          <path d={`M ${xRight} ${topY} L ${xRight + 10} ${topY} L ${xRight + 10} ${topY + 18}`} stroke={link} strokeWidth={6} fill="none" strokeLinecap="round" />
                         </g>
 
-                        {/* Damper (body fixed, rod extends to the crossbar) */}
-                        {/* Damper body */}
-                        <rect x={xDamper - 10} y={damperBodyTop} width={20} height={damperBodyBottom - damperBodyTop} rx={3} fill="#0b61a4" opacity="0.15" stroke="#0b61a4" strokeOpacity="0.35" />
-                        <rect x={xDamper - 7} y={damperBodyTop + 8} width={14} height={damperBodyBottom - damperBodyTop - 16} rx={2} fill="#0b61a4" opacity="0.85" />
-                        {/* Damper piston rod */}
-                        <line x1={xDamper} y1={damperBodyBottom} x2={xDamper} y2={damperRodBottom} stroke="#0b61a4" strokeWidth={4} strokeLinecap="round" />
+                        {/* Damper left column */}
+                        <line x1={xLeft} y1={topY + baseOffset} x2={xLeft} y2={topY + 28} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                        {/* Cylinder and fluid */}
+                        <rect x={xLeft - 14} y={topY + 28} width={28} height={90} rx={3} fill={link} opacity={0.2} stroke={link} strokeOpacity={0.35} />
+                        <rect x={xLeft - 9} y={topY + 38} width={18} height={70} rx={2} fill={damperInnerColor} />
+                        {/* Piston head and rod to attachY */}
+                        <rect x={xLeft - 12} y={topY + 68} width={24} height={8} rx={1} fill={link} opacity={0.95} />
+                        <line x1={xLeft} y1={topY + 72} x2={xLeft} y2={attachY} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                        <circle cx={xLeft} cy={attachY} r={5} fill="#fff" stroke={link} strokeWidth={2} />
 
-                        {/* Connectors from spring/damper to mass and the mass itself */}
-                        {/* Horizontal rods to the mass left edge at the attachment level */}
-                        <line x1={xSpring} y1={crossbarY} x2={xDamper + 40} y2={crossbarY} stroke="#0b61a4" strokeWidth={6} strokeLinecap="round" />
-                        <line x1={xDamper} y1={crossbarY} x2={xDamper + 40} y2={crossbarY} stroke="#0b61a4" strokeWidth={6} strokeLinecap="round" />
-                        {/* Joint markers at connection points */}
-                        <circle cx={xSpring} cy={crossbarY} r={5} fill="#ffffff" stroke="#0b61a4" strokeWidth={2} />
-                        <circle cx={xDamper} cy={crossbarY} r={5} fill="#ffffff" stroke="#0b61a4" strokeWidth={2} />
-                        <circle cx={xDamper + 40} cy={crossbarY} r={5} fill="#ffffff" stroke="#0b61a4" strokeWidth={2} />
-                        {/* Mass block directly attached to the rods */}
-                        <rect x={xDamper + 45} y={crossbarY - 30} width={80} height={60} rx={6} fill="url(#massGrad)" stroke="#0f172a" strokeOpacity={0.25} />
+                        {/* Spring column with zig-zag and elbow to mass */}
+                        <g transform={`translate(10 ${18 + baseOffset})`}>
+                          {(() => {
+                            const x0 = xRight; const y0 = topY; const y1 = attachY - (18 + baseOffset) - 16;
+                            const coils = 6; const seg = Math.max(10, y1 / coils); const R = 12;
+                            let d = `M ${x0} ${y0}`;
+                            for (let i = 0; i < coils; i++) {
+                              const yy1 = y0 + seg * (i + 0.5); const yy2 = y0 + seg * (i + 1); const dir = i % 2 === 0 ? 1 : -1;
+                              d += ` L ${x0 + dir * R} ${yy1} L ${x0} ${yy2}`;
+                            }
+                            return <path d={d} stroke="url(#springGrad)" strokeWidth={springStroke} fill="none" strokeLinecap="round" style={{ vectorEffect: 'non-scaling-stroke' as const }} />;
+                          })()}
+                        </g>
+                        <path d={`M ${xRight + 10} ${attachY - 16} L ${xRight + 10} ${attachY} L ${xRight - 18} ${attachY}`} stroke={link} strokeWidth={6} fill="none" strokeLinecap="round" />
+                        <circle cx={xRight - 18} cy={attachY} r={5} fill="#fff" stroke={link} strokeWidth={2} />
+
+                        {/* Short links into mass */}
+                        <line x1={xLeft} y1={attachY} x2={massX} y2={attachY} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                        <line x1={xRight - 18} y1={attachY} x2={massX + massW} y2={attachY} stroke={link} strokeWidth={6} strokeLinecap="round" />
+
+                        {/* Mass block */}
+                        <rect x={massX} y={massY} width={massW} height={massH} rx={6} fill="url(#massGrad)" stroke="#0f172a" strokeOpacity={0.25} />
+                        {/* Mass top-corner joints */}
+                        <circle cx={massX} cy={attachY} r={5} fill="#fff" stroke={link} strokeWidth={2} />
+                        <circle cx={massX + massW} cy={attachY} r={5} fill="#fff" stroke={link} strokeWidth={2} />
                       </svg>
                     );
                   })()}
-                  <div className="absolute -bottom-2 left-0 right-0 text-center text-xs text-gray-500">Amplitude is scaled for visualization.</div>
                 </div>
               </div>
             </div>
