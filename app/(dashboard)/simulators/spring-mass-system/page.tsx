@@ -146,8 +146,21 @@ export default function SpringMassSystem() {
           const term2 = Math.exp(-wn * (zeta + s) * td);
           xFree = (A0 / (2 * s)) * (term1 - term2);
         }
-        // End transient after long enough
-        if (td > 10 / Math.max(wn, 1e-6)) { freeStartRef.current = null; freeAmpRef.current = 0; nudgeActiveRef.current = false; }
+        // End transient when envelope is very small (adaptive to damping)
+        let envelope = 0;
+        if (zeta < 1) {
+          envelope = Math.abs(A0) * Math.exp(-zeta * wn * td);
+        } else if (Math.abs(zeta - 1) < 1e-6) {
+          envelope = Math.abs(A0) * Math.abs(td) * Math.exp(-wn * td);
+        } else {
+          const s = Math.sqrt(zeta * zeta - 1);
+          const e1 = Math.exp(-wn * (zeta - s) * td);
+          const e2 = Math.exp(-wn * (zeta + s) * td);
+          envelope = Math.abs(A0) * Math.max(e1, e2) / (2 * s);
+        }
+        if (envelope < Math.max(1e-5, Math.abs(A0) * 1e-3) || td > 30) {
+          freeStartRef.current = null; freeAmpRef.current = 0; nudgeActiveRef.current = false;
+        }
       }
 
       // If nudge animation is active, show pure free response (no forcing/base)
@@ -198,6 +211,11 @@ export default function SpringMassSystem() {
   const [activeTab, setActiveTab] = useState<'fft' | 'time' | 'bode'>('fft');
   const [freqUnits, setFreqUnits] = useState<'Hz' | 'ratio'>('Hz');
   const [sweepVersion, setSweepVersion] = useState(0); // force re-render on clear
+  // Persistent axis ranges (avoid autoscaling to tiny values)
+  const timeYMaxRef = useRef<number>(0.05);
+  const [timeYMax, setTimeYMax] = useState<number>(0.05);
+  const fftYMaxRef = useRef<number>(1e-4);
+  const [fftYMax, setFftYMax] = useState<number>(1e-4);
 
   // FFT of real-time waveform
   const fftData = useMemo(() => {
@@ -227,6 +245,37 @@ export default function SpringMassSystem() {
     }
     return { f, mag };
   }, [rtState]);
+
+  // Update persistent y ranges
+  useEffect(() => {
+    // Time waveform range
+    try {
+      const maxAbs = Math.max(
+        ...(rtState.x.length ? rtState.x.map(v => Math.abs(v)) : [0]),
+        ...(rtState.yb.length ? rtState.yb.map(v => Math.abs(v)) : [0])
+      );
+      if (maxAbs > timeYMaxRef.current) {
+        const next = Math.max(maxAbs * 1.25, timeYMaxRef.current);
+        timeYMaxRef.current = next;
+        setTimeYMax(next);
+      }
+    } catch {}
+  }, [rtState]);
+
+  useEffect(() => {
+    // FFT magnitude range
+    try {
+      const mag = fftData.mag;
+      if (mag && mag.length) {
+        const maxMag = mag.reduce((a, b) => (b > a ? b : a), 0);
+        if (maxMag > fftYMaxRef.current) {
+          const next = Math.max(maxMag * 1.25, fftYMaxRef.current);
+          fftYMaxRef.current = next;
+          setFftYMax(next);
+        }
+      }
+    } catch {}
+  }, [fftData]);
 
   // Units mapping for frequency axes
   const mapFreq = (arr: number[]) => freqUnits === 'Hz' ? arr : arr.map(v => fn > 0 ? v / fn : 0);
@@ -316,7 +365,7 @@ export default function SpringMassSystem() {
                 <div className="bg-white rounded border border-gray-200 p-2 relative overflow-hidden">
                   <Plot
                     data={[{ x: mapFreq(fftData.f), y: fftData.mag, type: 'scatter', mode: 'lines', line: { color: 'rgba(2,132,199,1)', width: 2 }, name: 'FFT |X(f)|' }]}
-                    layout={{ autosize: true, height: 260, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle }, yaxis: { title: '|X(f)| (m)', zeroline: false, showgrid: true }, shapes: [
+                    layout={{ autosize: true, height: 260, uirevision: "fft", margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle }, yaxis: { title: '|X(f)| (m)', zeroline: false, showgrid: true, range: [0, fftYMax], autorange: false }, shapes: [
                       { type: 'line', x0: fnMark, x1: fnMark, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(220,38,38,0.8)', width: 2, dash: 'dot' } },
                       { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.9)', width: 2 } }
                     ], annotations: [
@@ -336,7 +385,7 @@ export default function SpringMassSystem() {
                       { x: rtState.t, y: rtState.x, type: 'scatter', mode: 'lines', line: { color: 'rgba(2,132,199,1)', width: 2 }, name: 'Mass x(t)' },
                       { x: rtState.t, y: rtState.yb, type: 'scatter', mode: 'lines', line: { color: 'rgba(234,88,12,0.8)', width: 1, dash: 'dot' }, name: 'Base yb(t)' },
                     ]}
-                    layout={{ autosize: true, height: 260, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: 'Time (s)' }, yaxis: { title: 'Displacement (m)', zeroline: false, showgrid: true } }}
+                    layout={{ autosize: true, height: 260, uirevision: "time", margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: 'Time (s)' }, yaxis: { title: 'Displacement (m)', zeroline: false, showgrid: true, range: [-timeYMax, timeYMax], autorange: false } }}
                     config={{ displayModeBar: false, responsive: true }} useResizeHandler style={{ width: '100%', height: 260 }}
                   />
                 </div>
@@ -355,7 +404,7 @@ export default function SpringMassSystem() {
                         ...(upPts.current.length ? [{ x: mapFreq(upPts.current.map(p => p.f)), y: upPts.current.map(p => p.amp), type: 'scatter', mode: 'lines', line: { color: 'rgba(99,102,241,0.9)', width: 2 }, name: 'Coast up' }] : []),
                         ...(downPts.current.length ? [{ x: mapFreq(downPts.current.map(p => p.f)), y: downPts.current.map(p => p.amp), type: 'scatter', mode: 'lines', line: { color: 'rgba(236,72,153,0.9)', width: 2 }, name: 'Coast down' }] : []),
                       ]}
-                      layout={{ autosize: true, height: 240, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Amplitude (m)', zeroline: false, showgrid: true }, shapes: [{ type: 'line', x0: fnMark, x1: fnMark, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(220,38,38,0.7)', width: 2, dash: 'dot' } }], annotations: [{ x: fnMark, y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f_n', font: { size: 10, color: '#dc2626' } }] }}
+                      layout={{ autosize: true, height: 240, uirevision: "bode-amp", margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Amplitude (m)', zeroline: false, showgrid: true }, shapes: [{ type: 'line', x0: fnMark, x1: fnMark, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(220,38,38,0.7)', width: 2, dash: 'dot' } }], annotations: [{ x: fnMark, y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f_n', font: { size: 10, color: '#dc2626' } }] }}
                       config={{ displayModeBar: false, responsive: true }} useResizeHandler style={{ width: '100%', height: 240 }}
                     />
                   </div>
@@ -366,7 +415,7 @@ export default function SpringMassSystem() {
                         ...(upPts.current.length ? [{ x: mapFreq(upPts.current.map(p => p.f)), y: upPts.current.map(p => p.ph), type: 'scatter', mode: 'lines', line: { color: 'rgba(99,102,241,0.9)', width: 2 }, name: 'Coast up' }] : []),
                         ...(downPts.current.length ? [{ x: mapFreq(downPts.current.map(p => p.f)), y: downPts.current.map(p => p.ph), type: 'scatter', mode: 'lines', line: { color: 'rgba(236,72,153,0.9)', width: 2 }, name: 'Coast down' }] : []),
                       ]}
-                      layout={{ autosize: true, height: 240, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Phase (deg)', zeroline: false, showgrid: true } }}
+                      layout={{ autosize: true, height: 240, uirevision: "bode-ph", margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Phase (deg)', zeroline: false, showgrid: true } }}
                       config={{ displayModeBar: false, responsive: true }} useResizeHandler style={{ width: '100%', height: 240 }}
                     />
                   </div>
