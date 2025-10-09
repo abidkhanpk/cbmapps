@@ -244,6 +244,10 @@ export default function SpringMassSystem() {
   const [timeYMax, setTimeYMax] = useState<number>(0.05);
   const fftYMaxRef = useRef<number>(1e-4);
   const [fftYMax, setFftYMax] = useState<number>(1e-4);
+  // FFT axis locking while sweeping
+  const [fftXRange, setFftXRange] = useState<[number, number] | null>(null);
+  const [fftYRange, setFftYRange] = useState<[number, number] | null>(null);
+  const sweepLockRef = useRef<boolean>(false);
 
   // FFT of real-time waveform
   const fftData = useMemo(() => {
@@ -304,6 +308,24 @@ export default function SpringMassSystem() {
       }
     } catch {}
   }, [fftData]);
+
+  // Lock Default (FFT) plot axes while sweeping is ON
+  useEffect(() => {
+    if (sweeping && !sweepLockRef.current) {
+      // Compute ranges once at sweep start
+      const fLast = fftData.f.length ? fftData.f[fftData.f.length - 1] : 1;
+      const xMax = freqUnits === 'Hz' ? fLast : (fn > 0 ? fLast / fn : 1);
+      const yMax = (fftData.mag.length ? fftData.mag.reduce((a, b) => (b > a ? b : a), 0) : fftYMax);
+      setFftXRange([0, xMax]);
+      setFftYRange([0, Math.max(fftYMaxRef.current, yMax)]);
+      sweepLockRef.current = true;
+    } else if (!sweeping && sweepLockRef.current) {
+      // Release lock
+      sweepLockRef.current = false;
+      setFftXRange(null);
+      setFftYRange(null);
+    }
+  }, [sweeping, fftData, freqUnits, fn, fftYMax]);
 
   // Natural frequency peak trace for Default (FFT) tab
   const nfPeakTrace = useMemo(() => {
@@ -385,11 +407,13 @@ export default function SpringMassSystem() {
                     <button className="px-3 py-1.5 text-sm rounded border bg-white text-gray-800 border-gray-300" onClick={() => { freeStartRef.current = performance.now(); freeAmpRef.current = 0.08; nudgeActiveRef.current = true; }}>Nudge mass</button>
                   </div>
 
-                  <div>
-                    <div className="flex items-end justify-between"><label className="block text-sm font-medium">Sweep rate multiplier (×)</label><div className="text-xs text-gray-600">{sweepMult.toFixed(2)}×</div></div>
-                    <input type="range" min={0.1} max={2} step={0.1} value={sweepMult} onChange={e => setSweepMult(Number(e.target.value))} className="mt-1 w-full" />
-                    <div className="text-[11px] text-gray-500">Slow (0.1×)  —  Normal (1×)  —  Fast (2×). Baseline 0.2 Hz/s.</div>
-                  </div>
+                  {sweeping && (
+                    <div>
+                      <div className="flex items-end justify-between"><label className="block text-sm font-medium">Sweep rate multiplier (×)</label><div className="text-xs text-gray-600">{sweepMult.toFixed(2)}×</div></div>
+                      <input type="range" min={0.1} max={2} step={0.1} value={sweepMult} onChange={e => setSweepMult(Number(e.target.value))} className="mt-1 w-full" />
+                      <div className="text-[11px] text-gray-500">Slow (0.1×)  —  Normal (1×)  —  Fast (2×). Baseline 0.2 Hz/s.</div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -410,7 +434,7 @@ export default function SpringMassSystem() {
                       ...(nfPeakTrace ? [nfPeakTrace] : []),
                       { x: mapFreq(fftData.f), y: fftData.mag, type: 'scatter', mode: 'lines', line: { color: 'rgba(2,132,199,1)', width: 2 }, name: 'FFT |X(f)|' }
                     ]}
-                    layout={{ autosize: true, height: 260, uirevision: "fft", margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle }, yaxis: { title: '|X(f)| (m)', zeroline: false, showgrid: true, range: [0, fftYMax], autorange: false }, shapes: [
+                    layout={{ autosize: true, height: 260, uirevision: "fft", margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: (fftXRange as any) ?? undefined, autorange: fftXRange ? false : true }, yaxis: { title: '|X(f)| (m)', zeroline: false, showgrid: true, range: (fftYRange as any) ?? ([0, fftYMax] as any), autorange: false }, shapes: [
                       { type: 'line', x0: fnMark, x1: fnMark, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(220,38,38,0.8)', width: 1.5, dash: 'dot' } },
                       { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2.5 } }
                     ], annotations: [
@@ -440,7 +464,7 @@ export default function SpringMassSystem() {
               {activeTab === 'bode' && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-end gap-2 text-sm">
-                    <button className="px-2.5 py-1 rounded border border-gray-300 bg-white" onClick={() => { upPts.current = []; downPts.current = []; setSweepVersion(v => v + 1); }}>Clear sweep traces</button>
+                    <button className="px-2.5 py-1 rounded border border-gray-300 bg-white" onClick={() => { upPts.current = []; downPts.current = []; setSweepVersion(v => v + 1); }}>Clear sweep area</button>
                   </div>
                   <div className="bg-white rounded border border-gray-200 p-2 relative overflow-hidden">
                     <Plot
@@ -449,7 +473,7 @@ export default function SpringMassSystem() {
                         ...(upPts.current.length ? [{ x: mapFreq(upPts.current.map(p => p.f)), y: upPts.current.map(p => p.amp), type: 'scatter', mode: 'lines', line: { color: 'rgba(99,102,241,0.9)', width: 2 }, name: 'Coast up' }] : []),
                         ...(downPts.current.length ? [{ x: mapFreq(downPts.current.map(p => p.f)), y: downPts.current.map(p => p.amp), type: 'scatter', mode: 'lines', line: { color: 'rgba(236,72,153,0.9)', width: 2 }, name: 'Coast down' }] : []),
                       ]}
-                      layout={{ autosize: true, height: 240, uirevision: "bode-amp", margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Amplitude (m)', zeroline: false, showgrid: true, range: [0, bodeAmpMax || 1], autorange: false }, shapes: [
+                      layout={{ autosize: true, height: 240, uirevision: "bode-amp", legend: {}, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Amplitude (m)', zeroline: false, showgrid: true, range: [0, bodeAmpMax || 1], autorange: false }, shapes: [
                         { type: 'line', x0: fnMark, x1: fnMark, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(220,38,38,0.7)', width: 2, dash: 'dot' } },
                         { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2 } }
                       ], annotations: [
@@ -466,7 +490,7 @@ export default function SpringMassSystem() {
                         ...(upPts.current.length ? [{ x: mapFreq(upPts.current.map(p => p.f)), y: upPts.current.map(p => p.ph), type: 'scatter', mode: 'lines', line: { color: 'rgba(99,102,241,0.9)', width: 2 }, name: 'Coast up' }] : []),
                         ...(downPts.current.length ? [{ x: mapFreq(downPts.current.map(p => p.f)), y: downPts.current.map(p => p.ph), type: 'scatter', mode: 'lines', line: { color: 'rgba(236,72,153,0.9)', width: 2 }, name: 'Coast down' }] : []),
                       ]}
-                      layout={{ autosize: true, height: 240, uirevision: "bode-ph", margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Phase (deg)', zeroline: false, showgrid: true, range: bodePhRange as any, autorange: false }, shapes: [
+                      layout={{ autosize: true, height: 240, uirevision: "bode-ph", legend: {}, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Phase (deg)', zeroline: false, showgrid: true, range: bodePhRange as any, autorange: false }, shapes: [
                         { type: 'line', x0: fnMark, x1: fnMark, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(220,38,38,0.7)', width: 2, dash: 'dot' } },
                         { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2 } }
                       ], annotations: [
