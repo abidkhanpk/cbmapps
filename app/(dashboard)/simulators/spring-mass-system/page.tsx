@@ -44,7 +44,7 @@ export default function SpringMassSystem() {
   // Parameters (zeta-based damping)
   const [m, setM] = useState(1.0);    // kg
   const [k, setK] = useState(200);    // N/m
-  const [zeta, setZeta] = useState(0.05); // damping ratio (0..2)
+  const [zeta, setZeta] = useState(0.01); // damping ratio (0..2) — lowered default to allow longer ring-down
   const c = useMemo(() => 2 * zeta * Math.sqrt(Math.max(k, 0) * Math.max(m, 0)), [zeta, k, m]);
   const { wn, fn } = useMemo(() => naturalFreq(k, m), [k, m]);
 
@@ -84,11 +84,22 @@ export default function SpringMassSystem() {
     }
     return { f, amp, ph };
   }, [k, m, zeta, fn]);
+  // Fixed Y ranges for Bode plots (disable autoscale)
+  const bodeAmpMax = useMemo(() => (bode.amp && bode.amp.length ? bode.amp.reduce((a, b) => (b > a ? b : a), 0) : 1), [bode]);
+  const bodePhRange = useMemo(() => {
+    if (!bode.ph || !bode.ph.length) return [-180, 180] as [number, number];
+    let min = Infinity, max = -Infinity;
+    for (const v of bode.ph) { if (v < min) min = v; if (v > max) max = v; }
+    if (!isFinite(min) || !isFinite(max)) return [-180, 180] as [number, number];
+    return [min, max] as [number, number];
+  }, [bode]);
 
   // Sweep capture (coast up/down)
   const upPts = useRef<{ f: number; amp: number; ph: number; }[]>([]);
   const downPts = useRef<{ f: number; amp: number; ph: number; }[]>([]);
   const lastCapture = useRef<number>(0);
+  const prevFreqRef = useRef<number>(freqHz);
+  const lastManualCaptureRef = useRef<number>(0);
 
   // Animation + real-time generation
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -158,7 +169,7 @@ export default function SpringMassSystem() {
           const e2 = Math.exp(-wn * (zeta + s) * td);
           envelope = Math.abs(A0) * Math.max(e1, e2) / (2 * s);
         }
-        if (envelope < Math.max(1e-5, Math.abs(A0) * 1e-3) || td > 30) {
+        if (envelope < Math.max(5e-7, Math.abs(A0) * 5e-5) || td > 60) {
           freeStartRef.current = null; freeAmpRef.current = 0; nudgeActiveRef.current = false;
         }
       }
@@ -187,6 +198,23 @@ export default function SpringMassSystem() {
     raf = requestAnimationFrame(loop);
     return () => { if (raf) cancelAnimationFrame(raf); };
   }, [running, sweeping, freqHz, k, m, zeta]);
+
+  // Capture coast-up/down traces even when sweep is off and user changes frequency
+  useEffect(() => {
+    const now = performance.now();
+    if (!sweeping) {
+      const prev = prevFreqRef.current;
+      if (freqHz !== prev && now - lastManualCaptureRef.current > 40) {
+        lastManualCaptureRef.current = now;
+        const fr = forcedResponse(k, m, zeta, 2 * Math.PI * freqHz, 1);
+        const point = { f: freqHz, amp: fr.X, ph: fr.phi * 180 / Math.PI };
+        if (freqHz > prev) upPts.current.push(point); else downPts.current.push(point);
+        if (upPts.current.length > 2500) upPts.current.shift();
+        if (downPts.current.length > 2500) downPts.current.shift();
+      }
+    }
+    prevFreqRef.current = freqHz;
+  }, [freqHz, sweeping, k, m, zeta]);
 
   // Visual mappings
   const springStroke = useMemo(() => {
@@ -277,6 +305,20 @@ export default function SpringMassSystem() {
     } catch {}
   }, [fftData]);
 
+  // Natural frequency peak trace for Default (FFT) tab
+  const nfPeakTrace = useMemo(() => {
+    if (!(fn > 0)) return null as any;
+    const center = freqUnits === 'Hz' ? fn : 1;
+    const width = freqUnits === 'Hz' ? Math.max(0.1, fn * 0.05) : 0.05; // narrow peak
+    const n = 80; const xs: number[] = new Array(n); const ys: number[] = new Array(n);
+    const scale = fftYMax * 0.9;
+    for (let i = 0; i < n; i++) {
+      const x = center + (i / (n - 1) - 0.5) * 4 * width; xs[i] = x;
+      const dx = (x - center) / width; ys[i] = scale * Math.exp(-4 * dx * dx);
+    }
+    return { x: xs, y: ys, type: 'scatter', mode: 'lines', line: { color: 'rgba(220,38,38,0.9)', width: 2 }, name: 'Natural freq peak' } as any;
+  }, [fn, fftYMax, freqUnits]);
+
   // Units mapping for frequency axes
   const mapFreq = (arr: number[]) => freqUnits === 'Hz' ? arr : arr.map(v => fn > 0 ? v / fn : 0);
   const freqTitle = freqUnits === 'Hz' ? 'Frequency (Hz)' : 'Frequency Ratio (f/f_n)';
@@ -340,7 +382,7 @@ export default function SpringMassSystem() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <button className={`px-3 py-1.5 text-sm rounded border ${running ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-800 border-gray-300'}`} onClick={() => setRunning(v => !v)}>{running ? 'Pause' : 'Run'}</button>
                     <button className={`px-3 py-1.5 text-sm rounded border ${sweeping ? 'bg-sky-600 text-white border-sky-600' : 'bg-white text-gray-800 border-gray-300'}`} onClick={() => setSweeping(v => !v)}>{sweeping ? 'Stop sweep' : 'Start sweep'}</button>
-                    <button className="px-3 py-1.5 text-sm rounded border bg-white text-gray-800 border-gray-300" onClick={() => { freeStartRef.current = performance.now(); freeAmpRef.current = 0.05; nudgeActiveRef.current = true; }}>Nudge mass</button>
+                    <button className="px-3 py-1.5 text-sm rounded border bg-white text-gray-800 border-gray-300" onClick={() => { freeStartRef.current = performance.now(); freeAmpRef.current = 0.08; nudgeActiveRef.current = true; }}>Nudge mass</button>
                   </div>
 
                   <div>
@@ -364,10 +406,13 @@ export default function SpringMassSystem() {
               {activeTab === 'fft' && (
                 <div className="bg-white rounded border border-gray-200 p-2 relative overflow-hidden">
                   <Plot
-                    data={[{ x: mapFreq(fftData.f), y: fftData.mag, type: 'scatter', mode: 'lines', line: { color: 'rgba(2,132,199,1)', width: 2 }, name: 'FFT |X(f)|' }]}
+                    data={[
+                      ...(nfPeakTrace ? [nfPeakTrace] : []),
+                      { x: mapFreq(fftData.f), y: fftData.mag, type: 'scatter', mode: 'lines', line: { color: 'rgba(2,132,199,1)', width: 2 }, name: 'FFT |X(f)|' }
+                    ]}
                     layout={{ autosize: true, height: 260, uirevision: "fft", margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle }, yaxis: { title: '|X(f)| (m)', zeroline: false, showgrid: true, range: [0, fftYMax], autorange: false }, shapes: [
-                      { type: 'line', x0: fnMark, x1: fnMark, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(220,38,38,0.8)', width: 2, dash: 'dot' } },
-                      { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.9)', width: 2 } }
+                      { type: 'line', x0: fnMark, x1: fnMark, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(220,38,38,0.8)', width: 1.5, dash: 'dot' } },
+                      { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2.5 } }
                     ], annotations: [
                       { x: fnMark, y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f_n', font: { size: 10, color: '#dc2626' } },
                       { x: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f', font: { size: 10, color: '#10b981' } }
@@ -404,7 +449,13 @@ export default function SpringMassSystem() {
                         ...(upPts.current.length ? [{ x: mapFreq(upPts.current.map(p => p.f)), y: upPts.current.map(p => p.amp), type: 'scatter', mode: 'lines', line: { color: 'rgba(99,102,241,0.9)', width: 2 }, name: 'Coast up' }] : []),
                         ...(downPts.current.length ? [{ x: mapFreq(downPts.current.map(p => p.f)), y: downPts.current.map(p => p.amp), type: 'scatter', mode: 'lines', line: { color: 'rgba(236,72,153,0.9)', width: 2 }, name: 'Coast down' }] : []),
                       ]}
-                      layout={{ autosize: true, height: 240, uirevision: "bode-amp", margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Amplitude (m)', zeroline: false, showgrid: true }, shapes: [{ type: 'line', x0: fnMark, x1: fnMark, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(220,38,38,0.7)', width: 2, dash: 'dot' } }], annotations: [{ x: fnMark, y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f_n', font: { size: 10, color: '#dc2626' } }] }}
+                      layout={{ autosize: true, height: 240, uirevision: "bode-amp", margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Amplitude (m)', zeroline: false, showgrid: true, range: [0, bodeAmpMax || 1], autorange: false }, shapes: [
+                        { type: 'line', x0: fnMark, x1: fnMark, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(220,38,38,0.7)', width: 2, dash: 'dot' } },
+                        { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2 } }
+                      ], annotations: [
+                        { x: fnMark, y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f_n', font: { size: 10, color: '#dc2626' } },
+                        { x: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f', font: { size: 10, color: '#10b981' } }
+                      ] }}
                       config={{ displayModeBar: false, responsive: true }} useResizeHandler style={{ width: '100%', height: 240 }}
                     />
                   </div>
@@ -415,7 +466,13 @@ export default function SpringMassSystem() {
                         ...(upPts.current.length ? [{ x: mapFreq(upPts.current.map(p => p.f)), y: upPts.current.map(p => p.ph), type: 'scatter', mode: 'lines', line: { color: 'rgba(99,102,241,0.9)', width: 2 }, name: 'Coast up' }] : []),
                         ...(downPts.current.length ? [{ x: mapFreq(downPts.current.map(p => p.f)), y: downPts.current.map(p => p.ph), type: 'scatter', mode: 'lines', line: { color: 'rgba(236,72,153,0.9)', width: 2 }, name: 'Coast down' }] : []),
                       ]}
-                      layout={{ autosize: true, height: 240, uirevision: "bode-ph", margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Phase (deg)', zeroline: false, showgrid: true } }}
+                      layout={{ autosize: true, height: 240, uirevision: "bode-ph", margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Phase (deg)', zeroline: false, showgrid: true, range: bodePhRange as any, autorange: false }, shapes: [
+                        { type: 'line', x0: fnMark, x1: fnMark, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(220,38,38,0.7)', width: 2, dash: 'dot' } },
+                        { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2 } }
+                      ], annotations: [
+                        { x: fnMark, y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f_n', font: { size: 10, color: '#dc2626' } },
+                        { x: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f', font: { size: 10, color: '#10b981' } }
+                      ] }}
                       config={{ displayModeBar: false, responsive: true }} useResizeHandler style={{ width: '100%', height: 240 }}
                     />
                   </div>
