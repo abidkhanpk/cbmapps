@@ -115,7 +115,7 @@ export default function SpringMassSystem() {
 
       // Sweep frequency
       if (sweeping) {
-        const actualRate = normalSweepRate * clamp(sweepMult, 0.1, 2);
+        const actualRate = normalSweepRate * clamp(sweepMult, 0.1, 5);
         let fNew = freqHz + sweepDir.current * actualRate * dt;
         const fMin = 0; const fMax = Math.max(1, fn * 3);
         if (fNew >= fMax) { sweepDir.current = -1; fNew = fMax; }
@@ -314,6 +314,17 @@ export default function SpringMassSystem() {
   const freqTitle = freqUnits === 'Hz' ? 'Frequency (Hz)' : 'Frequency Ratio (f/f_n)';
   const fnMark = freqUnits === 'Hz' ? fn : 1;
   const bodeXRange = freqUnits === 'Hz' ? [0, Math.max(1, fn * 3)] : [0, 3];
+  // Forcing frequency slider range aligned with Default plot
+  const sliderMin = 0;
+  const sliderMax = freqUnits === 'Hz' ? Math.max(1, fn * 3) : 3;
+  const sliderValue = freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0);
+  const sliderStep = Math.max((sliderMax - sliderMin) / 1000, 0.001);
+  const PLOT_MARGINS = { l: 55, r: 10, t: 10, b: 40 } as const;
+  // Tailwind paddings: plot container uses p-2 (8px), controls container uses p-3 (12px)
+  const PLOT_CONTAINER_PAD = 8;
+  const CONTROLS_CONTAINER_PAD = 12;
+  const sliderPadLeft = Math.max(0, PLOT_MARGINS.l + PLOT_CONTAINER_PAD - CONTROLS_CONTAINER_PAD);
+  const sliderPadRight = Math.max(0, PLOT_MARGINS.r + PLOT_CONTAINER_PAD - CONTROLS_CONTAINER_PAD);
 
   // Model-based spectrum (amplitude vs frequency), with color gradient and damping-dependent peak width
   const spectrumModel = useMemo(() => {
@@ -406,27 +417,10 @@ export default function SpringMassSystem() {
                       <div className="flex items-end justify-between"><label className="block text-sm font-medium">Damping ζ</label><div className="text-xs text-gray-600">{zeta.toFixed(3)} {zeta < 1 ? '(underdamped)' : zeta === 1 ? '(critical)' : '(overdamped)'}</div></div>
                       <input type="range" min={0} max={1.1} step={0.001} value={zeta} onChange={e => setZeta(Number(e.target.value))} className="mt-1 w-full" />
                     </div>
-                    <div>
-                      <div className="flex items-end justify-between"><label className="block text-sm font-medium">Excitation frequency f (Hz)</label><div className="text-xs text-gray-600">{freqHz.toFixed(2)}</div></div>
-                      {/* Keep enabled during sweep */}
-                      <input type="range" min={0} max={Math.max(1, fn * 3)} step={0.01} value={freqHz} onChange={e => setFreqHz(Number(e.target.value))} className="mt-1 w-full" />
-                    </div>
-                  </div>
+                                      </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <button className={`px-3 py-1.5 text-sm rounded border ${running ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-800 border-gray-300'}`} onClick={() => setRunning(v => !v)}>{running ? 'Pause' : 'Run'}</button>
-                    <button className={`px-3 py-1.5 text-sm rounded border ${sweeping ? 'bg-sky-600 text-white border-sky-600' : 'bg-white text-gray-800 border-gray-300'}`} onClick={() => setSweeping(v => !v)}>{sweeping ? 'Stop sweep' : 'Start sweep'}</button>
-                    <button className="px-3 py-1.5 text-sm rounded border bg-white text-gray-800 border-gray-300" onClick={() => { freeStartRef.current = performance.now(); freeAmpRef.current = 0.08; nudgeActiveRef.current = true; }}>Nudge mass</button>
-                  </div>
-
-                  {sweeping && (
-                    <div>
-                      <div className="flex items-end justify-between"><label className="block text-sm font-medium">Sweep rate multiplier (×)</label><div className="text-xs text-gray-600">{sweepMult.toFixed(2)}×</div></div>
-                      <input type="range" min={0.1} max={2} step={0.1} value={sweepMult} onChange={e => setSweepMult(Number(e.target.value))} className="mt-1 w-full" />
-                      <div className="text-[11px] text-gray-500">Slow (0.1×)  —  Normal (1×)  —  Fast (2×). Baseline 0.2 Hz/s.</div>
-                    </div>
-                  )}
-                </div>
+                  
+                                  </div>
               )}
             </div>
 
@@ -443,7 +437,7 @@ export default function SpringMassSystem() {
                 <div className="bg-white rounded border border-gray-200 p-2 relative overflow-hidden">
                   <Plot
                     data={[spectrumTrace]}
-                    layout={{ autosize: true, height: 260, uirevision: "fft", margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: (fftXRange as any) ?? undefined, autorange: fftXRange ? false : true }, yaxis: { title: '|X(f)| (m)', zeroline: false, showgrid: true, range: (fftYRange as any) ?? ([0, specYMax] as any), autorange: false }, shapes: [
+                    layout={{ autosize: true, height: 260, uirevision: "fft", margin: PLOT_MARGINS as any, xaxis: { title: freqTitle, range: [0, sliderMax] as any, autorange: false }, yaxis: { title: '|X(f)| (m)', zeroline: false, showgrid: true, range: (fftYRange as any) ?? ([0, specYMax] as any), autorange: false }, shapes: [
                       { type: 'line', x0: fnMark, x1: fnMark, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(220,38,38,0.8)', width: 1.5, dash: 'dot' } },
                       { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2.5 } }
                     ], annotations: [
@@ -511,6 +505,53 @@ export default function SpringMassSystem() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Controls under plots */}
+            <div className="mt-4 rounded border border-gray-200 p-3">
+              <div className="grid gap-3">
+                <div>
+                  <div className="flex items-end justify-between">
+                    <label className="block text-sm font-medium">Forcing frequency {freqUnits === 'Hz' ? '(Hz)' : '(f/f_n)'}</label>
+                    <div className="text-xs text-gray-600">{freqUnits === 'Hz' ? sliderValue.toFixed(2) : sliderValue.toFixed(3)}</div>
+                  </div>
+                </div>
+                <div style={{ paddingLeft: sliderPadLeft, paddingRight: sliderPadRight }}>
+                  <input
+                    type="range"
+                    min={sliderMin}
+                    max={sliderMax}
+                    step={sliderStep}
+                    value={sliderValue}
+                    onChange={e => {
+                      const v = Number(e.target.value);
+                      const targetHz = freqUnits === 'Hz' ? v : (fn > 0 ? v * fn : 0);
+                      setFreqHz(targetHz);
+                    }}
+                    className="mt-1 w-full"
+                  />
+                  <div className="flex justify-between text-[11px] text-gray-500">
+                    <span>{sliderMin.toFixed(0)}</span>
+                    <span>{sliderMax.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button className={`px-3 py-1.5 text-sm rounded border ${running ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-800 border-gray-300'}`} onClick={() => setRunning(v => !v)}>{running ? 'Pause' : 'Run'}</button>
+                  <button className={`px-3 py-1.5 text-sm rounded border ${sweeping ? 'bg-sky-600 text-white border-sky-600' : 'bg-white text-gray-800 border-gray-300'}`} onClick={() => setSweeping(v => !v)}>{sweeping ? 'Stop sweep' : 'Start sweep'}</button>
+                  <button className="px-3 py-1.5 text-sm rounded border bg-white text-gray-800 border-gray-300" onClick={() => { freeStartRef.current = performance.now(); freeAmpRef.current = 0.08; nudgeActiveRef.current = true; }}>Nudge mass</button>
+                </div>
+                {sweeping && (
+                  <div>
+                    <div className="flex items-end justify-between mt-2">
+                      <label className="block text-sm font-medium">Sweep rate multiplier (×)</label>
+                      <div className="text-xs text-gray-600">{sweepMult.toFixed(2)}×</div>
+                    </div>
+                    <input type="range" min={0.1} max={5} step={0.1} value={sweepMult} onChange={e => setSweepMult(Number(e.target.value))} className="mt-1 w-full" />
+                    <div className="text-[11px] text-gray-500">Slow (0.1×) — Normal (1×) — Fast (5×). Baseline 0.2 Hz/s.</div>
+                  </div>
+                )}
+              </div>
             </div>
           </aside>
 
