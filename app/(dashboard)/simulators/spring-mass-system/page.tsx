@@ -631,7 +631,10 @@ export default function SpringMassSystem() {
 
                     // mass size and position
                     const massW = massSize.w; const massH = massSize.h;
-                    const massX = (xLeft + xRight) / 2 - massW / 2;
+                    const barLeftX = xLeft;
+                    const barRightX = xRight - 18;
+                    const barCenterX = (barLeftX + barRightX) / 2;
+                    const massX = barCenterX - massW / 2;
                     const massY = attachY - massH / 2;
 
                     return (
@@ -666,8 +669,17 @@ export default function SpringMassSystem() {
                         <rect x={xLeft - 14} y={topY + 28} width={28} height={90} rx={3} fill={link} opacity={0.2} stroke={link} strokeOpacity={0.35} />
                         <rect x={xLeft - 9} y={topY + 38} width={18} height={70} rx={2} fill={damperInnerColor} />
                         {/* Piston head and rod to attachY */}
-                        <rect x={xLeft - 12} y={topY + 68} width={24} height={8} rx={1} fill={link} opacity={0.95} />
-                        <line x1={xLeft} y1={topY + 72} x2={xLeft} y2={attachY} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                        {(() => {
+                          const cylTop = topY + 28;
+                          const cylHeight = 90;
+                          const headY = clamp(cylTop + 30 + xPx * 0.35, cylTop + 24, cylTop + cylHeight - 18);
+                          return (
+                            <>
+                              <rect x={xLeft - 12} y={headY} width={24} height={8} rx={1} fill={link} opacity={0.95} />
+                              <line x1={xLeft} y1={headY + 4} x2={xLeft} y2={attachY} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                            </>
+                          );
+                        })()}
                         <circle cx={xLeft} cy={attachY} r={5} fill="#fff" stroke={link} strokeWidth={2} />
 
                         {/* Spring column with zig-zag and elbow to mass */}
@@ -686,15 +698,15 @@ export default function SpringMassSystem() {
                         <path d={`M ${xRight + 10} ${attachY - 16} L ${xRight + 10} ${attachY} L ${xRight - 18} ${attachY}`} stroke={link} strokeWidth={6} fill="none" strokeLinecap="round" />
                         <circle cx={xRight - 18} cy={attachY} r={5} fill="#fff" stroke={link} strokeWidth={2} />
 
-                        {/* Short links into mass */}
-                        <line x1={xLeft} y1={attachY} x2={massX} y2={attachY} stroke={link} strokeWidth={6} strokeLinecap="round" />
-                        <line x1={xRight - 18} y1={attachY} x2={massX + massW} y2={attachY} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                        {/* Crossbar linking damper rod and spring base, with center joint to mass */}
+                        <line x1={barLeftX} y1={attachY} x2={barRightX} y2={attachY} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                        <circle cx={barCenterX} cy={attachY} r={5} fill="#fff" stroke={link} strokeWidth={2} />
+                        {/* Vertical link from crossbar center to mass */}
+                        <line x1={barCenterX} y1={attachY} x2={barCenterX} y2={massY} stroke={link} strokeWidth={6} strokeLinecap="round" />
 
                         {/* Mass block */}
                         <rect x={massX} y={massY} width={massW} height={massH} rx={6} fill="url(#massGrad)" stroke="#0f172a" strokeOpacity={0.25} />
-                        {/* Mass top-corner joints */}
-                        <circle cx={massX} cy={attachY} r={5} fill="#fff" stroke={link} strokeWidth={2} />
-                        <circle cx={massX + massW} cy={attachY} r={5} fill="#fff" stroke={link} strokeWidth={2} />
+                        {/* Mass is connected at center joint above; corner joints not used */}
                       </svg>
                     );
                   })()}
