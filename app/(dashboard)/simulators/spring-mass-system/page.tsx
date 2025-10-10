@@ -328,8 +328,50 @@ export default function SpringMassSystem() {
   // Tailwind paddings: plot container uses p-2 (8px), controls container uses p-3 (12px)
   const PLOT_CONTAINER_PAD = 8;
   const CONTROLS_CONTAINER_PAD = 12;
-  const sliderPadLeft = Math.max(0, PLOT_MARGINS.l + PLOT_CONTAINER_PAD - CONTROLS_CONTAINER_PAD);
-  const sliderPadRight = Math.max(0, PLOT_MARGINS.r + PLOT_CONTAINER_PAD - CONTROLS_CONTAINER_PAD);
+  // Default pads as fallback (before dynamic alignment runs)
+  const defaultSliderPadLeft = Math.max(0, PLOT_MARGINS.l + PLOT_CONTAINER_PAD - CONTROLS_CONTAINER_PAD);
+  const defaultSliderPadRight = Math.max(0, PLOT_MARGINS.r + PLOT_CONTAINER_PAD - CONTROLS_CONTAINER_PAD);
+  const [sliderPadLeft, setSliderPadLeft] = useState<number>(defaultSliderPadLeft);
+  const [sliderPadRight, setSliderPadRight] = useState<number>(defaultSliderPadRight);
+  const defaultPlotWrapRef = useRef<HTMLDivElement | null>(null);
+  const defaultPlotDivRef = useRef<HTMLDivElement | null>(null);
+  const sliderWrapRef = useRef<HTMLDivElement | null>(null);
+  const updateSliderPads = (graphDiv?: HTMLDivElement) => {
+    try {
+      const gd = graphDiv ?? defaultPlotDivRef.current;
+      const sliderWrap = sliderWrapRef.current;
+      if (!gd || !sliderWrap) return;
+
+      const sliderRect = sliderWrap.getBoundingClientRect();
+
+      // Prefer measuring the actual plot area from the SVG background rect
+      const bgRectEl = gd.querySelector('g.cartesianlayer g.subplot.xy rect.bg') as SVGRectElement | null;
+      if (bgRectEl) {
+        const bgRect = bgRectEl.getBoundingClientRect();
+        const padL = Math.max(0, Math.round(bgRect.left - sliderRect.left));
+        const padR = Math.max(0, Math.round(sliderRect.right - bgRect.right));
+        setSliderPadLeft(padL);
+        setSliderPadRight(padR);
+        return;
+      }
+
+      // Fallback: use internal layout offsets if rect.bg is not found
+      const plotRect = gd.getBoundingClientRect();
+      const fl: any = (gd as any)._fullLayout;
+      const xa = fl?.xaxis;
+      const plotLeft = plotRect.left + (typeof xa?._offset === 'number' ? xa._offset : PLOT_MARGINS.l);
+      const plotRight = plotLeft + (typeof xa?._length === 'number' ? xa._length : Math.max(0, plotRect.width - (PLOT_MARGINS.l + PLOT_MARGINS.r)));
+      const padL = Math.max(0, Math.round(plotLeft - sliderRect.left));
+      const padR = Math.max(0, Math.round(sliderRect.right - plotRight));
+      setSliderPadLeft(padL);
+      setSliderPadRight(padR);
+    } catch {}
+  };
+  useEffect(() => {
+    const onResize = () => updateSliderPads();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // Model-based spectrum (amplitude vs frequency), with color gradient and damping-dependent peak width
   const spectrumModel = useMemo(() => {
@@ -439,7 +481,7 @@ export default function SpringMassSystem() {
 
               {/* FFT Tab: show natural frequency marker */}
               {activeTab === 'fft' && (
-                <div className="bg-white rounded border border-gray-200 p-2 relative overflow-hidden">
+                <div ref={defaultPlotWrapRef} className="bg-white rounded border border-gray-200 p-2 relative overflow-hidden">
                   <Plot
                     data={[spectrumTrace]}
                     layout={{ autosize: true, height: 260, uirevision: "fft", margin: PLOT_MARGINS as any, xaxis: { title: freqTitle, range: (freqUnits === 'Hz' ? ([0, 25] as any) : ([0, sliderMax] as any)), autorange: false }, yaxis: { title: '|X(f)| (m)', zeroline: false, showgrid: true, range: (fftYRange as any) ?? ([0, specYMax] as any), autorange: false }, shapes: [
@@ -450,6 +492,14 @@ export default function SpringMassSystem() {
                       { x: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f', font: { size: 10, color: '#10b981' } }
                     ] }}
                     config={{ displayModeBar: false, responsive: true }} useResizeHandler style={{ width: '100%', height: 260 }}
+                    onInitialized={(_fig, gd) => {
+                      defaultPlotDivRef.current = gd;
+                      requestAnimationFrame(() => requestAnimationFrame(() => updateSliderPads(gd)));
+                    }}
+                    onUpdate={(_fig, gd) => {
+                      defaultPlotDivRef.current = gd;
+                      requestAnimationFrame(() => requestAnimationFrame(() => updateSliderPads(gd)));
+                    }}
                   />
                 </div>
               )}
@@ -521,7 +571,7 @@ export default function SpringMassSystem() {
                     <div className="text-xs text-gray-600">{freqUnits === 'Hz' ? sliderValue.toFixed(2) : sliderValue.toFixed(3)}</div>
                   </div>
                 </div>
-                <div style={{ paddingLeft: sliderPadLeft, paddingRight: sliderPadRight }}>
+                <div ref={sliderWrapRef} style={{ paddingLeft: sliderPadLeft, paddingRight: sliderPadRight }}>
                   <input
                     type="range"
                     min={sliderMin}
