@@ -655,9 +655,8 @@ export default function SpringMassSystem() {
                     const massCenterX = 135; // centered between damper and spring
                     const massX = massCenterX - massW / 2;
 
-                    // Joint positions on mass top edge
-                    const jLeftX = massX + 15; // left joint for damper
-                    const jRightX = massX + massW - 15; // right joint for spring
+                    // Crossbar position (above mass)
+                    const crossbarY = massY - 18;
 
                     return (
                       <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-[380px]">
@@ -693,7 +692,7 @@ export default function SpringMassSystem() {
                           <rect x={xLeft - 16} y={baseY + 35 + baseOffset} width={32} height={85} rx={4} fill={link} opacity={0.15} stroke={link} strokeWidth={2} strokeOpacity={0.4} />
                           <rect x={xLeft - 11} y={baseY + 42 + baseOffset} width={22} height={71} rx={2} fill={damperInnerColor} />
                           
-                          {/* Piston head and rod (extends to mass) */}
+                          {/* Piston head and rod (extends to crossbar) */}
                           {(() => {
                             const cylTop = baseY + 35 + baseOffset;
                             const cylBot = cylTop + 85;
@@ -702,7 +701,7 @@ export default function SpringMassSystem() {
                             return (
                               <>
                                 <rect x={xLeft - 14} y={pistonY} width={28} height={10} rx={2} fill={link} opacity={0.95} />
-                                <line x1={xLeft} y1={pistonY + 10} x2={xLeft} y2={massY} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                                <line x1={xLeft} y1={pistonY + 10} x2={xLeft} y2={crossbarY} stroke={link} strokeWidth={6} strokeLinecap="round" />
                               </>
                             );
                           })()}
@@ -713,10 +712,10 @@ export default function SpringMassSystem() {
                           {/* Rigid link from base to spring top */}
                           <line x1={xRight} y1={baseY + 12 + baseOffset} x2={xRight} y2={baseY + 35 + baseOffset} stroke={link} strokeWidth={6} strokeLinecap="round" />
                           
-                          {/* Coil spring from base to mass */}
+                          {/* Coil spring from base to crossbar */}
                           {(() => {
                             const springTop = baseY + 35 + baseOffset;
-                            const springBot = massY;
+                            const springBot = crossbarY;
                             const springLen = springBot - springTop;
                             const coils = 8;
                             const coilWidth = 18;
@@ -733,20 +732,26 @@ export default function SpringMassSystem() {
                             
                             return <path d={path} stroke="url(#springGrad)" strokeWidth={springStroke} fill="none" strokeLinecap="round" strokeLinejoin="round" />;
                           })()}
+                        </g>
+
+                        {/* Horizontal crossbar connecting damper and spring to mass */}
+                        <g>
+                          {/* Main crossbar */}
+                          <line x1={xLeft} y1={crossbarY} x2={xRight} y2={crossbarY} stroke={link} strokeWidth={6} strokeLinecap="round" />
                           
-                          {/* Spring bottom connection to mass */}
-                          <line x1={xRight} y1={massY} x2={jRightX} y2={massY} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                          {/* Connection joints at ends of crossbar */}
+                          <circle cx={xLeft} cy={crossbarY} r={5} fill="#fff" stroke={link} strokeWidth={2} />
+                          <circle cx={xRight} cy={crossbarY} r={5} fill="#fff" stroke={link} strokeWidth={2} />
+                          
+                          {/* Vertical links from crossbar center to mass top */}
+                          <line x1={massCenterX} y1={crossbarY} x2={massCenterX} y2={massY} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                          
+                          {/* Connection joint at mass top center */}
+                          <circle cx={massCenterX} cy={massY} r={5} fill="#fff" stroke={link} strokeWidth={2} />
                         </g>
 
                         {/* Mass block */}
                         <rect x={massX} y={massY} width={massW} height={massH} rx={6} fill="url(#massGrad)" stroke="#0f172a" strokeWidth={2} strokeOpacity={0.3} />
-                        
-                        {/* Connection joints on mass top */}
-                        <circle cx={jLeftX} cy={massY} r={5} fill="#fff" stroke={link} strokeWidth={2} />
-                        <circle cx={jRightX} cy={massY} r={5} fill="#fff" stroke={link} strokeWidth={2} />
-                        
-                        {/* Damper rod connection to mass */}
-                        <line x1={xLeft} y1={massY} x2={jLeftX} y2={massY} stroke={link} strokeWidth={6} strokeLinecap="round" />
                       </svg>
                     );
                   })()}
