@@ -197,7 +197,7 @@ export default function SpringMassSystem() {
     };
     raf = requestAnimationFrame(loop);
     return () => { if (raf) cancelAnimationFrame(raf); };
-  }, [running, sweeping, freqHz, k, m, zeta]);
+  }, [running, sweeping, sweepMult, freqHz, k, m, zeta, fn]);
 
   // Capture coast-up/down traces even when sweep is off and user changes frequency
   useEffect(() => {
@@ -229,8 +229,8 @@ export default function SpringMassSystem() {
     return { w: 90 * s, h: 70 * s };
   }, [m]);
   const damperInnerColor = useMemo(() => {
-    // darker with higher zeta (0..2)
-    const norm = clamp(zeta / 2, 0, 1);
+    // darker with higher zeta (0..1.1)
+    const norm = clamp(zeta / 1.1, 0, 1);
     const lightness = lerp(78, 35, norm);
     return `hsl(210 80% ${lightness}%)`;
   }, [zeta]);
@@ -309,43 +309,55 @@ export default function SpringMassSystem() {
     } catch {}
   }, [fftData]);
 
-  // Lock Default (FFT) plot axes while sweeping is ON
-  useEffect(() => {
-    if (sweeping && !sweepLockRef.current) {
-      // Compute ranges once at sweep start
-      const fLast = fftData.f.length ? fftData.f[fftData.f.length - 1] : 1;
-      const xMax = freqUnits === 'Hz' ? fLast : (fn > 0 ? fLast / fn : 1);
-      const yMax = (fftData.mag.length ? fftData.mag.reduce((a, b) => (b > a ? b : a), 0) : fftYMax);
-      setFftXRange([0, xMax]);
-      setFftYRange([0, Math.max(fftYMaxRef.current, yMax)]);
-      sweepLockRef.current = true;
-    } else if (!sweeping && sweepLockRef.current) {
-      // Release lock
-      sweepLockRef.current = false;
-      setFftXRange(null);
-      setFftYRange(null);
-    }
-  }, [sweeping, fftData, freqUnits, fn, fftYMax]);
-
-  // Natural frequency peak trace for Default (FFT) tab
-  const nfPeakTrace = useMemo(() => {
-    if (!(fn > 0)) return null as any;
-    const center = freqUnits === 'Hz' ? fn : 1;
-    const width = freqUnits === 'Hz' ? Math.max(0.1, fn * 0.05) : 0.05; // narrow peak
-    const n = 80; const xs: number[] = new Array(n); const ys: number[] = new Array(n);
-    const scale = fftYMax * 0.9;
-    for (let i = 0; i < n; i++) {
-      const x = center + (i / (n - 1) - 0.5) * 4 * width; xs[i] = x;
-      const dx = (x - center) / width; ys[i] = scale * Math.exp(-4 * dx * dx);
-    }
-    return { x: xs, y: ys, type: 'scatter', mode: 'lines', line: { color: 'rgba(220,38,38,0.9)', width: 2 }, name: 'Natural freq peak' } as any;
-  }, [fn, fftYMax, freqUnits]);
-
   // Units mapping for frequency axes
   const mapFreq = (arr: number[]) => freqUnits === 'Hz' ? arr : arr.map(v => fn > 0 ? v / fn : 0);
   const freqTitle = freqUnits === 'Hz' ? 'Frequency (Hz)' : 'Frequency Ratio (f/f_n)';
   const fnMark = freqUnits === 'Hz' ? fn : 1;
   const bodeXRange = freqUnits === 'Hz' ? [0, Math.max(1, fn * 3)] : [0, 3];
+
+  // Model-based spectrum (amplitude vs frequency), with color gradient and damping-dependent peak width
+  const spectrumModel = useMemo(() => {
+    const fmax = Math.max(1, fn * 3);
+    const N = 600;
+    const f: number[] = new Array(N);
+    const y: number[] = new Array(N);
+    let yMax = 0;
+    for (let i = 0; i < N; i++) {
+      const fi = (i / (N - 1)) * fmax;
+      const fr = forcedResponse(k, m, zeta, 2 * Math.PI * fi, 1);
+      f[i] = fi; y[i] = fr.X; if (y[i] > yMax) yMax = y[i];
+    }
+    return { f, y, yMax };
+  }, [k, m, zeta, fn]);
+
+  const specYMax = useMemo(() => (spectrumModel.yMax ? spectrumModel.yMax * 1.1 : 1), [spectrumModel]);
+
+  const spectrumTrace = useMemo(() => {
+    return {
+      x: mapFreq(spectrumModel.f),
+      y: spectrumModel.y,
+      type: 'scatter',
+      mode: 'lines',
+      line: { color: 'rgba(2,132,199,1)', width: 2 },
+      name: 'Spectrum',
+    } as any;
+  }, [spectrumModel, mapFreq, freqUnits]);
+
+  // Lock Default (FFT) plot axes while sweeping is ON (based on model spectrum)
+  useEffect(() => {
+    if (sweeping && !sweepLockRef.current) {
+      const fLast = spectrumModel.f.length ? spectrumModel.f[spectrumModel.f.length - 1] : 1;
+      const xMax = freqUnits === 'Hz' ? fLast : (fn > 0 ? fLast / fn : 1);
+      const yMax = spectrumModel.yMax || 1;
+      setFftXRange([0, xMax]);
+      setFftYRange([0, yMax * 1.1]);
+      sweepLockRef.current = true;
+    } else if (!sweeping && sweepLockRef.current) {
+      sweepLockRef.current = false;
+      setFftXRange(null);
+      setFftYRange(null);
+    }
+  }, [sweeping, spectrumModel, freqUnits, fn]);
 
   // Current visual sample (last rtState)
   const xPx = (rtState.x.length ? rtState.x[rtState.x.length - 1] : 0) * 250;
@@ -392,7 +404,7 @@ export default function SpringMassSystem() {
                     </div>
                     <div>
                       <div className="flex items-end justify-between"><label className="block text-sm font-medium">Damping ζ</label><div className="text-xs text-gray-600">{zeta.toFixed(3)} {zeta < 1 ? '(underdamped)' : zeta === 1 ? '(critical)' : '(overdamped)'}</div></div>
-                      <input type="range" min={0} max={2} step={0.001} value={zeta} onChange={e => setZeta(Number(e.target.value))} className="mt-1 w-full" />
+                      <input type="range" min={0} max={1.1} step={0.001} value={zeta} onChange={e => setZeta(Number(e.target.value))} className="mt-1 w-full" />
                     </div>
                     <div>
                       <div className="flex items-end justify-between"><label className="block text-sm font-medium">Excitation frequency f (Hz)</label><div className="text-xs text-gray-600">{freqHz.toFixed(2)}</div></div>
@@ -430,11 +442,8 @@ export default function SpringMassSystem() {
               {activeTab === 'fft' && (
                 <div className="bg-white rounded border border-gray-200 p-2 relative overflow-hidden">
                   <Plot
-                    data={[
-                      ...(nfPeakTrace ? [nfPeakTrace] : []),
-                      { x: mapFreq(fftData.f), y: fftData.mag, type: 'scatter', mode: 'lines', line: { color: 'rgba(2,132,199,1)', width: 2 }, name: 'FFT |X(f)|' }
-                    ]}
-                    layout={{ autosize: true, height: 260, uirevision: "fft", margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: (fftXRange as any) ?? undefined, autorange: fftXRange ? false : true }, yaxis: { title: '|X(f)| (m)', zeroline: false, showgrid: true, range: (fftYRange as any) ?? ([0, fftYMax] as any), autorange: false }, shapes: [
+                    data={[spectrumTrace]}
+                    layout={{ autosize: true, height: 260, uirevision: "fft", margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: (fftXRange as any) ?? undefined, autorange: fftXRange ? false : true }, yaxis: { title: '|X(f)| (m)', zeroline: false, showgrid: true, range: (fftYRange as any) ?? ([0, specYMax] as any), autorange: false }, shapes: [
                       { type: 'line', x0: fnMark, x1: fnMark, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(220,38,38,0.8)', width: 1.5, dash: 'dot' } },
                       { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2.5 } }
                     ], annotations: [
