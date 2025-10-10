@@ -49,7 +49,7 @@ export default function SpringMassSystem() {
   const { wn, fn } = useMemo(() => naturalFreq(k, m), [k, m]);
 
   // Forcing frequency (Hz) applied to base
-  const [freqHz, setFreqHz] = useState<number>(Math.max(0.2, fn));
+  const [freqHz, setFreqHz] = useState<number>(0);
   const omega = 2 * Math.PI * freqHz;
 
   // Run/Pause & sweep
@@ -146,12 +146,17 @@ export default function SpringMassSystem() {
         const td = (ts - freeStartRef.current) / 1000;
         const { wn } = naturalFreq(k, m);
         const A0 = freeAmpRef.current; // meters
+        const zf = zeta < 1 ? Math.min(zeta * 0.6, 0.98) : zeta;
         if (zeta < 1) {
-          const wd = wn * Math.sqrt(1 - zeta * zeta);
-          xFree = A0 * Math.exp(-zeta * wn * td) * Math.sin(wd * td);
-        } else if (Math.abs(zeta - 1) < 1e-6) {
+          const wd = wn * Math.sqrt(1 - zf * zf);
+          const beta = zf / Math.max(Math.sqrt(1 - zf * zf), 1e-9);
+          // ICS: x(0)=A0, x'(0)=0 → nonzero at t=0, no initial downward spike
+          xFree = A0 * Math.exp(-zf * wn * td) * (Math.cos(wd * td) + beta * Math.sin(wd * td));
+        } else if (Math.abs(zeta - 1) < 1e-3) {
+          // Critically damped: non-oscillatory, no overshoot for positive A0
           xFree = A0 * td * Math.exp(-wn * td);
         } else {
+          // Overdamped: sum of decaying exponentials (non-oscillatory)
           const s = Math.sqrt(zeta * zeta - 1);
           const term1 = Math.exp(-wn * (zeta - s) * td);
           const term2 = Math.exp(-wn * (zeta + s) * td);
@@ -160,8 +165,8 @@ export default function SpringMassSystem() {
         // End transient when envelope is very small (adaptive to damping)
         let envelope = 0;
         if (zeta < 1) {
-          envelope = Math.abs(A0) * Math.exp(-zeta * wn * td);
-        } else if (Math.abs(zeta - 1) < 1e-6) {
+          envelope = Math.abs(A0) * Math.exp(-zf * wn * td);
+        } else if (Math.abs(zeta - 1) < 1e-3) {
           envelope = Math.abs(A0) * Math.abs(td) * Math.exp(-wn * td);
         } else {
           const s = Math.sqrt(zeta * zeta - 1);
@@ -169,7 +174,7 @@ export default function SpringMassSystem() {
           const e2 = Math.exp(-wn * (zeta + s) * td);
           envelope = Math.abs(A0) * Math.max(e1, e2) / (2 * s);
         }
-        if (envelope < Math.max(5e-7, Math.abs(A0) * 5e-5) || td > 60) {
+        if (envelope < Math.max(1e-7, Math.abs(A0) * 1e-5) || td > 60) {
           freeStartRef.current = null; freeAmpRef.current = 0; nudgeActiveRef.current = false;
         }
       }
