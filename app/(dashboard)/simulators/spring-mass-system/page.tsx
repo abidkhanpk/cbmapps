@@ -321,7 +321,7 @@ export default function SpringMassSystem() {
   const bodeXRange = freqUnits === 'Hz' ? [0, Math.max(1, fn * 3)] : [0, 3];
   // Forcing frequency slider range aligned with Default plot
   const sliderMin = 0;
-  const sliderMax = freqUnits === 'Hz' ? Math.max(1, fn * 3) : 3;
+  const sliderMax = freqUnits === 'Hz' ? 25 : 3;
   const sliderValue = freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0);
   const sliderStep = Math.max((sliderMax - sliderMin) / 1000, 0.001);
   const PLOT_MARGINS = { l: 55, r: 10, t: 10, b: 40 } as const;
@@ -333,7 +333,7 @@ export default function SpringMassSystem() {
 
   // Model-based spectrum (amplitude vs frequency), with color gradient and damping-dependent peak width
   const spectrumModel = useMemo(() => {
-    const fmax = Math.max(1, fn * 3);
+    const fmax = freqUnits === 'Hz' ? 25 : Math.max(1, fn * 3);
     const N = 600;
     const f: number[] = new Array(N);
     const y: number[] = new Array(N);
@@ -442,7 +442,7 @@ export default function SpringMassSystem() {
                 <div className="bg-white rounded border border-gray-200 p-2 relative overflow-hidden">
                   <Plot
                     data={[spectrumTrace]}
-                    layout={{ autosize: true, height: 260, uirevision: "fft", margin: PLOT_MARGINS as any, xaxis: { title: freqTitle, range: [0, sliderMax] as any, autorange: false }, yaxis: { title: '|X(f)| (m)', zeroline: false, showgrid: true, range: (fftYRange as any) ?? ([0, specYMax] as any), autorange: false }, shapes: [
+                    layout={{ autosize: true, height: 260, uirevision: "fft", margin: PLOT_MARGINS as any, xaxis: { title: freqTitle, range: (freqUnits === 'Hz' ? ([0, 25] as any) : ([0, sliderMax] as any)), autorange: false }, yaxis: { title: '|X(f)| (m)', zeroline: false, showgrid: true, range: (fftYRange as any) ?? ([0, specYMax] as any), autorange: false }, shapes: [
                       { type: 'line', x0: fnMark, x1: fnMark, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(220,38,38,0.8)', width: 1.5, dash: 'dot' } },
                       { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2.5 } }
                     ], annotations: [
