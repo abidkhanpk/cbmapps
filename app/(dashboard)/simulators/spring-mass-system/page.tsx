@@ -642,94 +642,111 @@ export default function SpringMassSystem() {
                 {/* Animation SVG refined to match schematic */}
                 <div className="relative">
                   {(() => {
-                    const topY = 24; // base nominal Y
-                    const w = 260; const h = 380;
-                    const xLeft = 80;  // damper column
-                    const xRight = 170; // spring column
+                    const w = 280; const h = 400;
+                    const baseY = 20; // fixed base at top
+                    const xLeft = 85;  // damper column
+                    const xRight = 185; // spring column
                     const link = "#0b61a4";
-
-                    // Spring length based on current displacement
-                    const springBaseLen = 180; // px nominal
-                    const springLen = springBaseLen + xPx; // use current mass px displacement
                     const baseOffset = basePx; // base motion px
-                    const attachY = topY + 10 + springLen; // joint level
 
-                    // mass size and position (attach mass top edge to joint line)
+                    // Mass position (moves with xPx)
                     const massW = massSize.w; const massH = massSize.h;
-                    const jLeftX = xLeft; // damper rod aligns with left joint
-                    const massX = jLeftX - 10; // keep joint slightly inset from mass edge
-                    const massY = attachY; // joint level equals mass top edge
-                    const jRightX = massX + massW - 10; // right joint near mass top-right
+                    const massY = 240 + xPx; // mass vertical position
+                    const massCenterX = 135; // centered between damper and spring
+                    const massX = massCenterX - massW / 2;
+
+                    // Joint positions on mass top edge
+                    const jLeftX = massX + 15; // left joint for damper
+                    const jRightX = massX + massW - 15; // right joint for spring
 
                     return (
-                      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-[320px]">
+                      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-[380px]">
                         <defs>
                           <linearGradient id="massGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#4ade80" />
-                            <stop offset="100%" stopColor="#06b6d4" />
+                            <stop offset="0%" stopColor="#06b6d4" />
+                            <stop offset="100%" stopColor="#10b981" />
                           </linearGradient>
                           <linearGradient id="springGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#fcd34d" />
-                            <stop offset="100%" stopColor="#22c55e" />
+                            <stop offset="0%" stopColor="#a3a000" />
+                            <stop offset="100%" stopColor="#6b7000" />
                           </linearGradient>
-                          <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                            <line x1="0" y1="0" x2="0" y2="6" stroke="#6b7280" strokeWidth="1" />
+                          <pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                            <line x1="0" y1="0" x2="0" y2="8" stroke="#374151" strokeWidth="2" />
                           </pattern>
                         </defs>
 
-                        {/* Moving base */}
+                        {/* Fixed base at top with hatching */}
                         <g transform={`translate(0 ${baseOffset})`}>
-                          <rect x="20" y="8" width="220" height="10" fill="#9ca3af" rx="2" />
-                          <rect x="20" y="2" width="220" height="6" fill="url(#hatch)" opacity="0.55" />
-                          {/* top left and right joints + bracket */}
-                          <circle cx={xLeft} cy={topY} r={5} fill="#fff" stroke={link} strokeWidth={2} />
-                          <circle cx={xRight} cy={topY} r={5} fill="#fff" stroke={link} strokeWidth={2} />
-                          <path d={`M ${xRight} ${topY} L ${xRight + 10} ${topY} L ${xRight + 10} ${topY + 18}`} stroke={link} strokeWidth={6} fill="none" strokeLinecap="round" />
+                          <rect x="30" y={baseY - 15} width="220" height="15" fill="url(#hatch)" />
+                          <rect x="30" y={baseY} width="220" height="12" fill="#6b7280" rx="2" />
+                          {/* Base attachment points */}
+                          <circle cx={xLeft} cy={baseY + 12} r={5} fill="#fff" stroke={link} strokeWidth={2} />
+                          <circle cx={xRight} cy={baseY + 12} r={5} fill="#fff" stroke={link} strokeWidth={2} />
                         </g>
 
-                        {/* Damper left column */}
-                        <line x1={xLeft} y1={topY + baseOffset} x2={xLeft} y2={topY + 28 + baseOffset} stroke={link} strokeWidth={6} strokeLinecap="round" />
-                        {/* Cylinder and fluid */}
-                        <rect x={xLeft - 14} y={topY + 28 + baseOffset} width={28} height={90} rx={3} fill={link} opacity={0.2} stroke={link} strokeOpacity={0.35} />
-                        <rect x={xLeft - 9} y={topY + 38 + baseOffset} width={18} height={70} rx={2} fill={damperInnerColor} />
-                        {/* Piston head and rod to attachY */}
-                        {(() => {
-                          const cylTop = topY + 28 + baseOffset;
-                          const cylHeight = 90;
-                          const relPx = xPx - basePx; // mass relative to base
-                          const headY = clamp(cylTop + 30 + relPx, cylTop + 24, cylTop + cylHeight - 18);
-                          return (
-                            <>
-                              <rect x={xLeft - 12} y={headY} width={24} height={8} rx={1} fill={link} opacity={0.95} />
-                              <line x1={xLeft} y1={headY + 4} x2={xLeft} y2={massY} stroke={link} strokeWidth={6} strokeLinecap="round" />
-                            </>
-                          );
-                        })()}
-                        {/* left joint circle will be drawn on top of mass for correct z-order */}
-
-                        {/* Spring column with zig-zag and elbow to mass */}
-                        <g transform={`translate(10 ${18 + baseOffset})`}>
+                        {/* Damper (left side) */}
+                        <g>
+                          {/* Rigid link from base to cylinder top */}
+                          <line x1={xLeft} y1={baseY + 12 + baseOffset} x2={xLeft} y2={baseY + 35 + baseOffset} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                          
+                          {/* Cylinder body (moves with base) */}
+                          <rect x={xLeft - 16} y={baseY + 35 + baseOffset} width={32} height={85} rx={4} fill={link} opacity={0.15} stroke={link} strokeWidth={2} strokeOpacity={0.4} />
+                          <rect x={xLeft - 11} y={baseY + 42 + baseOffset} width={22} height={71} rx={2} fill={damperInnerColor} />
+                          
+                          {/* Piston head and rod (extends to mass) */}
                           {(() => {
-                            const x0 = xRight; const y0 = topY; const y1 = massY - (18 + baseOffset) - 16;
-                            const coils = 6; const seg = Math.max(10, y1 / coils); const R = 12;
-                            let d = `M ${x0} ${y0}`;
-                            for (let i = 0; i < coils; i++) {
-                              const yy1 = y0 + seg * (i + 0.5); const yy2 = y0 + seg * (i + 1); const dir = i % 2 === 0 ? 1 : -1;
-                              d += ` L ${x0 + dir * R} ${yy1} L ${x0} ${yy2}`;
-                            }
-                            return <path d={d} stroke="url(#springGrad)" strokeWidth={springStroke} fill="none" strokeLinecap="round" style={{ vectorEffect: 'non-scaling-stroke' as const }} />;
+                            const cylTop = baseY + 35 + baseOffset;
+                            const cylBot = cylTop + 85;
+                            const relPx = xPx - basePx; // relative displacement
+                            const pistonY = clamp(cylTop + 40 + relPx, cylTop + 10, cylBot - 15);
+                            return (
+                              <>
+                                <rect x={xLeft - 14} y={pistonY} width={28} height={10} rx={2} fill={link} opacity={0.95} />
+                                <line x1={xLeft} y1={pistonY + 10} x2={xLeft} y2={massY} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                              </>
+                            );
                           })()}
                         </g>
-                        <path d={`M ${xRight + 10} ${massY - 16} L ${xRight + 10} ${massY} L ${jRightX} ${massY}`} stroke={link} strokeWidth={6} fill="none" strokeLinecap="round" />
-                        {/* right joint circle will be drawn on top of mass for correct z-order */}
 
-                        {/* Crossbar removed: direct connections from damper and spring to mass top joints */}
+                        {/* Spring (right side) - coil spring */}
+                        <g>
+                          {/* Rigid link from base to spring top */}
+                          <line x1={xRight} y1={baseY + 12 + baseOffset} x2={xRight} y2={baseY + 35 + baseOffset} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                          
+                          {/* Coil spring from base to mass */}
+                          {(() => {
+                            const springTop = baseY + 35 + baseOffset;
+                            const springBot = massY;
+                            const springLen = springBot - springTop;
+                            const coils = 8;
+                            const coilWidth = 18;
+                            const segmentHeight = springLen / coils;
+                            
+                            let path = `M ${xRight} ${springTop}`;
+                            for (let i = 0; i < coils; i++) {
+                              const y1 = springTop + segmentHeight * i;
+                              const y2 = springTop + segmentHeight * (i + 0.33);
+                              const y3 = springTop + segmentHeight * (i + 0.67);
+                              const y4 = springTop + segmentHeight * (i + 1);
+                              path += ` L ${xRight + coilWidth} ${y2} L ${xRight - coilWidth} ${y3} L ${xRight} ${y4}`;
+                            }
+                            
+                            return <path d={path} stroke="url(#springGrad)" strokeWidth={springStroke} fill="none" strokeLinecap="round" strokeLinejoin="round" />;
+                          })()}
+                          
+                          {/* Spring bottom connection to mass */}
+                          <line x1={xRight} y1={massY} x2={jRightX} y2={massY} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                        </g>
 
                         {/* Mass block */}
-                        <rect x={massX} y={massY} width={massW} height={massH} rx={6} fill="url(#massGrad)" stroke="#0f172a" strokeOpacity={0.25} />
-                        {/* Top corner joints on mass (drawn after mass for visibility) */}
+                        <rect x={massX} y={massY} width={massW} height={massH} rx={6} fill="url(#massGrad)" stroke="#0f172a" strokeWidth={2} strokeOpacity={0.3} />
+                        
+                        {/* Connection joints on mass top */}
                         <circle cx={jLeftX} cy={massY} r={5} fill="#fff" stroke={link} strokeWidth={2} />
                         <circle cx={jRightX} cy={massY} r={5} fill="#fff" stroke={link} strokeWidth={2} />
+                        
+                        {/* Damper rod connection to mass */}
+                        <line x1={xLeft} y1={massY} x2={jLeftX} y2={massY} stroke={link} strokeWidth={6} strokeLinecap="round" />
                       </svg>
                     );
                   })()}
