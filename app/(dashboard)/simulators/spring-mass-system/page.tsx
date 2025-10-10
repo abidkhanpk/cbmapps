@@ -44,7 +44,7 @@ export default function SpringMassSystem() {
   // Parameters (zeta-based damping)
   const [m, setM] = useState(1.0);    // kg
   const [k, setK] = useState(200);    // N/m
-  const [zeta, setZeta] = useState(0.01); // damping ratio (0..2) — lowered default to allow longer ring-down
+  const [zeta, setZeta] = useState(0.1); // damping ratio (0..2)
   const c = useMemo(() => 2 * zeta * Math.sqrt(Math.max(k, 0) * Math.max(m, 0)), [zeta, k, m]);
   const { wn, fn } = useMemo(() => naturalFreq(k, m), [k, m]);
 
