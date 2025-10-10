@@ -22,6 +22,23 @@ function forcedResponse(k: number, m: number, zeta: number, omega: number, F0 = 
   const phi = Math.atan2(2 * zeta * r, 1 - r * r); // radians
   return { X, phi, r };
 }
+// Base excitation transfer from base displacement y to absolute mass displacement x
+function baseResponse(k: number, m: number, zeta: number, omega: number, Y = 1) {
+  const { wn } = naturalFreq(k, m);
+  const r = wn > 0 ? omega / wn : 0;
+  // H(ω) = X/Y = (1 + i 2ζr) / (1 - r^2 + i 2ζr)
+  const numRe = 1;
+  const numIm = 2 * zeta * r;
+  const denRe = 1 - r * r;
+  const denIm = 2 * zeta * r;
+  const denMag2 = denRe * denRe + denIm * denIm;
+  const Hre = (numRe * denRe + numIm * denIm) / Math.max(denMag2, 1e-12);
+  const Him = (numIm * denRe - numRe * denIm) / Math.max(denMag2, 1e-12);
+  const H = Math.hypot(Hre, Him);
+  const phi = Math.atan2(Him, Hre); // phase of X relative to base Y
+  const X = H * Y;
+  return { X, phi, r, H };
+}
 
 export default function SpringMassSystem() {
   // Tailwind readiness via runtime CDN injection
@@ -71,7 +88,7 @@ export default function SpringMassSystem() {
   const nudgeActiveRef = useRef<boolean>(false);
 
   // Derived response at current freq
-  const { X, phi } = useMemo(() => forcedResponse(k, m, zeta, omega, 1), [k, m, zeta, omega]);
+  const { X, phi } = useMemo(() => baseResponse(k, m, zeta, omega, 1), [k, m, zeta, omega]);
 
   // Bode precomputed curve (amp & phase)
   const bode = useMemo(() => {
@@ -79,8 +96,8 @@ export default function SpringMassSystem() {
     const N = 600; const f: number[] = new Array(N); const amp: number[] = new Array(N); const ph: number[] = new Array(N);
     for (let i = 0; i < N; i++) {
       const fi = (i / (N - 1)) * fmax; const om = 2 * Math.PI * fi;
-      const fr = forcedResponse(k, m, zeta, om, 1);
-      f[i] = fi; amp[i] = fr.X; ph[i] = fr.phi * 180 / Math.PI;
+      const br = baseResponse(k, m, zeta, om, 1);
+      f[i] = fi; amp[i] = br.H; ph[i] = br.phi * 180 / Math.PI;
     }
     return { f, amp, ph };
   }, [k, m, zeta, fn]);
@@ -124,8 +141,8 @@ export default function SpringMassSystem() {
         // capture sweep traces
         if (ts - lastCapture.current > 40) {
           lastCapture.current = ts;
-          const fr = forcedResponse(k, m, zeta, 2 * Math.PI * fNew, 1);
-          const point = { f: fNew, amp: fr.X, ph: fr.phi * 180 / Math.PI };
+          const br = baseResponse(k, m, zeta, 2 * Math.PI * fNew, 1);
+          const point = { f: fNew, amp: br.H, ph: br.phi * 180 / Math.PI };
           if (sweepDir.current > 0) upPts.current.push(point); else downPts.current.push(point);
           if (upPts.current.length > 2500) upPts.current.shift();
           if (downPts.current.length > 2500) downPts.current.shift();
@@ -134,11 +151,12 @@ export default function SpringMassSystem() {
 
       // Recompute response with updated omega
       const w = 2 * Math.PI * freqHz;
-      const fr = forcedResponse(k, m, zeta, w, 1);
+      const Yamp = (baseAmpPx / pxPerMeter);
+      const br = baseResponse(k, m, zeta, w, Yamp);
 
-      // Forced steady-state x_f (m), base y_b (m)
-      let xForced = fr.X * Math.sin(w * tsec - fr.phi);
-      let yb = (baseAmpPx / pxPerMeter) * Math.sin(w * tsec);
+      // Base-excited steady-state: base y_b drives mass x
+      let xForced = br.X * Math.sin(w * tsec + br.phi);
+      let yb = Yamp * Math.sin(w * tsec);
 
       // Free-vibration transient component x_free(t)
       let xFree = 0;
@@ -211,8 +229,8 @@ export default function SpringMassSystem() {
       const prev = prevFreqRef.current;
       if (freqHz !== prev && now - lastManualCaptureRef.current > 40) {
         lastManualCaptureRef.current = now;
-        const fr = forcedResponse(k, m, zeta, 2 * Math.PI * freqHz, 1);
-        const point = { f: freqHz, amp: fr.X, ph: fr.phi * 180 / Math.PI };
+        const br = baseResponse(k, m, zeta, 2 * Math.PI * freqHz, 1);
+        const point = { f: freqHz, amp: br.H, ph: br.phi * 180 / Math.PI };
         if (freqHz > prev) upPts.current.push(point); else downPts.current.push(point);
         if (upPts.current.length > 2500) upPts.current.shift();
         if (downPts.current.length > 2500) downPts.current.shift();
@@ -335,10 +353,11 @@ export default function SpringMassSystem() {
   const [sliderPadRight, setSliderPadRight] = useState<number>(defaultSliderPadRight);
   const defaultPlotWrapRef = useRef<HTMLDivElement | null>(null);
   const defaultPlotDivRef = useRef<HTMLDivElement | null>(null);
+  const activePlotDivRef = useRef<HTMLDivElement | null>(null);
   const sliderWrapRef = useRef<HTMLDivElement | null>(null);
   const updateSliderPads = (graphDiv?: HTMLDivElement) => {
     try {
-      const gd = graphDiv ?? defaultPlotDivRef.current;
+      const gd = graphDiv ?? activePlotDivRef.current;
       const sliderWrap = sliderWrapRef.current;
       if (!gd || !sliderWrap) return;
 
@@ -372,6 +391,10 @@ export default function SpringMassSystem() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+  // Re-align slider pads when switching tabs (after plot renders)
+  useEffect(() => {
+    requestAnimationFrame(() => requestAnimationFrame(() => updateSliderPads(activePlotDivRef.current || undefined)));
+  }, [activeTab]);
 
   // Model-based spectrum (amplitude vs frequency), with color gradient and damping-dependent peak width
   const spectrumModel = useMemo(() => {
@@ -382,8 +405,8 @@ export default function SpringMassSystem() {
     let yMax = 0;
     for (let i = 0; i < N; i++) {
       const fi = (i / (N - 1)) * fmax;
-      const fr = forcedResponse(k, m, zeta, 2 * Math.PI * fi, 1);
-      f[i] = fi; y[i] = fr.X; if (y[i] > yMax) yMax = y[i];
+      const br = baseResponse(k, m, zeta, 2 * Math.PI * fi, 1);
+      f[i] = fi; y[i] = br.H; if (y[i] > yMax) yMax = y[i];
     }
     return { f, y, yMax };
   }, [k, m, zeta, fn]);
@@ -485,19 +508,19 @@ export default function SpringMassSystem() {
                   <Plot
                     data={[spectrumTrace]}
                     layout={{ autosize: true, height: 260, uirevision: "fft", margin: PLOT_MARGINS as any, xaxis: { title: freqTitle, range: (freqUnits === 'Hz' ? ([0, 25] as any) : ([0, sliderMax] as any)), autorange: false }, yaxis: { title: '|X(f)| (m)', zeroline: false, showgrid: true, range: (fftYRange as any) ?? ([0, specYMax] as any), autorange: false }, shapes: [
-                      { type: 'line', x0: fnMark, x1: fnMark, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(220,38,38,0.8)', width: 1.5, dash: 'dot' } },
                       { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2.5 } }
                     ], annotations: [
-                      { x: fnMark, y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f_n', font: { size: 10, color: '#dc2626' } },
                       { x: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f', font: { size: 10, color: '#10b981' } }
                     ] }}
                     config={{ displayModeBar: false, responsive: true }} useResizeHandler style={{ width: '100%', height: 260 }}
                     onInitialized={(_fig, gd) => {
                       defaultPlotDivRef.current = gd;
+                      activePlotDivRef.current = gd;
                       requestAnimationFrame(() => requestAnimationFrame(() => updateSliderPads(gd)));
                     }}
                     onUpdate={(_fig, gd) => {
                       defaultPlotDivRef.current = gd;
+                      activePlotDivRef.current = gd;
                       requestAnimationFrame(() => requestAnimationFrame(() => updateSliderPads(gd)));
                     }}
                   />
@@ -513,6 +536,8 @@ export default function SpringMassSystem() {
                       { x: rtState.t, y: rtState.yb, type: 'scatter', mode: 'lines', line: { color: 'rgba(234,88,12,0.8)', width: 1, dash: 'dot' }, name: 'Base yb(t)' },
                     ]}
                     layout={{ autosize: true, height: 260, uirevision: "time", margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: 'Time (s)' }, yaxis: { title: 'Displacement (m)', zeroline: false, showgrid: true, range: [-timeYMax, timeYMax], autorange: false } }}
+                    onInitialized={(_fig, gd) => { activePlotDivRef.current = gd; requestAnimationFrame(() => requestAnimationFrame(() => updateSliderPads(gd))); }}
+                    onUpdate={(_fig, gd) => { activePlotDivRef.current = gd; requestAnimationFrame(() => requestAnimationFrame(() => updateSliderPads(gd))); }}
                     config={{ displayModeBar: false, responsive: true }} useResizeHandler style={{ width: '100%', height: 260 }}
                   />
                 </div>
@@ -532,12 +557,12 @@ export default function SpringMassSystem() {
                         ...(downPts.current.length ? [{ x: mapFreq(downPts.current.map(p => p.f)), y: downPts.current.map(p => p.amp), type: 'scatter', mode: 'lines', line: { color: 'rgba(236,72,153,0.9)', width: 2 }, name: 'Coast down' }] : []),
                       ]}
                       layout={{ autosize: true, height: 240, uirevision: "bode-amp", legend: {}, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Amplitude (m)', zeroline: false, showgrid: true, range: [0, bodeAmpMax || 1], autorange: false }, shapes: [
-                        { type: 'line', x0: fnMark, x1: fnMark, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(220,38,38,0.7)', width: 2, dash: 'dot' } },
                         { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2 } }
                       ], annotations: [
-                        { x: fnMark, y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f_n', font: { size: 10, color: '#dc2626' } },
                         { x: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f', font: { size: 10, color: '#10b981' } }
                       ] }}
+                      onInitialized={(_fig, gd) => { activePlotDivRef.current = gd; requestAnimationFrame(() => requestAnimationFrame(() => updateSliderPads(gd))); }}
+                      onUpdate={(_fig, gd) => { activePlotDivRef.current = gd; requestAnimationFrame(() => requestAnimationFrame(() => updateSliderPads(gd))); }}
                       config={{ displayModeBar: false, responsive: true }} useResizeHandler style={{ width: '100%', height: 240 }}
                     />
                   </div>
@@ -549,12 +574,12 @@ export default function SpringMassSystem() {
                         ...(downPts.current.length ? [{ x: mapFreq(downPts.current.map(p => p.f)), y: downPts.current.map(p => p.ph), type: 'scatter', mode: 'lines', line: { color: 'rgba(236,72,153,0.9)', width: 2 }, name: 'Coast down' }] : []),
                       ]}
                       layout={{ autosize: true, height: 240, uirevision: "bode-ph", legend: {}, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Phase (deg)', zeroline: false, showgrid: true, range: bodePhRange as any, autorange: false }, shapes: [
-                        { type: 'line', x0: fnMark, x1: fnMark, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(220,38,38,0.7)', width: 2, dash: 'dot' } },
                         { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2 } }
                       ], annotations: [
-                        { x: fnMark, y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f_n', font: { size: 10, color: '#dc2626' } },
                         { x: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f', font: { size: 10, color: '#10b981' } }
                       ] }}
+                      onInitialized={(_fig, gd) => { activePlotDivRef.current = gd; requestAnimationFrame(() => requestAnimationFrame(() => updateSliderPads(gd))); }}
+                      onUpdate={(_fig, gd) => { activePlotDivRef.current = gd; requestAnimationFrame(() => requestAnimationFrame(() => updateSliderPads(gd))); }}
                       config={{ displayModeBar: false, responsive: true }} useResizeHandler style={{ width: '100%', height: 240 }}
                     />
                   </div>
@@ -663,15 +688,16 @@ export default function SpringMassSystem() {
                         </g>
 
                         {/* Damper left column */}
-                        <line x1={xLeft} y1={topY + baseOffset} x2={xLeft} y2={topY + 28} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                        <line x1={xLeft} y1={topY + baseOffset} x2={xLeft} y2={topY + 28 + baseOffset} stroke={link} strokeWidth={6} strokeLinecap="round" />
                         {/* Cylinder and fluid */}
-                        <rect x={xLeft - 14} y={topY + 28} width={28} height={90} rx={3} fill={link} opacity={0.2} stroke={link} strokeOpacity={0.35} />
-                        <rect x={xLeft - 9} y={topY + 38} width={18} height={70} rx={2} fill={damperInnerColor} />
+                        <rect x={xLeft - 14} y={topY + 28 + baseOffset} width={28} height={90} rx={3} fill={link} opacity={0.2} stroke={link} strokeOpacity={0.35} />
+                        <rect x={xLeft - 9} y={topY + 38 + baseOffset} width={18} height={70} rx={2} fill={damperInnerColor} />
                         {/* Piston head and rod to attachY */}
                         {(() => {
-                          const cylTop = topY + 28;
+                          const cylTop = topY + 28 + baseOffset;
                           const cylHeight = 90;
-                          const headY = clamp(cylTop + 30 + xPx * 0.35, cylTop + 24, cylTop + cylHeight - 18);
+                          const relPx = xPx - basePx; // mass relative to base
+                          const headY = clamp(cylTop + 30 + relPx, cylTop + 24, cylTop + cylHeight - 18);
                           return (
                             <>
                               <rect x={xLeft - 12} y={headY} width={24} height={8} rx={1} fill={link} opacity={0.95} />
