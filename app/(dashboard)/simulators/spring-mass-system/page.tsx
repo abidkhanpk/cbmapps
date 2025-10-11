@@ -134,7 +134,8 @@ export default function SpringMassSystem() {
       if (sweeping) {
         const actualRate = normalSweepRate * clamp(sweepMult, 0.1, 5);
         let fNew = freqHz + sweepDir.current * actualRate * dt;
-        const fMin = 0; const fMax = Math.max(1, fn * 3);
+        const fMin = 0; 
+        const fMax = freqUnits === 'Hz' ? 25 : (fn > 0 ? fn * 3 : 25);
         if (fNew >= fMax) { sweepDir.current = -1; fNew = fMax; }
         if (fNew <= fMin) { sweepDir.current = 1; fNew = fMin; }
         setFreqHz(fNew); // keep slider enabled and responsive during sweep
