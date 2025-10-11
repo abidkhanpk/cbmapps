@@ -53,6 +53,17 @@ function baseRelativeResponse(k: number, m: number, zeta: number, omega: number,
   return { Xrel, phi, r, H };
 }
 
+// Phase (deg) helper for consistent plotting across modes
+function phaseDeg(k: number, m: number, zeta: number, omega: number) {
+  // Always use relative phase so that the lag across resonance is 180° and
+  // stays asymptotically at 180° for an ideal single-DOF base-excited system.
+  const { wn } = naturalFreq(k, m);
+  const r = wn > 0 ? omega / wn : 0;
+  let deg = Math.atan2(2 * zeta * r, 1 - r * r) * 180 / Math.PI;
+  if (!isFinite(deg)) deg = 0;
+  return Math.max(0, Math.min(200, deg));
+}
+
 export default function SpringMassSystem() {
   // Tailwind readiness via runtime CDN injection
   const [twReady, setTwReady] = useState(false);
@@ -112,14 +123,14 @@ export default function SpringMassSystem() {
     for (let i = 0; i < N; i++) {
       const fi = (i / (N - 1)) * fmax; const om = 2 * Math.PI * fi;
       const br = (ampMode === 'relative') ? baseRelativeResponse(k, m, zeta, om, 1) : baseResponse(k, m, zeta, om, 1);
-      const phDeg = -(br.phi * 180 / Math.PI);
-      f[i] = fi; amp[i] = br.H; ph[i] = phDeg;
+      const phd = phaseDeg(k, m, zeta, om);
+      f[i] = fi; amp[i] = br.H; ph[i] = phd;
     }
     return { f, amp, ph };
   }, [k, m, zeta, fn, ampMode]);
   // Fixed Y ranges for Bode plots (disable autoscale)
   const bodeAmpMax = useMemo(() => (bode.amp && bode.amp.length ? bode.amp.reduce((a, b) => (b > a ? b : a), 0) : 1), [bode]);
-  const bodePhRange = useMemo(() => (ampMode === 'relative' ? [0, 180] : [0, 90]) as [number, number], [ampMode]);
+  const bodePhRange = useMemo(() => [0, 200] as [number, number], []);
 
   // Sweep capture - Single trace mode (default) vs Multi-trace mode
   const [singleTraceMode, setSingleTraceMode] = useState(true);
@@ -178,7 +189,8 @@ export default function SpringMassSystem() {
         if (ts - lastCapture.current > 40) {
           lastCapture.current = ts;
           const br = (ampMode === 'relative') ? baseRelativeResponse(k, m, zeta, 2 * Math.PI * fNew, 1) : baseResponse(k, m, zeta, 2 * Math.PI * fNew, 1);
-          const point = { f: fNew, amp: br.H, ph: -(br.phi * 180 / Math.PI) };
+          const phd = phaseDeg(k, m, zeta, 2 * Math.PI * fNew);
+          const point = { f: fNew, amp: br.H, ph: phd };
           
           if (singleTraceMode) {
             // Single trace: add break point (NaN) when direction changes
@@ -281,7 +293,8 @@ export default function SpringMassSystem() {
       if (freqHz !== prev && now - lastManualCaptureRef.current > 40) {
         lastManualCaptureRef.current = now;
         const br = (ampMode === 'relative') ? baseRelativeResponse(k, m, zeta, 2 * Math.PI * freqHz, 1) : baseResponse(k, m, zeta, 2 * Math.PI * freqHz, 1);
-        const point = { f: freqHz, amp: br.H, ph: -(br.phi * 180 / Math.PI) };
+        const phd = phaseDeg(k, m, zeta, 2 * Math.PI * freqHz);
+        const point = { f: freqHz, amp: br.H, ph: phd };
         
         // Detect direction change in manual mode
         const currentDir: 1 | -1 = freqHz > prev ? 1 : -1;
@@ -749,7 +762,7 @@ export default function SpringMassSystem() {
                             }))
                         )
                       ]}
-                      layout={{ autosize: true, height: 240, uirevision: bodeRevision as any, legend: {}, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRangeState as any, autorange: false }, yaxis: { title: 'Phase (deg)', zeroline: false, showgrid: true, range: bodePhRange as any, autorange: false }, shapes: [
+                      layout={{ autosize: true, height: 240, uirevision: bodeRevision as any, legend: {}, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRangeState as any, autorange: false }, yaxis: { title: 'Phase (deg)', zeroline: false, showgrid: true, range: [0, 200], autorange: false }, shapes: [
                         { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2 } }
                       ], annotations: [
                         { x: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f', font: { size: 10, color: '#10b981' } }
