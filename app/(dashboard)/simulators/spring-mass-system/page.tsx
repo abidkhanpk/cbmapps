@@ -338,6 +338,23 @@ export default function SpringMassSystem() {
   const [activeTab, setActiveTab] = useState<'fft' | 'time' | 'bode'>('fft');
   const [freqUnits, setFreqUnits] = useState<'Hz' | 'ratio'>('Hz');
   const [sweepVersion, setSweepVersion] = useState(0); // force re-render on clear
+
+  // Shared Bode x-axis range and revision for syncing amp/phase plots
+  const [bodeXRangeState, setBodeXRangeState] = useState<[number, number]>([0, 25]);
+  const [bodeRevision, setBodeRevision] = useState<number>(0);
+  useEffect(() => {
+    // Reset to defaults on units toggle
+    setBodeXRangeState(freqUnits === 'Hz' ? [0, 25] : [0, 3]);
+    setBodeRevision(r => r + 1);
+  }, [freqUnits]);
+
+  const applyBodeRange = (x0: number, x1: number) => {
+    if (!isFinite(x0) || !isFinite(x1)) return;
+    const [cx0, cx1] = bodeXRangeState;
+    if (Math.abs(x0 - cx0) < 1e-6 && Math.abs(x1 - cx1) < 1e-6) return;
+    setBodeXRangeState([x0, x1]);
+    setBodeRevision(r => r + 1);
+  };
   // Persistent axis ranges (avoid autoscaling to tiny values)
   const timeYMaxRef = useRef<number>(0.05);
   const [timeYMax, setTimeYMax] = useState<number>(0.05);
@@ -412,7 +429,7 @@ export default function SpringMassSystem() {
   const mapFreq = (arr: number[]) => freqUnits === 'Hz' ? arr : arr.map(v => fn > 0 ? v / fn : 0);
   const freqTitle = freqUnits === 'Hz' ? 'Frequency (Hz)' : 'Frequency Ratio (f/f_n)';
   const fnMark = freqUnits === 'Hz' ? fn : 1;
-  const bodeXRange = freqUnits === 'Hz' ? [0, Math.max(1, fn * 3)] : [0, 3];
+  // Bode x-axis range is controlled by synchronized state bodeXRangeState
   // Forcing frequency slider range aligned with Default plot
   const sliderMin = 0;
   const sliderMax = freqUnits === 'Hz' ? 25 : 3;
@@ -666,13 +683,24 @@ export default function SpringMassSystem() {
                             }))
                         )
                       ]}
-                      layout={{ autosize: true, height: 240, uirevision: "bode-amp", legend: {}, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Transmissibility (|X - Y| / |Y|)', zeroline: false, showgrid: true, range: [0, bodeAmpMax || 1], autorange: false }, shapes: [
+                      layout={{ autosize: true, height: 240, uirevision: bodeRevision as any, legend: {}, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRangeState as any, autorange: false }, yaxis: { title: 'Transmissibility (|X - Y| / |Y|)', zeroline: false, showgrid: true, range: [0, bodeAmpMax || 1], autorange: false }, shapes: [
                         { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2 } }
                       ], annotations: [
                         { x: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f', font: { size: 10, color: '#10b981' } }
                       ] }}
                       onInitialized={(_fig, gd) => { activePlotDivRef.current = gd; requestAnimationFrame(() => requestAnimationFrame(() => updateSliderPads(gd))); }}
                       onUpdate={(_fig, gd) => { activePlotDivRef.current = gd; requestAnimationFrame(() => requestAnimationFrame(() => updateSliderPads(gd))); }}
+                      onRelayout={(ev: any) => {
+                        const x0 = ev && (ev['xaxis.range[0]'] as number);
+                        const x1 = ev && (ev['xaxis.range[1]'] as number);
+                        const auto = ev && ev['xaxis.autorange'];
+                        if (typeof x0 === 'number' && typeof x1 === 'number') {
+                          applyBodeRange(x0, x1);
+                        } else if (auto) {
+                          const d = freqUnits === 'Hz' ? [0, 25] : [0, 3];
+                          applyBodeRange(d[0], d[1]);
+                        }
+                      }}
                       config={{ displayModeBar: false, responsive: true }} useResizeHandler style={{ width: '100%', height: 240 }}
                     />
                   </div>
@@ -703,13 +731,24 @@ export default function SpringMassSystem() {
                             }))
                         )
                       ]}
-                      layout={{ autosize: true, height: 240, uirevision: "bode-ph", legend: {}, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Phase (deg)', zeroline: false, showgrid: true, range: bodePhRange as any, autorange: false }, shapes: [
+                      layout={{ autosize: true, height: 240, uirevision: bodeRevision as any, legend: {}, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRangeState as any, autorange: false }, yaxis: { title: 'Phase (deg)', zeroline: false, showgrid: true, range: bodePhRange as any, autorange: false }, shapes: [
                         { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2 } }
                       ], annotations: [
                         { x: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f', font: { size: 10, color: '#10b981' } }
                       ] }}
                       onInitialized={(_fig, gd) => { activePlotDivRef.current = gd; requestAnimationFrame(() => requestAnimationFrame(() => updateSliderPads(gd))); }}
                       onUpdate={(_fig, gd) => { activePlotDivRef.current = gd; requestAnimationFrame(() => requestAnimationFrame(() => updateSliderPads(gd))); }}
+                      onRelayout={(ev: any) => {
+                        const x0 = ev && (ev['xaxis.range[0]'] as number);
+                        const x1 = ev && (ev['xaxis.range[1]'] as number);
+                        const auto = ev && ev['xaxis.autorange'];
+                        if (typeof x0 === 'number' && typeof x1 === 'number') {
+                          applyBodeRange(x0, x1);
+                        } else if (auto) {
+                          const d = freqUnits === 'Hz' ? [0, 25] : [0, 3];
+                          applyBodeRange(d[0], d[1]);
+                        }
+                      }}
                       config={{ displayModeBar: false, responsive: true }} useResizeHandler style={{ width: '100%', height: 240 }}
                     />
                   </div>

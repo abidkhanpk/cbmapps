@@ -12,6 +12,7 @@ declare module 'react-plotly.js' {
     onInitialized?: (figure: unknown, graphDiv: HTMLDivElement) => void;
     onUpdate?: (figure: unknown, graphDiv: HTMLDivElement) => void;
     onPurge?: (graphDiv: HTMLDivElement) => void;
+    onRelayout?: (event: unknown) => void;
   }
 
   const Plot: React.FC<PlotParams>;
