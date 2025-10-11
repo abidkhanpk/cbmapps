@@ -98,7 +98,29 @@ export default function SpringMassSystem() {
   const [freqUnits, setFreqUnits] = useState<'Hz' | 'ratio'>('Hz');
   // Base amplitude of the base excitation (meters). Default keeps previous behavior (6 px at 250 px/m)
   const [baseAmp, setBaseAmp] = useState<number>(6 / 250);
-  
+  const baseAmpMax = 0.4; // up to 0.4 m for a visibly larger effect
+  const knobRef = useRef<HTMLDivElement | null>(null);
+  const draggingRef = useRef<boolean>(false);
+  const angleRange = { min: -135, max: 135 } as const;
+  const angleFromBaseAmp = (v: number) => angleRange.min + (Math.max(0, Math.min(baseAmpMax, v)) / baseAmpMax) * (angleRange.max - angleRange.min);
+  const baseAmpFromAngle = (deg: number) => {
+    const t = (deg - angleRange.min) / (angleRange.max - angleRange.min);
+    return Math.max(0, Math.min(1, t)) * baseAmpMax;
+  };
+  const updateBaseAmpFromEvent = (ev: any) => {
+    try {
+      const el = knobRef.current; if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2; const cy = rect.top + rect.height / 2;
+      const clientX = ev?.clientX ?? ev?.touches?.[0]?.clientX ?? 0;
+      const clientY = ev?.clientY ?? ev?.touches?.[0]?.clientY ?? 0;
+      const dx = clientX - cx; const dy = clientY - cy;
+      let deg = Math.atan2(dy, dx) * 180 / Math.PI;
+      deg = Math.max(angleRange.min, Math.min(angleRange.max, deg));
+      setBaseAmp(baseAmpFromAngle(deg));
+    } catch {}
+  };
+    
   // Run/Pause & sweep
   const [running, setRunning] = useState(true);
   const [sweeping, setSweeping] = useState(false);
@@ -298,7 +320,7 @@ export default function SpringMassSystem() {
     };
     raf = requestAnimationFrame(loop);
     return () => { if (raf) cancelAnimationFrame(raf); };
-  }, [running, sweeping, sweepMult, freqHz, k, m, zeta, fn]);
+  }, [running, sweeping, sweepMult, freqHz, k, m, zeta, fn, baseAmp]);
 
   // Capture coast-up/down traces even when sweep is off and user changes frequency
   useEffect(() => {
@@ -830,12 +852,20 @@ export default function SpringMassSystem() {
                   </div>
                 </div>
 
-                <div>
+                <div style={{ paddingLeft: sliderPadLeft, paddingRight: sliderPadRight }}>
                   <div className="flex items-end justify-between mt-2">
-                    <label className="block text-sm font-medium">Base amplitude (m)</label>
+                    <label className="block text-sm font-medium">Base amplitude</label>
                     <div className="text-xs text-gray-600">{baseAmp.toFixed(4)}</div>
                   </div>
-                  <input type="range" min={0} max={0.1} step={0.001} value={baseAmp} onChange={e => setBaseAmp(Number(e.target.value))} className="mt-1 w-full" />
+                  <input
+                    type="range"
+                    min={0}
+                    max={baseAmpMax}
+                    step={0.001}
+                    value={baseAmp}
+                    onChange={(e) => setBaseAmp(Number(e.target.value))}
+                    className="mt-1 w-full"
+                  />
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
