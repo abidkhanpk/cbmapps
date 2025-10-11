@@ -325,8 +325,7 @@ export default function SpringMassSystem() {
         }
       }
 
-      // If nudge animation is active, show pure free response (no forcing/base)
-      if (nudgeActiveRef.current) { xForced = 0; yb = 0; }
+      // If nudge animation is active, superimpose free response with forcing; keep base sinusoid
 
       const xTotal = xForced + xFree; // meters
 
