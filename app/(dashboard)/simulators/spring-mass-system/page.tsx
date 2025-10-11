@@ -111,12 +111,15 @@ export default function SpringMassSystem() {
     return [min, max] as [number, number];
   }, [bode]);
 
-  // Sweep capture (coast up/down)
-  const upPts = useRef<{ f: number; amp: number; ph: number; }[]>([]);
-  const downPts = useRef<{ f: number; amp: number; ph: number; }[]>([]);
+  // Sweep capture - Single trace mode (default) vs Multi-trace mode
+  const [singleTraceMode, setSingleTraceMode] = useState(true);
+  const allPts = useRef<{ f: number; amp: number; ph: number }[]>([]);
+  const multiTraces = useRef<{ f: number; amp: number; ph: number }[][]>([]);
+  const currentTraceIdx = useRef<number>(0);
   const lastCapture = useRef<number>(0);
   const prevFreqRef = useRef<number>(freqHz);
   const lastManualCaptureRef = useRef<number>(0);
+  const lastSweepDir = useRef<1 | -1>(1);
 
   // Animation + real-time generation
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -136,17 +139,46 @@ export default function SpringMassSystem() {
         let fNew = freqHz + sweepDir.current * actualRate * dt;
         const fMin = 0; 
         const fMax = freqUnits === 'Hz' ? 25 : (fn > 0 ? fn * 3 : 25);
+        const prevDir = sweepDir.current;
         if (fNew >= fMax) { sweepDir.current = -1; fNew = fMax; }
         if (fNew <= fMin) { sweepDir.current = 1; fNew = fMin; }
+        
+        // Detect direction change
+        if (prevDir !== sweepDir.current) {
+          lastSweepDir.current = sweepDir.current;
+          if (!singleTraceMode) {
+            // Start a new trace in multi-trace mode
+            currentTraceIdx.current++;
+            if (!multiTraces.current[currentTraceIdx.current]) {
+              multiTraces.current[currentTraceIdx.current] = [];
+            }
+          }
+        }
+        
         setFreqHz(fNew); // keep slider enabled and responsive during sweep
         // capture sweep traces
         if (ts - lastCapture.current > 40) {
           lastCapture.current = ts;
           const br = baseResponse(k, m, zeta, 2 * Math.PI * fNew, 1);
           const point = { f: fNew, amp: br.H, ph: br.phi * 180 / Math.PI };
-          if (sweepDir.current > 0) upPts.current.push(point); else downPts.current.push(point);
-          if (upPts.current.length > 2500) upPts.current.shift();
-          if (downPts.current.length > 2500) downPts.current.shift();
+          
+          if (singleTraceMode) {
+            // Single trace: add break point (NaN) when direction changes
+            if (prevDir !== sweepDir.current && allPts.current.length > 0) {
+              allPts.current.push({ f: NaN, amp: NaN, ph: NaN });
+            }
+            allPts.current.push(point);
+            if (allPts.current.length > 5000) allPts.current.shift();
+          } else {
+            // Multi-trace mode: separate traces for each run
+            if (!multiTraces.current[currentTraceIdx.current]) {
+              multiTraces.current[currentTraceIdx.current] = [];
+            }
+            multiTraces.current[currentTraceIdx.current].push(point);
+            if (multiTraces.current[currentTraceIdx.current].length > 2500) {
+              multiTraces.current[currentTraceIdx.current].shift();
+            }
+          }
         }
       }
 
@@ -232,13 +264,43 @@ export default function SpringMassSystem() {
         lastManualCaptureRef.current = now;
         const br = baseResponse(k, m, zeta, 2 * Math.PI * freqHz, 1);
         const point = { f: freqHz, amp: br.H, ph: br.phi * 180 / Math.PI };
-        if (freqHz > prev) upPts.current.push(point); else downPts.current.push(point);
-        if (upPts.current.length > 2500) upPts.current.shift();
-        if (downPts.current.length > 2500) downPts.current.shift();
+        
+        // Detect direction change in manual mode
+        const currentDir: 1 | -1 = freqHz > prev ? 1 : -1;
+        const dirChanged = lastSweepDir.current !== currentDir;
+        
+        if (dirChanged) {
+          lastSweepDir.current = currentDir;
+          if (!singleTraceMode) {
+            // Start a new trace in multi-trace mode
+            currentTraceIdx.current++;
+            if (!multiTraces.current[currentTraceIdx.current]) {
+              multiTraces.current[currentTraceIdx.current] = [];
+            }
+          }
+        }
+        
+        if (singleTraceMode) {
+          // Single trace: add break point when direction changes
+          if (dirChanged && allPts.current.length > 0) {
+            allPts.current.push({ f: NaN, amp: NaN, ph: NaN });
+          }
+          allPts.current.push(point);
+          if (allPts.current.length > 5000) allPts.current.shift();
+        } else {
+          // Multi-trace mode
+          if (!multiTraces.current[currentTraceIdx.current]) {
+            multiTraces.current[currentTraceIdx.current] = [];
+          }
+          multiTraces.current[currentTraceIdx.current].push(point);
+          if (multiTraces.current[currentTraceIdx.current].length > 2500) {
+            multiTraces.current[currentTraceIdx.current].shift();
+          }
+        }
       }
     }
     prevFreqRef.current = freqHz;
-  }, [freqHz, sweeping, k, m, zeta]);
+  }, [freqHz, sweeping, k, m, zeta, singleTraceMode]);
 
   // Visual mappings
   const springStroke = useMemo(() => {
@@ -547,15 +609,49 @@ export default function SpringMassSystem() {
               {/* Bode Tab */}
               {activeTab === 'bode' && (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-end gap-2 text-sm">
-                    <button className="px-2.5 py-1 rounded border border-gray-300 bg-white" onClick={() => { upPts.current = []; downPts.current = []; setSweepVersion(v => v + 1); }}>Clear sweep area</button>
+                  <div className="flex items-center justify-between gap-2 text-sm">
+                    <label className="inline-flex items-center gap-2 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={singleTraceMode} 
+                        onChange={(e) => setSingleTraceMode(e.target.checked)}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-sm">Single trace mode</span>
+                    </label>
+                    <button className="px-2.5 py-1 rounded border border-gray-300 bg-white" onClick={() => { 
+                      allPts.current = [];
+                      multiTraces.current = [];
+                      currentTraceIdx.current = 0;
+                      setSweepVersion(v => v + 1); 
+                    }}>Clear sweep area</button>
                   </div>
                   <div className="bg-white rounded border border-gray-200 p-2 relative overflow-hidden">
                     <Plot
+                      key={`amp-${sweepVersion}`}
                       data={[
                         { x: mapFreq(bode.f), y: bode.amp, type: 'scatter', mode: 'lines', line: { color: 'rgba(2,132,199,1)', width: 2 }, name: 'Amplitude (model)', visible: 'legendonly' },
-                        ...(upPts.current.length ? [{ x: mapFreq(upPts.current.map(p => p.f)), y: upPts.current.map(p => p.amp), type: 'scatter', mode: 'lines', line: { color: 'rgba(99,102,241,0.9)', width: 2 }, name: 'Coast up' }] : []),
-                        ...(downPts.current.length ? [{ x: mapFreq(downPts.current.map(p => p.f)), y: downPts.current.map(p => p.amp), type: 'scatter', mode: 'lines', line: { color: 'rgba(236,72,153,0.9)', width: 2 }, name: 'Coast down' }] : []),
+                        ...(singleTraceMode 
+                          ? (allPts.current.length ? [{
+                              x: mapFreq(allPts.current.map(p => p.f)),
+                              y: allPts.current.map(p => p.amp),
+                              type: 'scatter',
+                              mode: 'lines',
+                              line: { color: 'rgba(99,102,241,0.9)', width: 2 },
+                              name: 'Sweep trace'
+                            }] : [])
+                          : multiTraces.current.filter(t => t && t.length > 0).map((trace, idx) => ({
+                              x: mapFreq(trace.map(p => p.f)),
+                              y: trace.map(p => p.amp),
+                              type: 'scatter',
+                              mode: 'lines',
+                              line: { 
+                                color: idx % 2 === 0 ? 'rgba(99,102,241,0.9)' : 'rgba(236,72,153,0.9)', 
+                                width: 2 
+                              },
+                              name: `Run ${idx + 1}`
+                            }))
+                        )
                       ]}
                       layout={{ autosize: true, height: 240, uirevision: "bode-amp", legend: {}, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Amplitude (m)', zeroline: false, showgrid: true, range: [0, bodeAmpMax || 1], autorange: false }, shapes: [
                         { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2 } }
@@ -569,10 +665,30 @@ export default function SpringMassSystem() {
                   </div>
                   <div className="bg-white rounded border border-gray-200 p-2 relative overflow-hidden">
                     <Plot
+                      key={`ph-${sweepVersion}`}
                       data={[
                         { x: mapFreq(bode.f), y: bode.ph, type: 'scatter', mode: 'lines', line: { color: 'rgba(234,88,12,1)', width: 2 }, name: 'Phase (model)', visible: 'legendonly' },
-                        ...(upPts.current.length ? [{ x: mapFreq(upPts.current.map(p => p.f)), y: upPts.current.map(p => p.ph), type: 'scatter', mode: 'lines', line: { color: 'rgba(99,102,241,0.9)', width: 2 }, name: 'Coast up' }] : []),
-                        ...(downPts.current.length ? [{ x: mapFreq(downPts.current.map(p => p.f)), y: downPts.current.map(p => p.ph), type: 'scatter', mode: 'lines', line: { color: 'rgba(236,72,153,0.9)', width: 2 }, name: 'Coast down' }] : []),
+                        ...(singleTraceMode 
+                          ? (allPts.current.length ? [{
+                              x: mapFreq(allPts.current.map(p => p.f)),
+                              y: allPts.current.map(p => p.ph),
+                              type: 'scatter',
+                              mode: 'lines',
+                              line: { color: 'rgba(99,102,241,0.9)', width: 2 },
+                              name: 'Sweep trace'
+                            }] : [])
+                          : multiTraces.current.filter(t => t && t.length > 0).map((trace, idx) => ({
+                              x: mapFreq(trace.map(p => p.f)),
+                              y: trace.map(p => p.ph),
+                              type: 'scatter',
+                              mode: 'lines',
+                              line: { 
+                                color: idx % 2 === 0 ? 'rgba(99,102,241,0.9)' : 'rgba(236,72,153,0.9)', 
+                                width: 2 
+                              },
+                              name: `Run ${idx + 1}`
+                            }))
+                        )
                       ]}
                       layout={{ autosize: true, height: 240, uirevision: "bode-ph", legend: {}, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Phase (deg)', zeroline: false, showgrid: true, range: bodePhRange as any, autorange: false }, shapes: [
                         { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2 } }
