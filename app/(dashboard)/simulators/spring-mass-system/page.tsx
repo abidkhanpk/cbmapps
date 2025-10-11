@@ -40,6 +40,19 @@ function baseResponse(k: number, m: number, zeta: number, omega: number, Y = 1) 
   return { X, phi, r, H };
 }
 
+function baseRelativeResponse(k: number, m: number, zeta: number, omega: number, Y = 1) {
+  const { wn } = naturalFreq(k, m);
+  const r = wn > 0 ? omega / wn : 0;
+  // H_rel(ω) = (X - Y)/Y = r^2 / (1 - r^2 + i 2ζr)
+  const denRe = 1 - r * r;
+  const denIm = 2 * zeta * r;
+  const denMag = Math.hypot(denRe, denIm);
+  const H = (r * r) / Math.max(denMag, 1e-12);
+  const phi = -Math.atan2(denIm, denRe); // phase of (X-Y) relative to Y
+  const Xrel = H * Y;
+  return { Xrel, phi, r, H };
+}
+
 export default function SpringMassSystem() {
   // Tailwind readiness via runtime CDN injection
   const [twReady, setTwReady] = useState(false);
@@ -96,7 +109,7 @@ export default function SpringMassSystem() {
     const N = 600; const f: number[] = new Array(N); const amp: number[] = new Array(N); const ph: number[] = new Array(N);
     for (let i = 0; i < N; i++) {
       const fi = (i / (N - 1)) * fmax; const om = 2 * Math.PI * fi;
-      const br = baseResponse(k, m, zeta, om, 1);
+      const br = baseRelativeResponse(k, m, zeta, om, 1);
       f[i] = fi; amp[i] = br.H; ph[i] = br.phi * 180 / Math.PI;
     }
     return { f, amp, ph };
@@ -159,7 +172,7 @@ export default function SpringMassSystem() {
         // capture sweep traces
         if (ts - lastCapture.current > 40) {
           lastCapture.current = ts;
-          const br = baseResponse(k, m, zeta, 2 * Math.PI * fNew, 1);
+          const br = baseRelativeResponse(k, m, zeta, 2 * Math.PI * fNew, 1);
           const point = { f: fNew, amp: br.H, ph: br.phi * 180 / Math.PI };
           
           if (singleTraceMode) {
@@ -262,7 +275,7 @@ export default function SpringMassSystem() {
       const prev = prevFreqRef.current;
       if (freqHz !== prev && now - lastManualCaptureRef.current > 40) {
         lastManualCaptureRef.current = now;
-        const br = baseResponse(k, m, zeta, 2 * Math.PI * freqHz, 1);
+        const br = baseRelativeResponse(k, m, zeta, 2 * Math.PI * freqHz, 1);
         const point = { f: freqHz, amp: br.H, ph: br.phi * 180 / Math.PI };
         
         // Detect direction change in manual mode
@@ -653,7 +666,7 @@ export default function SpringMassSystem() {
                             }))
                         )
                       ]}
-                      layout={{ autosize: true, height: 240, uirevision: "bode-amp", legend: {}, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Amplitude (m)', zeroline: false, showgrid: true, range: [0, bodeAmpMax || 1], autorange: false }, shapes: [
+                      layout={{ autosize: true, height: 240, uirevision: "bode-amp", legend: {}, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRange as any }, yaxis: { title: 'Transmissibility (|X - Y| / |Y|)', zeroline: false, showgrid: true, range: [0, bodeAmpMax || 1], autorange: false }, shapes: [
                         { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2 } }
                       ], annotations: [
                         { x: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f', font: { size: 10, color: '#10b981' } }
