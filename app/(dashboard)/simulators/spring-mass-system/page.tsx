@@ -81,6 +81,8 @@ export default function SpringMassSystem() {
   // Forcing frequency (Hz) applied to base
   const [freqHz, setFreqHz] = useState<number>(0);
   const omega = 2 * Math.PI * freqHz;
+  // Amplitude mode: absolute (|X|/|Y|) or relative (|X - Y|/|Y|)
+  const [ampMode, setAmpMode] = useState<'relative' | 'absolute'>('absolute');
 
   // Run/Pause & sweep
   const [running, setRunning] = useState(true);
@@ -109,20 +111,15 @@ export default function SpringMassSystem() {
     const N = 600; const f: number[] = new Array(N); const amp: number[] = new Array(N); const ph: number[] = new Array(N);
     for (let i = 0; i < N; i++) {
       const fi = (i / (N - 1)) * fmax; const om = 2 * Math.PI * fi;
-      const br = baseRelativeResponse(k, m, zeta, om, 1);
-      f[i] = fi; amp[i] = br.H; ph[i] = br.phi * 180 / Math.PI;
+      const br = (ampMode === 'relative') ? baseRelativeResponse(k, m, zeta, om, 1) : baseResponse(k, m, zeta, om, 1);
+      const phDeg = -(br.phi * 180 / Math.PI);
+      f[i] = fi; amp[i] = br.H; ph[i] = phDeg;
     }
     return { f, amp, ph };
-  }, [k, m, zeta, fn]);
+  }, [k, m, zeta, fn, ampMode]);
   // Fixed Y ranges for Bode plots (disable autoscale)
   const bodeAmpMax = useMemo(() => (bode.amp && bode.amp.length ? bode.amp.reduce((a, b) => (b > a ? b : a), 0) : 1), [bode]);
-  const bodePhRange = useMemo(() => {
-    if (!bode.ph || !bode.ph.length) return [-180, 180] as [number, number];
-    let min = Infinity, max = -Infinity;
-    for (const v of bode.ph) { if (v < min) min = v; if (v > max) max = v; }
-    if (!isFinite(min) || !isFinite(max)) return [-180, 180] as [number, number];
-    return [min, max] as [number, number];
-  }, [bode]);
+  const bodePhRange = useMemo(() => (ampMode === 'relative' ? [0, 180] : [0, 90]) as [number, number], [ampMode]);
 
   // Sweep capture - Single trace mode (default) vs Multi-trace mode
   const [singleTraceMode, setSingleTraceMode] = useState(true);
@@ -133,6 +130,14 @@ export default function SpringMassSystem() {
   const prevFreqRef = useRef<number>(freqHz);
   const lastManualCaptureRef = useRef<number>(0);
   const lastSweepDir = useRef<1 | -1>(1);
+
+  // Reset sweep traces when amplitude mode changes to avoid mixing modes
+  useEffect(() => {
+    allPts.current = [];
+    multiTraces.current = [];
+    currentTraceIdx.current = 0;
+    setSweepVersion(v => v + 1);
+  }, [ampMode]);
 
   // Animation + real-time generation
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -172,8 +177,8 @@ export default function SpringMassSystem() {
         // capture sweep traces
         if (ts - lastCapture.current > 40) {
           lastCapture.current = ts;
-          const br = baseRelativeResponse(k, m, zeta, 2 * Math.PI * fNew, 1);
-          const point = { f: fNew, amp: br.H, ph: br.phi * 180 / Math.PI };
+          const br = (ampMode === 'relative') ? baseRelativeResponse(k, m, zeta, 2 * Math.PI * fNew, 1) : baseResponse(k, m, zeta, 2 * Math.PI * fNew, 1);
+          const point = { f: fNew, amp: br.H, ph: -(br.phi * 180 / Math.PI) };
           
           if (singleTraceMode) {
             // Single trace: add break point (NaN) when direction changes
@@ -275,8 +280,8 @@ export default function SpringMassSystem() {
       const prev = prevFreqRef.current;
       if (freqHz !== prev && now - lastManualCaptureRef.current > 40) {
         lastManualCaptureRef.current = now;
-        const br = baseRelativeResponse(k, m, zeta, 2 * Math.PI * freqHz, 1);
-        const point = { f: freqHz, amp: br.H, ph: br.phi * 180 / Math.PI };
+        const br = (ampMode === 'relative') ? baseRelativeResponse(k, m, zeta, 2 * Math.PI * freqHz, 1) : baseResponse(k, m, zeta, 2 * Math.PI * freqHz, 1);
+        const point = { f: freqHz, amp: br.H, ph: -(br.phi * 180 / Math.PI) };
         
         // Detect direction change in manual mode
         const currentDir: 1 | -1 = freqHz > prev ? 1 : -1;
@@ -313,7 +318,7 @@ export default function SpringMassSystem() {
       }
     }
     prevFreqRef.current = freqHz;
-  }, [freqHz, sweeping, k, m, zeta, singleTraceMode]);
+  }, [freqHz, sweeping, k, m, zeta, singleTraceMode, ampMode]);
 
   // Visual mappings
   const springStroke = useMemo(() => {
@@ -640,15 +645,28 @@ export default function SpringMassSystem() {
               {activeTab === 'bode' && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-2 text-sm">
-                    <label className="inline-flex items-center gap-2 cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        checked={singleTraceMode} 
-                        onChange={(e) => setSingleTraceMode(e.target.checked)}
-                        className="w-4 h-4"
-                      />
-                      <span className="text-sm">Single trace mode</span>
-                    </label>
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span>Amplitude:</span>
+                        <label className="inline-flex items-center gap-1 cursor-pointer">
+                          <input type="radio" name="ampMode" checked={ampMode === 'absolute'} onChange={() => setAmpMode('absolute')} />
+                          <span>Amplitude Ratio (|X|/|Y|)</span>
+                        </label>
+                        <label className="inline-flex items-center gap-1 cursor-pointer">
+                          <input type="radio" name="ampMode" checked={ampMode === 'relative'} onChange={() => setAmpMode('relative')} />
+                          <span>Relative Amplitude (|X−Y|/|Y|)</span>
+                        </label>
+                      </div>
+                      <label className="inline-flex items-center gap-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={singleTraceMode} 
+                          onChange={(e) => setSingleTraceMode(e.target.checked)}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">Single trace mode</span>
+                      </label>
+                    </div>
                     <button className="px-2.5 py-1 rounded border border-gray-300 bg-white" onClick={() => { 
                       allPts.current = [];
                       multiTraces.current = [];
@@ -683,7 +701,7 @@ export default function SpringMassSystem() {
                             }))
                         )
                       ]}
-                      layout={{ autosize: true, height: 240, uirevision: bodeRevision as any, legend: {}, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRangeState as any, autorange: false }, yaxis: { title: 'Transmissibility (|X - Y| / |Y|)', zeroline: false, showgrid: true, range: [0, bodeAmpMax || 1], autorange: false }, shapes: [
+                      layout={{ autosize: true, height: 240, uirevision: bodeRevision as any, legend: {}, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRangeState as any, autorange: false }, yaxis: { title: (ampMode === 'relative' ? 'Relative displacement ratio (|X - Y| / |Y|)' : 'Amplitude ratio (|X| / |Y|)'), zeroline: false, showgrid: true, range: [0, bodeAmpMax || 1], autorange: false }, shapes: [
                         { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2 } }
                       ], annotations: [
                         { x: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f', font: { size: 10, color: '#10b981' } }
