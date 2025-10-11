@@ -94,13 +94,18 @@ export default function SpringMassSystem() {
   const omega = 2 * Math.PI * freqHz;
   // Amplitude mode: absolute (|X|/|Y|) or relative (|X - Y|/|Y|)
   const [ampMode, setAmpMode] = useState<'relative' | 'absolute'>('absolute');
-
+  // Units: Hz or f/fn
+  const [freqUnits, setFreqUnits] = useState<'Hz' | 'ratio'>('Hz');
+  // Base amplitude of the base excitation (meters). Default keeps previous behavior (6 px at 250 px/m)
+  const [baseAmp, setBaseAmp] = useState<number>(6 / 250);
+  
   // Run/Pause & sweep
   const [running, setRunning] = useState(true);
   const [sweeping, setSweeping] = useState(false);
   const [sweepMult, setSweepMult] = useState(1); // 0.1..2 (x normal)
   const normalSweepRate = 0.2; // Hz/s baseline (slow). 0.1x => 0.02 Hz/s, 2x => 0.4 Hz/s
   const sweepDir = useRef<1 | -1>(1);
+  const nextSweepDirRef = useRef<1 | -1>(1);
 
   // Real-time waveform buffer (meters)
   const rtRef = useRef<{ t: number[]; x: number[]; yb: number[] }>({ t: [], x: [], yb: [] });
@@ -118,7 +123,7 @@ export default function SpringMassSystem() {
 
   // Bode precomputed curve (amp & phase)
   const bode = useMemo(() => {
-    const fmax = Math.max(1, fn * 3);
+    const fmax = (freqUnits === 'Hz') ? 25 : Math.max(1, fn * 3);
     const N = 600; const f: number[] = new Array(N); const amp: number[] = new Array(N); const ph: number[] = new Array(N);
     for (let i = 0; i < N; i++) {
       const fi = (i / (N - 1)) * fmax; const om = 2 * Math.PI * fi;
@@ -127,7 +132,7 @@ export default function SpringMassSystem() {
       f[i] = fi; amp[i] = br.H; ph[i] = phd;
     }
     return { f, amp, ph };
-  }, [k, m, zeta, fn, ampMode]);
+  }, [k, m, zeta, fn, ampMode, freqUnits]);
   // Fixed Y ranges for Bode plots (disable autoscale)
   const bodeAmpMax = useMemo(() => (bode.amp && bode.amp.length ? bode.amp.reduce((a, b) => (b > a ? b : a), 0) : 1), [bode]);
   const bodePhRange = useMemo(() => [0, 200] as [number, number], []);
@@ -155,7 +160,7 @@ export default function SpringMassSystem() {
   useEffect(() => {
     if (!running) return;
     let raf: number | null = null; let t0: number | null = null; let last: number | null = null;
-    const pxPerMeter = 250; const baseAmpPx = 6; // small base motion
+    const pxPerMeter = 250; // pixels per meter (for visualization only)
 
     const loop = (ts: number) => {
       if (t0 === null) t0 = ts; if (last === null) last = ts; const dt = (ts - last) / 1000; last = ts;
@@ -169,8 +174,18 @@ export default function SpringMassSystem() {
         const fMin = 0; 
         const fMax = freqUnits === 'Hz' ? 25 : (fn > 0 ? fn * 3 : 25);
         const prevDir = sweepDir.current;
-        if (fNew >= fMax) { sweepDir.current = -1; fNew = fMax; }
-        if (fNew <= fMin) { sweepDir.current = 1; fNew = fMin; }
+        // One-way sweep: stop at bound and arm the next sweep direction
+        if (sweepDir.current === 1 && fNew >= fMax) {
+          fNew = fMax;
+          setFreqHz(fNew);
+          setSweeping(false);
+          nextSweepDirRef.current = -1;
+        } else if (sweepDir.current === -1 && fNew <= fMin) {
+          fNew = fMin;
+          setFreqHz(fNew);
+          setSweeping(false);
+          nextSweepDirRef.current = 1;
+        }
         
         // Detect direction change
         if (prevDir !== sweepDir.current) {
@@ -214,7 +229,7 @@ export default function SpringMassSystem() {
 
       // Recompute response with updated omega
       const w = 2 * Math.PI * freqHz;
-      const Yamp = (baseAmpPx / pxPerMeter);
+      const Yamp = baseAmp; // meters
       const br = baseResponse(k, m, zeta, w, Yamp);
 
       // Base-excited steady-state: base y_b drives mass x
@@ -354,8 +369,7 @@ export default function SpringMassSystem() {
 
   // Tabs and units
   const [activeTab, setActiveTab] = useState<'fft' | 'time' | 'bode'>('fft');
-  const [freqUnits, setFreqUnits] = useState<'Hz' | 'ratio'>('Hz');
-  const [sweepVersion, setSweepVersion] = useState(0); // force re-render on clear
+    const [sweepVersion, setSweepVersion] = useState(0); // force re-render on clear
 
   // Shared Bode x-axis range and revision for syncing amp/phase plots
   const [bodeXRangeState, setBodeXRangeState] = useState<[number, number]>([0, 25]);
@@ -816,9 +830,25 @@ export default function SpringMassSystem() {
                   </div>
                 </div>
 
+                <div>
+                  <div className="flex items-end justify-between mt-2">
+                    <label className="block text-sm font-medium">Base amplitude (m)</label>
+                    <div className="text-xs text-gray-600">{baseAmp.toFixed(4)}</div>
+                  </div>
+                  <input type="range" min={0} max={0.1} step={0.001} value={baseAmp} onChange={e => setBaseAmp(Number(e.target.value))} className="mt-1 w-full" />
+                </div>
+
                 <div className="flex flex-wrap items-center gap-2">
                   <button className={`px-3 py-1.5 text-sm rounded border ${running ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-800 border-gray-300'}`} onClick={() => setRunning(v => !v)}>{running ? 'Pause' : 'Run'}</button>
-                  <button className={`px-3 py-1.5 text-sm rounded border ${sweeping ? 'bg-sky-600 text-white border-sky-600' : 'bg-white text-gray-800 border-gray-300'}`} onClick={() => setSweeping(v => !v)}>{sweeping ? 'Stop sweep' : 'Start sweep'}</button>
+                  <button className={`px-3 py-1.5 text-sm rounded border ${sweeping ? 'bg-sky-600 text-white border-sky-600' : 'bg-white text-gray-800 border-gray-300'}`} onClick={() => {
+                    if (sweeping) {
+                      setSweeping(false);
+                    } else {
+                      sweepDir.current = nextSweepDirRef.current;
+                      lastSweepDir.current = sweepDir.current;
+                      setSweeping(true);
+                    }
+                  }}>{sweeping ? 'Stop sweep' : 'Start sweep'}</button>
                   <button className="px-3 py-1.5 text-sm rounded border bg-white text-gray-800 border-gray-300" onClick={() => { freeStartRef.current = performance.now(); freeAmpRef.current = 0.08; nudgeActiveRef.current = true; }}>Nudge mass</button>
                 </div>
                 {sweeping && (
