@@ -168,6 +168,29 @@ export default function SpringMassSystem() {
   const prevFreqRef = useRef<number>(freqHz);
   const lastManualCaptureRef = useRef<number>(0);
   const lastSweepDir = useRef<1 | -1>(1);
+  // Live parameter refs to avoid restarting the animation loop on updates
+  const freqHzRef = useRef<number>(freqHz);
+  useEffect(() => { freqHzRef.current = freqHz; }, [freqHz]);
+  const baseAmpRef = useRef<number>(baseAmp);
+  useEffect(() => { baseAmpRef.current = baseAmp; }, [baseAmp]);
+  const sweepingRef = useRef<boolean>(sweeping);
+  useEffect(() => { sweepingRef.current = sweeping; }, [sweeping]);
+  const sweepMultRef = useRef<number>(sweepMult);
+  useEffect(() => { sweepMultRef.current = sweepMult; }, [sweepMult]);
+  const freqUnitsRef = useRef<'Hz' | 'ratio'>(freqUnits);
+  useEffect(() => { freqUnitsRef.current = freqUnits; }, [freqUnits]);
+  const kRef = useRef<number>(k);
+  useEffect(() => { kRef.current = k; }, [k]);
+  const mRef = useRef<number>(m);
+  useEffect(() => { mRef.current = m; }, [m]);
+  const zetaRef = useRef<number>(zeta);
+  useEffect(() => { zetaRef.current = zeta; }, [zeta]);
+  const fnRef = useRef<number>(fn);
+  useEffect(() => { fnRef.current = fn; }, [fn]);
+  const ampModeRef = useRef<'relative' | 'absolute'>(ampMode);
+  useEffect(() => { ampModeRef.current = ampMode; }, [ampMode]);
+  // Persistent base phase accumulator for clean sine generation
+  const basePhaseRef = useRef<number>(0);
 
   // Reset sweep traces when amplitude mode changes to avoid mixing modes
   useEffect(() => {
@@ -186,15 +209,14 @@ export default function SpringMassSystem() {
 
     const loop = (ts: number) => {
       if (t0 === null) t0 = ts; if (last === null) last = ts; const dt = (ts - last) / 1000; last = ts;
-      if (rtStart.current === null) rtStart.current = ts;
-      const tsec = (ts - rtStart.current) / 1000;
-
+      const tsec = (ts - (t0 ?? ts)) / 1000;
+      
       // Sweep frequency
-      if (sweeping) {
-        const actualRate = normalSweepRate * clamp(sweepMult, 0.1, 5);
-        let fNew = freqHz + sweepDir.current * actualRate * dt;
+      if (sweepingRef.current) {
+        const actualRate = normalSweepRate * clamp(sweepMultRef.current, 0.1, 5);
+        let fNew = freqHzRef.current + sweepDir.current * actualRate * dt;
         const fMin = 0; 
-        const fMax = freqUnits === 'Hz' ? 25 : (fn > 0 ? fn * 3 : 25);
+        const fMax = freqUnitsRef.current === 'Hz' ? 25 : (fnRef.current > 0 ? fnRef.current * 3 : 25);
         const prevDir = sweepDir.current;
         // One-way sweep: stop at bound and arm the next sweep direction
         if (sweepDir.current === 1 && fNew >= fMax) {
@@ -250,13 +272,19 @@ export default function SpringMassSystem() {
       }
 
       // Recompute response with updated omega
-      const w = 2 * Math.PI * freqHz;
-      const Yamp = baseAmp; // meters
-      const br = baseResponse(k, m, zeta, w, Yamp);
+      const fNow = freqHzRef.current;
+      const w = 2 * Math.PI * fNow;
+      // Advance base phase and keep it bounded
+      basePhaseRef.current += w * dt;
+      if (!isFinite(basePhaseRef.current)) basePhaseRef.current = 0;
+      if (basePhaseRef.current > 6.283185307179586) basePhaseRef.current %= 6.283185307179586;
+
+      const Yamp = baseAmpRef.current; // meters
+      const br = baseResponse(kRef.current, mRef.current, zetaRef.current, w, Yamp);
 
       // Base-excited steady-state: base y_b drives mass x
-      let xForced = br.X * Math.sin(w * tsec + br.phi);
-      let yb = Yamp * Math.sin(w * tsec);
+      let xForced = br.X * Math.sin(basePhaseRef.current + br.phi);
+      let yb = Yamp * Math.sin(basePhaseRef.current);
 
       // Free-vibration transient component x_free(t)
       let xFree = 0;
@@ -320,7 +348,7 @@ export default function SpringMassSystem() {
     };
     raf = requestAnimationFrame(loop);
     return () => { if (raf) cancelAnimationFrame(raf); };
-  }, [running, sweeping, sweepMult, freqHz, k, m, zeta, fn, baseAmp]);
+  }, [running]);
 
   // Capture coast-up/down traces even when sweep is off and user changes frequency
   useEffect(() => {
