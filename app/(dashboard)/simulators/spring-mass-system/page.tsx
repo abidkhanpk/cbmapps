@@ -1228,15 +1228,16 @@ export default function SpringMassSystem() {
                           const mass2Y = massY + linkGap + relPx2;
                           const mass2X = massCenterX - mass2W / 2;
                           const crossbar2Y = mass2Y - 18;
+                          const base2Top = massY + massH;
                           return (
                             <>
                               {/* Inter-mass damper (left side) */}
                               <g>
-                                <line x1={xLeft} y1={crossbarY} x2={xLeft} y2={crossbarY + 15} stroke={link} strokeWidth={6} strokeLinecap="round" />
-                                <rect x={xLeft - 16} y={crossbarY + 15} width={32} height={85} rx={4} fill={link} opacity={0.15} stroke={link} strokeWidth={2} strokeOpacity={0.4} />
-                                <rect x={xLeft - 11} y={crossbarY + 22} width={22} height={71} rx={2} fill={damperInnerColor2} />
+                                <line x1={xLeft} y1={base2Top} x2={xLeft} y2={base2Top + 15} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                                <rect x={xLeft - 16} y={base2Top + 15} width={32} height={85} rx={4} fill={link} opacity={0.15} stroke={link} strokeWidth={2} strokeOpacity={0.4} />
+                                <rect x={xLeft - 11} y={base2Top + 22} width={22} height={71} rx={2} fill={damperInnerColor2} />
                                 {(() => {
-                                  const cylTop = crossbarY + 15;
+                                  const cylTop = base2Top + 15;
                                   const cylBot = cylTop + 85;
                                   const pistonY = clamp(cylTop + 40 + relPx2, cylTop + 10, cylBot - 15);
                                   return (
@@ -1250,9 +1251,9 @@ export default function SpringMassSystem() {
 
                               {/* Inter-mass spring (right side) */}
                               <g>
-                                <line x1={xRight} y1={crossbarY} x2={xRight} y2={crossbarY + 15} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                                <line x1={xRight} y1={base2Top} x2={xRight} y2={base2Top + 15} stroke={link} strokeWidth={6} strokeLinecap="round" />
                                 {(() => {
-                                  const springTop = crossbarY + 15;
+                                  const springTop = base2Top + 15;
                                   const springBot = crossbar2Y;
                                   const springLen = springBot - springTop;
                                   const coils = 6;
