@@ -86,8 +86,16 @@ export default function SpringMassSystem() {
   const [m, setM] = useState(1.0);    // kg
   const [k, setK] = useState(200);    // N/m
   const [zeta, setZeta] = useState(0.1); // damping ratio (0..2)
+  // System configuration: SDOF or 2-DOF
+  const [systemDOF, setSystemDOF] = useState<'1DOF' | '2DOF'>('1DOF');
+  
   const c = useMemo(() => 2 * zeta * Math.sqrt(Math.max(k, 0) * Math.max(m, 0)), [zeta, k, m]);
   const { wn, fn } = useMemo(() => naturalFreq(k, m), [k, m]);
+  
+  // 2-DOF additional parameters
+  const [m2, setM2] = useState(0.8);   // kg (mass 2)
+  const [k2, setK2] = useState(150);   // N/m (spring 2, mass 1 to mass 2)
+  const [zeta2, setZeta2] = useState(0.1); // damping ratio for mass 2
 
   // Forcing frequency (Hz) applied to base
   const [freqHz, setFreqHz] = useState<number>(0);
@@ -129,9 +137,9 @@ export default function SpringMassSystem() {
   const sweepDir = useRef<1 | -1>(1);
   const nextSweepDirRef = useRef<1 | -1>(1);
 
-  // Real-time waveform buffer (meters)
-  const rtRef = useRef<{ t: number[]; x: number[]; yb: number[] }>({ t: [], x: [], yb: [] });
-  const [rtState, setRtState] = useState<{ t: number[]; x: number[]; yb: number[] }>({ t: [], x: [], yb: [] });
+  // Real-time waveform buffer (meters) with optional x2 for 2-DOF
+  const rtRef = useRef<{ t: number[]; x: number[]; x2: number[]; yb: number[] }>({ t: [], x: [], x2: [], yb: [] });
+  const [rtState, setRtState] = useState<{ t: number[]; x: number[]; x2: number[]; yb: number[] }>({ t: [], x: [], x2: [], yb: [] });
   const rtStart = useRef<number | null>(null);
   const lastUiPush = useRef<number>(0);
 
@@ -139,6 +147,9 @@ export default function SpringMassSystem() {
   const freeStartRef = useRef<number | null>(null);
   const freeAmpRef = useRef<number>(0);
   const nudgeActiveRef = useRef<boolean>(false);
+  // 2-DOF state for numerical integration and optional second free amp
+  const state2DOFRef = useRef<{ x1: number; v1: number; x2: number; v2: number }>({ x1: 0, v1: 0, x2: 0, v2: 0 });
+  const freeAmp2Ref = useRef<number>(0);
 
   // Derived response at current freq
   const { X, phi } = useMemo(() => baseResponse(k, m, zeta, omega, 1), [k, m, zeta, omega]);
@@ -189,6 +200,15 @@ export default function SpringMassSystem() {
   useEffect(() => { fnRef.current = fn; }, [fn]);
   const ampModeRef = useRef<'relative' | 'absolute'>(ampMode);
   useEffect(() => { ampModeRef.current = ampMode; }, [ampMode]);
+  // Config refs for 2-DOF control
+  const systemDOFRef = useRef<'1DOF' | '2DOF'>(systemDOF);
+  useEffect(() => { systemDOFRef.current = systemDOF; }, [systemDOF]);
+  const m2Ref = useRef<number>(m2);
+  useEffect(() => { m2Ref.current = m2; }, [m2]);
+  const k2Ref = useRef<number>(k2);
+  useEffect(() => { k2Ref.current = k2; }, [k2]);
+  const zeta2Ref = useRef<number>(zeta2);
+  useEffect(() => { zeta2Ref.current = zeta2; }, [zeta2]);
   // Persistent base phase accumulator for clean sine generation
   const basePhaseRef = useRef<number>(0);
 
@@ -280,67 +300,98 @@ export default function SpringMassSystem() {
       if (basePhaseRef.current > 6.283185307179586) basePhaseRef.current %= 6.283185307179586;
 
       const Yamp = baseAmpRef.current; // meters
-      const br = baseResponse(kRef.current, mRef.current, zetaRef.current, w, Yamp);
+      const yb = Yamp * Math.sin(basePhaseRef.current);
+      const ydot = Yamp * w * Math.cos(basePhaseRef.current);
 
-      // Base-excited steady-state: base y_b drives mass x
-      let xForced = br.X * Math.sin(basePhaseRef.current + br.phi);
-      let yb = Yamp * Math.sin(basePhaseRef.current);
+      let x2Val = NaN;
+      let xTotal = 0;
 
-      // Free-vibration transient component x_free(t)
-      let xFree = 0;
-      if (freeStartRef.current !== null) {
-        const td = (ts - freeStartRef.current) / 1000;
-        const { wn } = naturalFreq(k, m);
-        const A0 = freeAmpRef.current; // meters
-        const zf = zeta < 1 ? Math.min(zeta * 0.6, 0.98) : zeta;
-        if (zeta < 1) {
-          const wd = wn * Math.sqrt(1 - zf * zf);
-          const beta = zf / Math.max(Math.sqrt(1 - zf * zf), 1e-9);
-          // ICS: x(0)=A0, x'(0)=0 → nonzero at t=0, no initial downward spike
-          xFree = A0 * Math.exp(-zf * wn * td) * (Math.cos(wd * td) + beta * Math.sin(wd * td));
-        } else if (Math.abs(zeta - 1) < 1e-3) {
-          // Critically damped: non-oscillatory, no overshoot for positive A0
-          xFree = A0 * td * Math.exp(-wn * td);
-        } else {
-          // Overdamped: sum of decaying exponentials (non-oscillatory)
-          const s = Math.sqrt(zeta * zeta - 1);
-          const term1 = Math.exp(-wn * (zeta - s) * td);
-          const term2 = Math.exp(-wn * (zeta + s) * td);
-          xFree = (A0 / (2 * s)) * (term1 - term2);
+      if (systemDOFRef.current === '2DOF') {
+        // 2-DOF numerical integration (base – k1,c1 – m1 – k2,c2 – m2)
+        const c1 = 2 * zetaRef.current * Math.sqrt(Math.max(kRef.current, 0) * Math.max(mRef.current, 0));
+        const c2now = 2 * zeta2Ref.current * Math.sqrt(Math.max(k2Ref.current, 0) * Math.max(m2Ref.current, 0));
+        const s = state2DOFRef.current;
+        let { x1, v1, x2, v2 } = s;
+
+        // Equations of motion with base excitation yb(t)
+        // m1*x1dd + c1*(v1 - ydot) + k1*(x1 - yb) + c2*(v1 - v2) + k2*(x1 - x2) = 0
+        // m2*x2dd + c2*(v2 - v1) + k2*(x2 - x1) = 0
+        const a1 = (
+          - c1 * (v1 - ydot)
+          - kRef.current * (x1 - yb)
+          - c2now * (v1 - v2)
+          - k2Ref.current * (x1 - x2)
+        ) / Math.max(mRef.current, 1e-9);
+        const a2 = (
+          - c2now * (v2 - v1)
+          - k2Ref.current * (x2 - x1)
+        ) / Math.max(m2Ref.current, 1e-9);
+
+        // Semi-implicit Euler integration
+        v1 += a1 * dt; x1 += v1 * dt;
+        v2 += a2 * dt; x2 += v2 * dt;
+
+        // Save back
+        s.x1 = x1; s.v1 = v1; s.x2 = x2; s.v2 = v2;
+
+        xTotal = x1;
+        x2Val = x2;
+      } else {
+        // 1-DOF analytic steady-state + free response superposition
+        const br = baseResponse(kRef.current, mRef.current, zetaRef.current, w, Yamp);
+        const xForced = br.X * Math.sin(basePhaseRef.current + br.phi);
+
+        // Free-vibration transient component x_free(t)
+        let xFree = 0;
+        if (freeStartRef.current !== null) {
+          const td = (ts - freeStartRef.current) / 1000;
+          const { wn } = naturalFreq(kRef.current, mRef.current);
+          const A0 = freeAmpRef.current; // meters
+          const zf = zetaRef.current < 1 ? Math.min(zetaRef.current * 0.6, 0.98) : zetaRef.current;
+          if (zetaRef.current < 1) {
+            const wd = wn * Math.sqrt(1 - zf * zf);
+            const beta = zf / Math.max(Math.sqrt(1 - zf * zf), 1e-9);
+            xFree = A0 * Math.exp(-zf * wn * td) * (Math.cos(wd * td) + beta * Math.sin(wd * td));
+          } else if (Math.abs(zetaRef.current - 1) < 1e-3) {
+            xFree = A0 * td * Math.exp(-wn * td);
+          } else {
+            const s = Math.sqrt(zetaRef.current * zetaRef.current - 1);
+            const term1 = Math.exp(-wn * (zetaRef.current - s) * td);
+            const term2 = Math.exp(-wn * (zetaRef.current + s) * td);
+            xFree = (A0 / (2 * s)) * (term1 - term2);
+          }
+          // Envelope cutoff
+          let envelope = 0;
+          if (zetaRef.current < 1) {
+            envelope = Math.abs(A0) * Math.exp(-zf * wn * td);
+          } else if (Math.abs(zetaRef.current - 1) < 1e-3) {
+            envelope = Math.abs(A0) * Math.abs(td) * Math.exp(-wn * td);
+          } else {
+            const s = Math.sqrt(zetaRef.current * zetaRef.current - 1);
+            const e1 = Math.exp(-wn * (zetaRef.current - s) * td);
+            const e2 = Math.exp(-wn * (zetaRef.current + s) * td);
+            envelope = Math.abs(A0) * Math.max(e1, e2) / (2 * s);
+          }
+          if (envelope < Math.max(1e-7, Math.abs(A0) * 1e-5) || td > 60) {
+            freeStartRef.current = null; freeAmpRef.current = 0; nudgeActiveRef.current = false;
+          }
         }
-        // End transient when envelope is very small (adaptive to damping)
-        let envelope = 0;
-        if (zeta < 1) {
-          envelope = Math.abs(A0) * Math.exp(-zf * wn * td);
-        } else if (Math.abs(zeta - 1) < 1e-3) {
-          envelope = Math.abs(A0) * Math.abs(td) * Math.exp(-wn * td);
-        } else {
-          const s = Math.sqrt(zeta * zeta - 1);
-          const e1 = Math.exp(-wn * (zeta - s) * td);
-          const e2 = Math.exp(-wn * (zeta + s) * td);
-          envelope = Math.abs(A0) * Math.max(e1, e2) / (2 * s);
-        }
-        if (envelope < Math.max(1e-7, Math.abs(A0) * 1e-5) || td > 60) {
-          freeStartRef.current = null; freeAmpRef.current = 0; nudgeActiveRef.current = false;
-        }
+        xTotal = xForced + xFree;
       }
-
-      // If nudge animation is active, superimpose free response with forcing; keep base sinusoid
-
-      const xTotal = xForced + xFree; // meters
 
       // Push to real-time buffer
       const buf = rtRef.current;
       buf.t.push(tsec);
       buf.x.push(xTotal);
+      buf.x2.push(x2Val);
       buf.yb.push(yb);
       // keep last 12 seconds
-      while (buf.t.length > 0 && tsec - buf.t[0] > 12) { buf.t.shift(); buf.x.shift(); buf.yb.shift(); }
+      while (buf.t.length > 0 && tsec - buf.t[0] > 12) { buf.t.shift(); buf.x.shift(); buf.x2.shift(); buf.yb.shift(); }
 
       // Throttle state updates for plots (~16fps)
       if (ts - lastUiPush.current > 60) {
         lastUiPush.current = ts;
-        setRtState({ t: [...buf.t], x: [...buf.x], yb: [...buf.yb] });
+        setRtState({ t: [...buf.t], x: [...buf.x], x2: [...buf.x2], yb: [...buf.yb] });
       }
 
       raf = requestAnimationFrame(loop);
@@ -403,18 +454,32 @@ export default function SpringMassSystem() {
     const t = clamp((k - 10) / (2000 - 10), 0, 1);
     return lerp(5, 14, t);
   }, [k]);
+  const springStroke2 = useMemo(() => {
+    const t = clamp((k2 - 10) / (2000 - 10), 0, 1);
+    return lerp(5, 14, t);
+  }, [k2]);
   const massSize = useMemo(() => {
     // base 90x70 scaled smoothly with m
     const t = clamp((Math.log(m) - Math.log(0.1)) / (Math.log(10) - Math.log(0.1)), 0, 1);
     const s = lerp(0.65, 1.45, t);
     return { w: 90 * s, h: 70 * s };
   }, [m]);
+  const mass2Size = useMemo(() => {
+    const t = clamp((Math.log(m2) - Math.log(0.1)) / (Math.log(10) - Math.log(0.1)), 0, 1);
+    const s = lerp(0.65, 1.45, t);
+    return { w: 90 * s, h: 70 * s };
+  }, [m2]);
   const damperInnerColor = useMemo(() => {
     // darker with higher zeta (0..1.1)
     const norm = clamp(zeta / 1.1, 0, 1);
     const lightness = lerp(78, 35, norm);
     return `hsl(210 80% ${lightness}%)`;
   }, [zeta]);
+  const damperInnerColor2 = useMemo(() => {
+    const norm = clamp(zeta2 / 1.1, 0, 1);
+    const lightness = lerp(78, 35, norm);
+    return `hsl(210 80% ${lightness}%)`;
+  }, [zeta2]);
 
   // Tabs and units
   const [activeTab, setActiveTab] = useState<'fft' | 'time' | 'bode'>('fft');
@@ -481,6 +546,7 @@ export default function SpringMassSystem() {
     try {
       const maxAbs = Math.max(
         ...(rtState.x.length ? rtState.x.map(v => Math.abs(v)) : [0]),
+        ...(rtState.x2.length ? rtState.x2.map(v => Math.abs(v)) : [0]),
         ...(rtState.yb.length ? rtState.yb.map(v => Math.abs(v)) : [0])
       );
       if (maxAbs > timeYMaxRef.current) {
@@ -575,28 +641,90 @@ export default function SpringMassSystem() {
     const fmax = freqUnits === 'Hz' ? 25 : Math.max(1, fn * 3);
     const N = 600;
     const f: number[] = new Array(N);
-    const y: number[] = new Array(N);
+    const y1: number[] = new Array(N);
+    const y2: number[] = new Array(N);
     let yMax = 0;
     for (let i = 0; i < N; i++) {
       const fi = (i / (N - 1)) * fmax;
-      const br = baseResponse(k, m, zeta, 2 * Math.PI * fi, 1);
-      f[i] = fi; y[i] = br.H; if (y[i] > yMax) yMax = y[i];
+      const w = 2 * Math.PI * fi;
+      if (systemDOF === '2DOF') {
+        const c1 = 2 * zeta * Math.sqrt(Math.max(k, 0) * Math.max(m, 0));
+        const c2n = 2 * zeta2 * Math.sqrt(Math.max(k2, 0) * Math.max(m2, 0));
+        // Complex coefficients
+        const a11 = { re: -w * w * m + k + k2, im: w * (c1 + c2n) };
+        const a12 = { re: -k2, im: -w * c2n };
+        const a21 = { re: -k2, im: -w * c2n };
+        const a22 = { re: -w * w * m2 + k2, im: w * c2n };
+        const b1 = { re: k, im: w * c1 };
+        const b2 = { re: 0, im: 0 };
+        // det = a11*a22 - a12*a21
+        const det = {
+          re: a11.re * a22.re - a11.im * a22.im - (a12.re * a21.re - a12.im * a21.im),
+          im: a11.re * a22.im + a11.im * a22.re - (a12.re * a21.im + a12.im * a21.re),
+        };
+        // num1 = b1*a22 - a12*b2 = b1*a22
+        const num1 = {
+          re: b1.re * a22.re - b1.im * a22.im,
+          im: b1.re * a22.im + b1.im * a22.re,
+        };
+        // num2 = -a21*b1
+        const nb = {
+          re: a21.re * b1.re - a21.im * b1.im,
+          im: a21.re * b1.im + a21.im * b1.re,
+        };
+        const num2 = { re: -nb.re, im: -nb.im };
+        const detMag2 = det.re * det.re + det.im * det.im || 1e-18;
+        const x1re = (num1.re * det.re + num1.im * det.im) / detMag2;
+        const x1im = (num1.im * det.re - num1.re * det.im) / detMag2;
+        const x2re = (num2.re * det.re + num2.im * det.im) / detMag2;
+        const x2im = (num2.im * det.re - num2.re * det.im) / detMag2;
+        const H1 = Math.hypot(x1re, x1im);
+        const H2 = Math.hypot(x2re, x2im);
+        f[i] = fi; y1[i] = H1; y2[i] = H2;
+        if (H1 > yMax) yMax = H1;
+        if (H2 > yMax) yMax = H2;
+      } else {
+        const br = baseResponse(k, m, zeta, w, 1);
+        f[i] = fi; y1[i] = br.H;
+        if (y1[i] > yMax) yMax = y1[i];
+      }
     }
-    return { f, y, yMax };
-  }, [k, m, zeta, fn]);
+    return { f, y: y1, y2, yMax };
+  }, [systemDOF, k, m, zeta, k2, m2, zeta2, fn, freqUnits]);
 
   const specYMax = useMemo(() => (spectrumModel.yMax ? spectrumModel.yMax * 1.1 : 1), [spectrumModel]);
 
-  const spectrumTrace = useMemo(() => {
-    return {
-      x: mapFreq(spectrumModel.f),
-      y: spectrumModel.y,
-      type: 'scatter',
-      mode: 'lines',
-      line: { color: 'rgba(2,132,199,1)', width: 2 },
-      name: 'Spectrum',
-    } as any;
-  }, [spectrumModel, mapFreq, freqUnits]);
+  const spectrumTraces = useMemo(() => {
+    const traces: any[] = [];
+    if (systemDOF === '2DOF') {
+      traces.push({
+        x: mapFreq(spectrumModel.f),
+        y: spectrumModel.y,
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: 'rgba(2,132,199,1)', width: 2 },
+        name: 'Mass 1 |X1|/|Y|',
+      } as any);
+      traces.push({
+        x: mapFreq(spectrumModel.f),
+        y: spectrumModel.y2,
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: 'rgba(99,102,241,1)', width: 2 },
+        name: 'Mass 2 |X2|/|Y|',
+      } as any);
+    } else {
+      traces.push({
+        x: mapFreq(spectrumModel.f),
+        y: spectrumModel.y,
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: 'rgba(2,132,199,1)', width: 2 },
+        name: 'Spectrum',
+      } as any);
+    }
+    return traces;
+  }, [spectrumModel, mapFreq, systemDOF, freqUnits]);
 
   // Lock Default (FFT) plot axes while sweeping is ON (based on model spectrum)
   useEffect(() => {
@@ -616,6 +744,7 @@ export default function SpringMassSystem() {
 
   // Current visual sample (last rtState)
   const xPx = (rtState.x.length ? rtState.x[rtState.x.length - 1] : 0) * 250;
+  const x2Px = (rtState.x2.length ? rtState.x2[rtState.x2.length - 1] : 0) * 250;
   const basePx = (rtState.yb.length ? rtState.yb[rtState.yb.length - 1] : 0) * 250;
 
   // Collapsible parameters
@@ -632,9 +761,13 @@ export default function SpringMassSystem() {
         <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 p-0">
           {/* Controls + Plots */}
           <aside className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-5 space-y-4 h-fit lg:col-span-7 order-1 min-w-0">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <h1 className="text-lg font-semibold">Spring–Mass–Damper</h1>
-              <div className="flex items-center gap-3 text-sm">
+              <div className="flex items-center gap-3 text-sm flex-wrap">
+                <div className="flex items-center gap-2 border-r border-gray-300 pr-3">
+                  <label className="inline-flex items-center gap-1"><input type="radio" name="dof" checked={systemDOF === '1DOF'} onChange={() => setSystemDOF('1DOF')} /> 1-DOF</label>
+                  <label className="inline-flex items-center gap-1"><input type="radio" name="dof" checked={systemDOF === '2DOF'} onChange={() => setSystemDOF('2DOF')} /> 2-DOF</label>
+                </div>
                 <label className="inline-flex items-center gap-1"><input type="radio" name="units" checked={freqUnits === 'Hz'} onChange={() => setFreqUnits('Hz')} /> Hz</label>
                 <label className="inline-flex items-center gap-1"><input type="radio" name="units" checked={freqUnits === 'ratio'} onChange={() => setFreqUnits('ratio')} /> f/f<sub>n</sub></label>
               </div>
@@ -668,6 +801,27 @@ export default function SpringMassSystem() {
               )}
             </div>
 
+            {/* Additional parameters for 2-DOF */}
+            {systemDOF === '2DOF' && (
+              <div className="rounded border border-gray-200 p-3 space-y-4">
+                <div className="text-xs font-medium text-gray-700">Mass 2 (Coupled to Mass 1)</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <div className="flex items-end justify-between"><label className="block text-sm font-medium">Mass m₂ (kg)</label><div className="text-xs text-gray-600">{m2.toFixed(2)}</div></div>
+                    <input type="range" min={0.1} max={10} step={0.1} value={m2} onChange={e => setM2(Number(e.target.value))} className="mt-1 w-full" />
+                  </div>
+                  <div>
+                    <div className="flex items-end justify-between"><label className="block text-sm font-medium">Stiffness k₂ (N/m)</label><div className="text-xs text-gray-600">{k2.toFixed(0)}</div></div>
+                    <input type="range" min={10} max={2000} step={10} value={k2} onChange={e => setK2(Number(e.target.value))} className="mt-1 w-full" />
+                  </div>
+                  <div>
+                    <div className="flex items-end justify-between"><label className="block text-sm font-medium">Damping ζ₂</label><div className="text-xs text-gray-600">{zeta2.toFixed(3)}</div></div>
+                    <input type="range" min={0} max={1.1} step={0.001} value={zeta2} onChange={e => setZeta2(Number(e.target.value))} className="mt-1 w-full" />
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Tabs */}
             <div className="mt-1">
               <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -680,7 +834,7 @@ export default function SpringMassSystem() {
               {activeTab === 'fft' && (
                 <div ref={defaultPlotWrapRef} className="bg-white rounded border border-gray-200 p-2 relative overflow-hidden">
                   <Plot
-                    data={[spectrumTrace]}
+                    data={spectrumTraces}
                     layout={{ autosize: true, height: 260, uirevision: "fft", margin: PLOT_MARGINS as any, xaxis: { title: freqTitle, range: (freqUnits === 'Hz' ? ([0, 25] as any) : ([0, sliderMax] as any)), autorange: false }, yaxis: { title: '|X(f)| (m)', zeroline: false, showgrid: true, range: (fftYRange as any) ?? ([0, specYMax] as any), autorange: false }, shapes: [
                       { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2.5 } }
                     ], annotations: [
@@ -706,7 +860,10 @@ export default function SpringMassSystem() {
                 <div className="bg-white rounded border border-gray-200 p-2 relative overflow-hidden">
                   <Plot
                     data={[
-                      { x: rtState.t, y: rtState.x, type: 'scatter', mode: 'lines', line: { color: 'rgba(2,132,199,1)', width: 2 }, name: 'Mass x(t)' },
+                      { x: rtState.t, y: rtState.x, type: 'scatter', mode: 'lines', line: { color: 'rgba(2,132,199,1)', width: 2 }, name: (systemDOF === '2DOF' ? 'Mass 1 x1(t)' : 'Mass x(t)') },
+                      ...(systemDOF === '2DOF' ? [
+                        { x: rtState.t, y: rtState.x2, type: 'scatter', mode: 'lines', line: { color: 'rgba(99,102,241,1)', width: 2 }, name: 'Mass 2 x2(t)' }
+                      ] : []),
                       { x: rtState.t, y: rtState.yb, type: 'scatter', mode: 'lines', line: { color: 'rgba(234,88,12,0.8)', width: 1, dash: 'dot' }, name: 'Base yb(t)' },
                     ]}
                     layout={{ autosize: true, height: 260, uirevision: "time", margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: 'Time (s)' }, yaxis: { title: 'Displacement (m)', zeroline: false, showgrid: true, range: [-timeYMax, timeYMax], autorange: false } }}
@@ -906,7 +1063,18 @@ export default function SpringMassSystem() {
                       setSweeping(true);
                     }
                   }}>{sweeping ? 'Stop sweep' : 'Start sweep'}</button>
-                  <button className="px-3 py-1.5 text-sm rounded border bg-white text-gray-800 border-gray-300" onClick={() => { freeStartRef.current = performance.now(); freeAmpRef.current = 0.08; nudgeActiveRef.current = true; }}>Nudge mass</button>
+                  <button className="px-3 py-1.5 text-sm rounded border bg-white text-gray-800 border-gray-300" onClick={() => {
+                    if (systemDOF === '2DOF') {
+                      // Impart initial displacement to both masses, superimposed on ongoing forcing
+                      const A = 0.08; // m
+                      state2DOFRef.current.x1 += A;
+                      state2DOFRef.current.x2 += A * 0.6;
+                    } else {
+                      freeStartRef.current = performance.now();
+                      freeAmpRef.current = 0.08;
+                      nudgeActiveRef.current = true;
+                    }
+                  }}>Nudge mass</button>
                 </div>
                 {sweeping && (
                   <div>
@@ -923,11 +1091,11 @@ export default function SpringMassSystem() {
           </aside>
 
           {/* Animation (30%) */}
-          <main className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-6 flex items-center justify-center lg:col-span-3 order-2">
-            <div className="w-full max-w-xl">
-              <div className="flex items-center justify-center">
+          <main className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-6 flex items-stretch h-full lg:col-span-3 order-2">
+            <div className="w-full max-w-xl h-full">
+              <div className="flex items-center justify-center h-full">
                 {/* Animation SVG refined to match schematic */}
-                <div className="relative">
+                <div className="relative h-full">
                   {(() => {
                     const w = 280; const h = 400;
                     const baseY = 20; // fixed base at top
@@ -945,8 +1113,19 @@ export default function SpringMassSystem() {
                     // Crossbar position (above mass)
                     const crossbarY = massY - 18;
 
+                    // Camera vertical pan to keep the assembly centered in the viewport
+                    const vbH = h;
+                    let contentTop = baseY - 15 + baseOffset; // top of hatched base
+                    let contentBottom = massY + massH;        // bottom of mass 1
+                    if (systemDOF === '2DOF') {
+                      const rel2 = x2Px - xPx;
+                      const mass2Y_cam = massY + 120 + rel2; // same gap as used below
+                      contentBottom = Math.max(contentBottom, mass2Y_cam + mass2Size.h);
+                    }
+                    const yCam = (vbH / 2) - ((contentTop + contentBottom) / 2);
+
                     return (
-                      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-[380px]">
+                      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-full">
                         <defs>
                           <linearGradient id="massGrad" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#06b6d4" />
@@ -960,6 +1139,8 @@ export default function SpringMassSystem() {
                             <line x1="0" y1="0" x2="0" y2="8" stroke="#374151" strokeWidth="2" />
                           </pattern>
                         </defs>
+
+                        <g transform={`translate(0 ${yCam})`}>
 
                         {/* Fixed base at top with hatching */}
                         <g transform={`translate(0 ${baseOffset})`}>
@@ -1039,6 +1220,69 @@ export default function SpringMassSystem() {
 
                         {/* Mass block */}
                         <rect x={massX} y={massY} width={massW} height={massH} rx={6} fill="url(#massGrad)" stroke="#0f172a" strokeWidth={2} strokeOpacity={0.3} />
+
+                        {systemDOF === '2DOF' && (() => {
+                          const mass2W = mass2Size.w; const mass2H = mass2Size.h;
+                          const relPx2 = x2Px - xPx;
+                          const linkGap = 120; // nominal rest separation between masses
+                          const mass2Y = massY + linkGap + relPx2;
+                          const mass2X = massCenterX - mass2W / 2;
+                          const crossbar2Y = mass2Y - 18;
+                          return (
+                            <>
+                              {/* Inter-mass damper (left side) */}
+                              <g>
+                                <line x1={xLeft} y1={crossbarY} x2={xLeft} y2={crossbarY + 15} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                                <rect x={xLeft - 16} y={crossbarY + 15} width={32} height={85} rx={4} fill={link} opacity={0.15} stroke={link} strokeWidth={2} strokeOpacity={0.4} />
+                                <rect x={xLeft - 11} y={crossbarY + 22} width={22} height={71} rx={2} fill={damperInnerColor2} />
+                                {(() => {
+                                  const cylTop = crossbarY + 15;
+                                  const cylBot = cylTop + 85;
+                                  const pistonY = clamp(cylTop + 40 + relPx2, cylTop + 10, cylBot - 15);
+                                  return (
+                                    <>
+                                      <rect x={xLeft - 14} y={pistonY} width={28} height={10} rx={2} fill={link} opacity={0.95} />
+                                      <line x1={xLeft} y1={pistonY + 10} x2={xLeft} y2={crossbar2Y} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                                    </>
+                                  );
+                                })()}
+                              </g>
+
+                              {/* Inter-mass spring (right side) */}
+                              <g>
+                                <line x1={xRight} y1={crossbarY} x2={xRight} y2={crossbarY + 15} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                                {(() => {
+                                  const springTop = crossbarY + 15;
+                                  const springBot = crossbar2Y;
+                                  const springLen = springBot - springTop;
+                                  const coils = 6;
+                                  const coilWidth = 18;
+                                  const segmentHeight = springLen / coils;
+                                  let path = `M ${xRight} ${springTop}`;
+                                  for (let i = 0; i < coils; i++) {
+                                    const y1 = springTop + segmentHeight * i;
+                                    const y2 = springTop + segmentHeight * (i + 0.33);
+                                    const y3 = springTop + segmentHeight * (i + 0.67);
+                                    const y4 = springTop + segmentHeight * (i + 1);
+                                    path += ` L ${xRight + coilWidth} ${y2} L ${xRight - coilWidth} ${y3} L ${xRight} ${y4}`;
+                                  }
+                                  return <path d={path} stroke="url(#springGrad)" strokeWidth={springStroke2} fill="none" strokeLinecap="round" strokeLinejoin="round" />;
+                                })()}
+                              </g>
+
+                              {/* Lower crossbar and mass 2 */}
+                              <g>
+                                <line x1={xLeft} y1={crossbar2Y} x2={xRight} y2={crossbar2Y} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                                <circle cx={xLeft} cy={crossbar2Y} r={5} fill="#fff" stroke={link} strokeWidth={2} />
+                                <circle cx={xRight} cy={crossbar2Y} r={5} fill="#fff" stroke={link} strokeWidth={2} />
+                                <line x1={massCenterX} y1={crossbar2Y} x2={massCenterX} y2={mass2Y} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                                <circle cx={massCenterX} cy={mass2Y} r={5} fill="#fff" stroke={link} strokeWidth={2} />
+                                <rect x={mass2X} y={mass2Y} width={mass2W} height={mass2H} rx={6} fill="url(#massGrad)" stroke="#0f172a" strokeWidth={2} strokeOpacity={0.3} />
+                              </g>
+                            </>
+                          );
+                        })()}
+                      </g>
                       </svg>
                     );
                   })()}
