@@ -697,6 +697,16 @@ export default function SpringMassSystem() {
   const spectrumTraces = useMemo(() => {
     const traces: any[] = [];
     if (systemDOF === '2DOF') {
+      // Combined trace (max of both masses at each frequency)
+      const combined = spectrumModel.f.map((_, i) => Math.max(spectrumModel.y[i], spectrumModel.y2[i]));
+      traces.push({
+        x: mapFreq(spectrumModel.f),
+        y: combined,
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: 'rgba(16,185,129,1)', width: 2.5 },
+        name: 'Combined (max)',
+      } as any);
       traces.push({
         x: mapFreq(spectrumModel.f),
         y: spectrumModel.y,
@@ -793,6 +803,9 @@ export default function SpringMassSystem() {
                     <div>
                       <div className="flex items-end justify-between"><label className="block text-sm font-medium">Damping ζ</label><div className="text-xs text-gray-600">{zeta.toFixed(3)} {zeta < 1 ? '(underdamped)' : zeta === 1 ? '(critical)' : '(overdamped)'}</div></div>
                       <input type="range" min={0} max={1.1} step={0.001} value={zeta} onChange={e => setZeta(Number(e.target.value))} className="mt-1 w-full" />
+                      <div className="mt-1 text-xs text-gray-600">
+                        <span className="font-medium">Natural frequency:</span> {fn.toFixed(2)} Hz ({(fn * 2 * Math.PI).toFixed(2)} rad/s)
+                      </div>
                     </div>
                                       </div>
 
@@ -817,6 +830,12 @@ export default function SpringMassSystem() {
                   <div>
                     <div className="flex items-end justify-between"><label className="block text-sm font-medium">Damping ζ₂</label><div className="text-xs text-gray-600">{zeta2.toFixed(3)}</div></div>
                     <input type="range" min={0} max={1.1} step={0.001} value={zeta2} onChange={e => setZeta2(Number(e.target.value))} className="mt-1 w-full" />
+                    <div className="mt-1 text-xs text-gray-600">
+                      <span className="font-medium">Natural frequency (m₂ alone):</span> {(() => {
+                        const fn2 = Math.sqrt(k2 / Math.max(m2, 1e-9)) / (2 * Math.PI);
+                        return `${fn2.toFixed(2)} Hz (${(fn2 * 2 * Math.PI).toFixed(2)} rad/s)`;
+                      })()}
+                    </div>
                   </div>
                 </div>
               </div>
