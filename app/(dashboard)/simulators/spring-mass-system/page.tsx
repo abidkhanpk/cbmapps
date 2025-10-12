@@ -292,7 +292,10 @@ export default function SpringMassSystem() {
     const pxPerMeter = 250; // pixels per meter (for visualization only)
 
     const loop = (ts: number) => {
-      if (t0 === null) t0 = ts; if (last === null) last = ts; const dt = (ts - last) / 1000; last = ts;
+      if (t0 === null) t0 = ts; if (last === null) last = ts; let dt = (ts - last) / 1000; last = ts;
+      // Clamp dt to avoid integrator blow-ups on tab inactivity/frame hiccups
+      if (!isFinite(dt) || dt <= 0) dt = 0.016;
+      dt = Math.min(dt, 0.03);
       const tsec = (ts - (t0 ?? ts)) / 1000;
       
       // Sweep frequency
@@ -377,8 +380,9 @@ export default function SpringMassSystem() {
         const s = state2DOFRef.current;
         let { x1, v1, x2, v2 } = s;
 
-        // Use smaller sub-steps for stability
-        const numSubSteps = 4;
+        // Use dynamic smaller sub-steps for stability (target sub-step <= 4 ms)
+        const maxSubDt = 0.004;
+        const numSubSteps = Math.max(1, Math.ceil(dt / maxSubDt));
         const subDt = dt / numSubSteps;
         
         for (let step = 0; step < numSubSteps; step++) {
@@ -415,6 +419,11 @@ export default function SpringMassSystem() {
 
         // Save back
         s.x1 = x1; s.v1 = v1; s.x2 = x2; s.v2 = v2;
+        // Guard against numerical blow-up; reset state if it goes non-finite or huge
+        if (!isFinite(s.x1) || !isFinite(s.v1) || !isFinite(s.x2) || !isFinite(s.v2)
+            || Math.abs(s.x1) > 1e6 || Math.abs(s.v1) > 1e6 || Math.abs(s.x2) > 1e6 || Math.abs(s.v2) > 1e6) {
+          s.x1 = 0; s.v1 = 0; s.x2 = 0; s.v2 = 0;
+        }
 
         xTotal = x1;
         x2Val = x2;
@@ -463,6 +472,9 @@ export default function SpringMassSystem() {
 
       // Push to real-time buffer
       const buf = rtRef.current;
+      // Clamp outputs before pushing to buffers
+      if (!isFinite(xTotal) || Math.abs(xTotal) > 1e6) xTotal = 0;
+      if (!isFinite(x2Val) || Math.abs(x2Val) > 1e6) x2Val = 0;
       buf.t.push(tsec);
       buf.x.push(xTotal);
       buf.x2.push(x2Val);
