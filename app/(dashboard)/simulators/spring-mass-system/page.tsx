@@ -158,17 +158,68 @@ export default function SpringMassSystem() {
   const bode = useMemo(() => {
     const fmax = (freqUnits === 'Hz') ? 25 : Math.max(1, fn * 3);
     const N = 600; const f: number[] = new Array(N); const amp: number[] = new Array(N); const ph: number[] = new Array(N);
-    for (let i = 0; i < N; i++) {
-      const fi = (i / (N - 1)) * fmax; const om = 2 * Math.PI * fi;
-      const br = (ampMode === 'relative') ? baseRelativeResponse(k, m, zeta, om, 1) : baseResponse(k, m, zeta, om, 1);
-      const phd = phaseDeg(k, m, zeta, om);
-      f[i] = fi; amp[i] = br.H; ph[i] = phd;
+    
+    if (systemDOF === '2DOF') {
+      // Use 2-DOF response for Bode plot
+      for (let i = 0; i < N; i++) {
+        const fi = (i / (N - 1)) * fmax;
+        const w = 2 * Math.PI * fi;
+        const c1 = 2 * zeta * Math.sqrt(Math.max(k, 0) * Math.max(m, 0));
+        const c2n = 2 * zeta2 * Math.sqrt(Math.max(k2, 0) * Math.max(m2, 0));
+        
+        // Complex coefficients for 2-DOF system
+        const a11 = { re: -w * w * m + k + k2, im: w * (c1 + c2n) };
+        const a12 = { re: -k2, im: -w * c2n };
+        const a21 = { re: -k2, im: -w * c2n };
+        const a22 = { re: -w * w * m2 + k2, im: w * c2n };
+        const b1 = { re: k, im: w * c1 };
+        
+        const det = {
+          re: a11.re * a22.re - a11.im * a22.im - (a12.re * a21.re - a12.im * a21.im),
+          im: a11.re * a22.im + a11.im * a22.re - (a12.re * a21.im + a12.im * a21.re),
+        };
+        
+        const num1 = {
+          re: b1.re * a22.re - b1.im * a22.im,
+          im: b1.re * a22.im + b1.im * a22.re,
+        };
+        
+        const detMag2 = det.re * det.re + det.im * det.im || 1e-18;
+        const x1re = (num1.re * det.re + num1.im * det.im) / detMag2;
+        const x1im = (num1.im * det.re - num1.re * det.im) / detMag2;
+        
+        const H1 = Math.hypot(x1re, x1im);
+        // Phase of X1 relative to base excitation Y
+        // For 2-DOF system, phase changes by 180° at each resonance
+        // Phase is displayed in 0-180° range with wrapping
+        // (181° wraps to 1°, 360�� wraps to 0°, etc.)
+        let phase1 = Math.atan2(x1im, x1re) * 180 / Math.PI;
+        
+        // Convert to 0-360° range first
+        if (phase1 < 0) phase1 += 360;
+        
+        // Wrap to 0-180° range (modulo 180)
+        phase1 = phase1 % 180;
+        
+        f[i] = fi;
+        amp[i] = H1;
+        ph[i] = phase1;
+      }
+    } else {
+      // Use 1-DOF response for Bode plot
+      for (let i = 0; i < N; i++) {
+        const fi = (i / (N - 1)) * fmax; const om = 2 * Math.PI * fi;
+        const br = (ampMode === 'relative') ? baseRelativeResponse(k, m, zeta, om, 1) : baseResponse(k, m, zeta, om, 1);
+        const phd = phaseDeg(k, m, zeta, om);
+        f[i] = fi; amp[i] = br.H; ph[i] = phd;
+      }
     }
+    
     return { f, amp, ph };
-  }, [k, m, zeta, fn, ampMode, freqUnits]);
+  }, [systemDOF, k, m, zeta, k2, m2, zeta2, fn, ampMode, freqUnits]);
   // Fixed Y ranges for Bode plots (disable autoscale)
   const bodeAmpMax = useMemo(() => (bode.amp && bode.amp.length ? bode.amp.reduce((a, b) => (b > a ? b : a), 0) : 1), [bode]);
-  const bodePhRange = useMemo(() => [0, 200] as [number, number], []);
+  const bodePhRange = useMemo(() => [0, 180] as [number, number], []);
 
   // Sweep capture - Single trace mode (default) vs Multi-trace mode
   const [singleTraceMode, setSingleTraceMode] = useState(true);
@@ -313,23 +364,41 @@ export default function SpringMassSystem() {
         const s = state2DOFRef.current;
         let { x1, v1, x2, v2 } = s;
 
-        // Equations of motion with base excitation yb(t)
-        // m1*x1dd + c1*(v1 - ydot) + k1*(x1 - yb) + c2*(v1 - v2) + k2*(x1 - x2) = 0
-        // m2*x2dd + c2*(v2 - v1) + k2*(x2 - x1) = 0
-        const a1 = (
-          - c1 * (v1 - ydot)
-          - kRef.current * (x1 - yb)
-          - c2now * (v1 - v2)
-          - k2Ref.current * (x1 - x2)
-        ) / Math.max(mRef.current, 1e-9);
-        const a2 = (
-          - c2now * (v2 - v1)
-          - k2Ref.current * (x2 - x1)
-        ) / Math.max(m2Ref.current, 1e-9);
+        // Use smaller sub-steps for stability
+        const numSubSteps = 4;
+        const subDt = dt / numSubSteps;
+        
+        for (let step = 0; step < numSubSteps; step++) {
+          // Interpolate base motion for this sub-step
+          const subPhase = basePhaseRef.current + (step / numSubSteps) * w * dt;
+          const ybSub = Yamp * Math.sin(subPhase);
+          const ydotSub = Yamp * w * Math.cos(subPhase);
 
-        // Semi-implicit Euler integration
-        v1 += a1 * dt; x1 += v1 * dt;
-        v2 += a2 * dt; x2 += v2 * dt;
+          // Equations of motion with base excitation yb(t)
+          // m1*x1dd + c1*(v1 - ydot) + k1*(x1 - yb) + c2*(v1 - v2) + k2*(x1 - x2) = 0
+          // m2*x2dd + c2*(v2 - v1) + k2*(x2 - x1) = 0
+          const a1 = (
+            - c1 * (v1 - ydotSub)
+            - kRef.current * (x1 - ybSub)
+            - c2now * (v1 - v2)
+            - k2Ref.current * (x1 - x2)
+          ) / Math.max(mRef.current, 1e-9);
+          const a2 = (
+            - c2now * (v2 - v1)
+            - k2Ref.current * (x2 - x1)
+          ) / Math.max(m2Ref.current, 1e-9);
+
+          // Semi-implicit Euler integration with sub-stepping
+          v1 += a1 * subDt;
+          v2 += a2 * subDt;
+          x1 += v1 * subDt;
+          x2 += v2 * subDt;
+          
+          // Apply damping to prevent numerical instability
+          const dampingFactor = Math.exp(-0.01 * subDt);
+          v1 *= dampingFactor;
+          v2 *= dampingFactor;
+        }
 
         // Save back
         s.x1 = x1; s.v1 = v1; s.x2 = x2; s.v2 = v2;
@@ -1001,7 +1070,7 @@ export default function SpringMassSystem() {
                             }))
                         )
                       ]}
-                      layout={{ autosize: true, height: 240, uirevision: bodeRevision as any, legend: {}, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRangeState as any, autorange: false }, yaxis: { title: 'Phase (deg)', zeroline: false, showgrid: true, range: [0, 200], autorange: false }, shapes: [
+                      layout={{ autosize: true, height: 240, uirevision: bodeRevision as any, legend: {}, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: freqTitle, range: bodeXRangeState as any, autorange: false }, yaxis: { title: 'Phase (deg)', zeroline: false, showgrid: true, range: bodePhRange as any, autorange: false }, shapes: [
                         { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2 } }
                       ], annotations: [
                         { x: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f', font: { size: 10, color: '#10b981' } }
