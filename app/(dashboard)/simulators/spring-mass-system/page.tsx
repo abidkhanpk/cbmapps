@@ -1225,61 +1225,66 @@ export default function SpringMassSystem() {
                           const mass2W = mass2Size.w; const mass2H = mass2Size.h;
                           const relPx2 = x2Px - xPx;
                           const linkGap = 120; // nominal rest separation between masses
-                          const mass2Y = massY + linkGap + relPx2;
+                          const mass2Y = massY + massH + linkGap + relPx2;
                           const mass2X = massCenterX - mass2W / 2;
-                          const crossbar2Y = mass2Y - 18;
                           const base2Top = massY + massH;
+                          
+                          // Attachment points on bottom of mass 1
+                          const attach2Left = massCenterX - 25;
+                          const attach2Right = massCenterX + 25;
+                          
                           return (
                             <>
-                              {/* Inter-mass damper (left side) */}
+                              {/* Attachment points on bottom of mass 1 */}
+                              <circle cx={attach2Left} cy={base2Top} r={5} fill="#fff" stroke={link} strokeWidth={2} />
+                              <circle cx={attach2Right} cy={base2Top} r={5} fill="#fff" stroke={link} strokeWidth={2} />
+
+                              {/* Inter-mass damper (left side) - directly from mass 1 to mass 2 */}
                               <g>
-                                <line x1={xLeft} y1={base2Top} x2={xLeft} y2={base2Top + 15} stroke={link} strokeWidth={6} strokeLinecap="round" />
-                                <rect x={xLeft - 16} y={base2Top + 15} width={32} height={85} rx={4} fill={link} opacity={0.15} stroke={link} strokeWidth={2} strokeOpacity={0.4} />
-                                <rect x={xLeft - 11} y={base2Top + 22} width={22} height={71} rx={2} fill={damperInnerColor2} />
+                                <line x1={attach2Left} y1={base2Top} x2={attach2Left} y2={base2Top + 15} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                                <rect x={attach2Left - 16} y={base2Top + 15} width={32} height={85} rx={4} fill={link} opacity={0.15} stroke={link} strokeWidth={2} strokeOpacity={0.4} />
+                                <rect x={attach2Left - 11} y={base2Top + 22} width={22} height={71} rx={2} fill={damperInnerColor2} />
                                 {(() => {
                                   const cylTop = base2Top + 15;
                                   const cylBot = cylTop + 85;
                                   const pistonY = clamp(cylTop + 40 + relPx2, cylTop + 10, cylBot - 15);
                                   return (
                                     <>
-                                      <rect x={xLeft - 14} y={pistonY} width={28} height={10} rx={2} fill={link} opacity={0.95} />
-                                      <line x1={xLeft} y1={pistonY + 10} x2={xLeft} y2={crossbar2Y} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                                      <rect x={attach2Left - 14} y={pistonY} width={28} height={10} rx={2} fill={link} opacity={0.95} />
+                                      <line x1={attach2Left} y1={pistonY + 10} x2={attach2Left} y2={mass2Y} stroke={link} strokeWidth={6} strokeLinecap="round" />
                                     </>
                                   );
                                 })()}
                               </g>
 
-                              {/* Inter-mass spring (right side) */}
+                              {/* Inter-mass spring (right side) - directly from mass 1 to mass 2 */}
                               <g>
-                                <line x1={xRight} y1={base2Top} x2={xRight} y2={base2Top + 15} stroke={link} strokeWidth={6} strokeLinecap="round" />
+                                <line x1={attach2Right} y1={base2Top} x2={attach2Right} y2={base2Top + 15} stroke={link} strokeWidth={6} strokeLinecap="round" />
                                 {(() => {
                                   const springTop = base2Top + 15;
-                                  const springBot = crossbar2Y;
+                                  const springBot = mass2Y;
                                   const springLen = springBot - springTop;
                                   const coils = 6;
                                   const coilWidth = 18;
                                   const segmentHeight = springLen / coils;
-                                  let path = `M ${xRight} ${springTop}`;
+                                  let path = `M ${attach2Right} ${springTop}`;
                                   for (let i = 0; i < coils; i++) {
                                     const y1 = springTop + segmentHeight * i;
                                     const y2 = springTop + segmentHeight * (i + 0.33);
                                     const y3 = springTop + segmentHeight * (i + 0.67);
                                     const y4 = springTop + segmentHeight * (i + 1);
-                                    path += ` L ${xRight + coilWidth} ${y2} L ${xRight - coilWidth} ${y3} L ${xRight} ${y4}`;
+                                    path += ` L ${attach2Right + coilWidth} ${y2} L ${attach2Right - coilWidth} ${y3} L ${attach2Right} ${y4}`;
                                   }
                                   return <path d={path} stroke="url(#springGrad)" strokeWidth={springStroke2} fill="none" strokeLinecap="round" strokeLinejoin="round" />;
                                 })()}
                               </g>
 
-                              {/* Lower crossbar and mass 2 */}
-                              <g>
-                                <line x1={xLeft} y1={crossbar2Y} x2={xRight} y2={crossbar2Y} stroke={link} strokeWidth={6} strokeLinecap="round" />
-                                <circle cx={xLeft} cy={crossbar2Y} r={5} fill="#fff" stroke={link} strokeWidth={2} />
-                                <circle cx={xRight} cy={crossbar2Y} r={5} fill="#fff" stroke={link} strokeWidth={2} />
-                                <line x1={massCenterX} y1={crossbar2Y} x2={massCenterX} y2={mass2Y} stroke={link} strokeWidth={6} strokeLinecap="round" />
-                                <circle cx={massCenterX} cy={mass2Y} r={5} fill="#fff" stroke={link} strokeWidth={2} />
-                                <rect x={mass2X} y={mass2Y} width={mass2W} height={mass2H} rx={6} fill="url(#massGrad)" stroke="#0f172a" strokeWidth={2} strokeOpacity={0.3} />
-                              </g>
+                              {/* Attachment points on top of mass 2 */}
+                              <circle cx={attach2Left} cy={mass2Y} r={5} fill="#fff" stroke={link} strokeWidth={2} />
+                              <circle cx={attach2Right} cy={mass2Y} r={5} fill="#fff" stroke={link} strokeWidth={2} />
+
+                              {/* Mass 2 block */}
+                              <rect x={mass2X} y={mass2Y} width={mass2W} height={mass2H} rx={6} fill="url(#massGrad)" stroke="#0f172a" strokeWidth={2} strokeOpacity={0.3} />
                             </>
                           );
                         })()}
