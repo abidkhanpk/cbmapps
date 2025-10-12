@@ -195,15 +195,28 @@ export default function SpringMassSystem() {
         // (181° wraps to 1°, 360�� wraps to 0°, etc.)
         let phase1 = Math.atan2(x1im, x1re) * 180 / Math.PI;
         
-        // Convert to 0-360° range first
+        // Unwrap phase properly for 2-DOF system
+        // Convert to 0-360° range
         if (phase1 < 0) phase1 += 360;
         
-        // Wrap to 0-180° range (modulo 180)
-        phase1 = phase1 % 180;
+        // Unwrap by detecting jumps
+        if (i > 0) {
+          const prevPhase = ph[i - 1];
+          const diff = phase1 - (prevPhase % 180);
+          
+          // Detect 180° jump (resonance crossing)
+          if (diff < -90) {
+            // Phase wrapped from ~180° back to ~0°
+            phase1 += 180;
+          }
+        }
+        
+        // Wrap to 0-180° for display
+        const phaseDisplay = phase1 % 180;
         
         f[i] = fi;
         amp[i] = H1;
-        ph[i] = phase1;
+        ph[i] = phaseDisplay;
       }
     } else {
       // Use 1-DOF response for Bode plot
