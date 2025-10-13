@@ -853,6 +853,7 @@ export default function SpringMassSystem() {
 
   // Collapsible parameters
   const [showParams, setShowParams] = useState(true);
+  const [showParams2, setShowParams2] = useState(true);
 
   return (
     <div className="position-relative">
@@ -910,28 +911,36 @@ export default function SpringMassSystem() {
 
             {/* Additional parameters for 2-DOF */}
             {systemDOF === '2DOF' && (
-              <div className="rounded border border-gray-200 p-3 space-y-4">
-                <div className="text-xs font-medium text-gray-700">Mass 2 (Coupled to Mass 1)</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <div className="flex items-end justify-between"><label className="block text-sm font-medium">Mass m₂ (kg)</label><div className="text-xs text-gray-600">{m2.toFixed(2)}</div></div>
-                    <input type="range" min={0.1} max={10} step={0.1} value={m2} onChange={e => setM2(Number(e.target.value))} className="mt-1 w-full" />
-                  </div>
-                  <div>
-                    <div className="flex items-end justify-between"><label className="block text-sm font-medium">Stiffness k₂ (N/m)</label><div className="text-xs text-gray-600">{k2.toFixed(0)}</div></div>
-                    <input type="range" min={10} max={2000} step={10} value={k2} onChange={e => setK2(Number(e.target.value))} className="mt-1 w-full" />
-                  </div>
-                  <div>
-                    <div className="flex items-end justify-between"><label className="block text-sm font-medium">Damping ζ₂</label><div className="text-xs text-gray-600">{zeta2.toFixed(3)}</div></div>
-                    <input type="range" min={0} max={1.1} step={0.001} value={zeta2} onChange={e => setZeta2(Number(e.target.value))} className="mt-1 w-full" />
-                    <div className="mt-1 text-xs text-gray-600">
-                      <span className="font-medium">Natural frequency (m₂ alone):</span> {(() => {
-                        const fn2 = Math.sqrt(k2 / Math.max(m2, 1e-9)) / (2 * Math.PI);
-                        return `${fn2.toFixed(2)} Hz (${(fn2 * 2 * Math.PI).toFixed(2)} rad/s)`;
-                      })()}
+              <div className="rounded border border-gray-200">
+                <button className="w-full flex items-center justify-between px-3 py-2 text-sm bg-gray-50" onClick={() => setShowParams2(s => !s)}>
+                  <span className="font-medium">Parameters (Mass 2)</span>
+                  <span className="text-gray-500">{showParams2 ? 'Hide' : 'Show'}</span>
+                </button>
+                {showParams2 && (
+                  <div className="p-3 space-y-4">
+                    <div className="text-xs font-medium text-gray-700">Mass 2 (Coupled to Mass 1)</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <div className="flex items-end justify-between"><label className="block text-sm font-medium">Mass m₂ (kg)</label><div className="text-xs text-gray-600">{m2.toFixed(2)}</div></div>
+                        <input type="range" min={0.1} max={10} step={0.1} value={m2} onChange={e => setM2(Number(e.target.value))} className="mt-1 w-full" />
+                      </div>
+                      <div>
+                        <div className="flex items-end justify-between"><label className="block text-sm font-medium">Stiffness k₂ (N/m)</label><div className="text-xs text-gray-600">{k2.toFixed(0)}</div></div>
+                        <input type="range" min={10} max={2000} step={10} value={k2} onChange={e => setK2(Number(e.target.value))} className="mt-1 w-full" />
+                      </div>
+                      <div>
+                        <div className="flex items-end justify-between"><label className="block text-sm font-medium">Damping ζ₂</label><div className="text-xs text-gray-600">{zeta2.toFixed(3)}</div></div>
+                        <input type="range" min={0} max={1.1} step={0.001} value={zeta2} onChange={e => setZeta2(Number(e.target.value))} className="mt-1 w-full" />
+                        <div className="mt-1 text-xs text-gray-600">
+                          <span className="font-medium">Natural frequency (m₂ alone):</span> {(() => {
+                            const fn2 = Math.sqrt(k2 / Math.max(m2, 1e-9)) / (2 * Math.PI);
+                            return `${fn2.toFixed(2)} Hz (${(fn2 * 2 * Math.PI).toFixed(2)} rad/s)`;
+                          })()}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
 
