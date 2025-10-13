@@ -160,6 +160,10 @@ export default function SpringMassSystem() {
     const N = 600; const f: number[] = new Array(N); const amp: number[] = new Array(N); const ph: number[] = new Array(N);
     
     if (systemDOF === '2DOF') {
+      const unwrappedPhases = new Array(N);
+      let lastRawPhase = 0;
+      let phaseOffset = 0;
+
       // Use 2-DOF response for Bode plot
       for (let i = 0; i < N; i++) {
         const fi = (i / (N - 1)) * fmax;
@@ -189,33 +193,38 @@ export default function SpringMassSystem() {
         const x1im = (num1.im * det.re - num1.re * det.im) / detMag2;
         
         const H1 = Math.hypot(x1re, x1im);
-        // Phase of X1 relative to base excitation Y
-        // For 2-DOF system, phase changes by 180° at each resonance
-        // Phase is displayed in 0-180° range with wrapping
-        // (181° wraps to 1°, 360�� wraps to 0°, etc.)
-        let phase1 = Math.atan2(x1im, x1re) * 180 / Math.PI;
-        
-        // Unwrap phase properly for 2-DOF system
-        // Convert to 0-360° range
-        if (phase1 < 0) phase1 += 360;
-        
-        // Unwrap by detecting jumps
+        const nb = {
+          re: a21.re * b1.re - a21.im * b1.im,
+          im: a21.re * b1.im + a21.im * b1.re,
+        };
+        const num2 = { re: -nb.re, im: -nb.im };
+        const x2re = (num2.re * det.re + num2.im * det.im) / detMag2;
+        const x2im = (num2.im * det.re - num2.re * det.im) / detMag2;
+        const H2 = Math.hypot(x2re, x2im);
+
+        const rawPhase = Math.atan2(x1im, x1re) * 180 / Math.PI;
+
         if (i > 0) {
-          const prevPhase = ph[i - 1];
-          const diff = phase1 - (prevPhase % 180);
-          
-          // Detect 180° jump (resonance crossing)
-          if (diff < -90) {
-            // Phase wrapped from ~180° back to ~0°
-            phase1 += 180;
+          const diff = rawPhase - lastRawPhase;
+          if (diff < -180) {
+            phaseOffset += 360;
+          } else if (diff > 180) {
+            phaseOffset -= 360;
           }
         }
-        
-        // Wrap to 0-180° for display
-        const phaseDisplay = phase1 % 180;
-        
+        lastRawPhase = rawPhase;
+        unwrappedPhases[i] = rawPhase + phaseOffset;
+
         f[i] = fi;
-        amp[i] = H1;
+        amp[i] = Math.max(H1, H2);
+      }
+
+      const phaseStart = unwrappedPhases[0] || 0;
+      for (let i = 0; i < N; i++) {
+        let unwrapped = (unwrappedPhases[i] || 0) - phaseStart;
+        unwrapped = (unwrapped % 360 + 360) % 360; // Ensure positive 0-360
+        let phaseDisplay = unwrapped > 180 ? unwrapped - 180 : unwrapped;
+
         ph[i] = phaseDisplay;
       }
     } else {
@@ -1042,7 +1051,7 @@ export default function SpringMassSystem() {
                     <Plot
                       key={`amp-${sweepVersion}`}
                       data={[
-                        { x: mapFreq(bode.f), y: bode.amp, type: 'scatter', mode: 'lines', line: { color: 'rgba(2,132,199,1)', width: 2 }, name: 'Amplitude (model)', visible: 'legendonly' },
+                        { x: mapFreq(bode.f), y: bode.amp, type: 'scatter', mode: 'lines', line: { color: 'rgba(16,185,129,1)', width: 2.5 }, name: 'Combined (max)', visible: true },
                         ...(singleTraceMode 
                           ? (allPts.current.length ? [{
                               x: mapFreq(allPts.current.map(p => p.f)),
