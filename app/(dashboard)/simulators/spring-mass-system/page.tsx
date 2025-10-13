@@ -1060,7 +1060,7 @@ export default function SpringMassSystem() {
                         { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2 } }
                       ], annotations: [
                         { x: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f', font: { size: 10, color: '#10b981' } }
-                      ] }}
+                      ] } as any}
                       onInitialized={(_fig, gd) => { activePlotDivRef.current = gd; requestAnimationFrame(() => requestAnimationFrame(() => updateSliderPads(gd))); }}
                       onUpdate={(_fig, gd) => { activePlotDivRef.current = gd; requestAnimationFrame(() => requestAnimationFrame(() => updateSliderPads(gd))); }}
                       onRelayout={(ev: any) => {
@@ -1108,7 +1108,7 @@ export default function SpringMassSystem() {
                         { type: 'line', x0: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), x1: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'rgba(16,185,129,0.95)', width: 2 } }
                       ], annotations: [
                         { x: (freqUnits === 'Hz' ? freqHz : (fn > 0 ? freqHz / fn : 0)), y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false, text: 'f', font: { size: 10, color: '#10b981' } }
-                      ] }}
+                      ] } as any}
                       onInitialized={(_fig, gd) => { activePlotDivRef.current = gd; requestAnimationFrame(() => requestAnimationFrame(() => updateSliderPads(gd))); }}
                       onUpdate={(_fig, gd) => { activePlotDivRef.current = gd; requestAnimationFrame(() => requestAnimationFrame(() => updateSliderPads(gd))); }}
                       onRelayout={(ev: any) => {
