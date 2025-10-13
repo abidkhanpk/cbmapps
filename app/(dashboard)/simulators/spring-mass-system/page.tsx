@@ -868,13 +868,32 @@ export default function SpringMassSystem() {
           <aside className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-5 space-y-4 h-fit lg:col-span-7 order-1 min-w-0">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h1 className="text-lg font-semibold">Spring–Mass–Damper</h1>
-              <div className="flex items-center gap-3 text-sm flex-wrap">
-                <div className="flex items-center gap-2 border-r border-gray-300 pr-3">
+              <div className="ml-auto flex items-center gap-3 text-sm flex-wrap">
+                {/* DOF cluster (separated visually) */}
+                <div className="inline-flex items-center gap-3 bg-white border border-gray-300 rounded-full px-3 py-1.5 shadow-sm">
                   <label className="inline-flex items-center gap-1"><input type="radio" name="dof" checked={systemDOF === '1DOF'} onChange={() => setSystemDOF('1DOF')} /> 1-DOF</label>
                   <label className="inline-flex items-center gap-1"><input type="radio" name="dof" checked={systemDOF === '2DOF'} onChange={() => setSystemDOF('2DOF')} /> 2-DOF</label>
                 </div>
-                <label className="inline-flex items-center gap-1"><input type="radio" name="units" checked={freqUnits === 'Hz'} onChange={() => setFreqUnits('Hz')} /> Hz</label>
-                <label className="inline-flex items-center gap-1"><input type="radio" name="units" checked={freqUnits === 'ratio'} onChange={() => setFreqUnits('ratio')} /> f/f<sub>n</sub></label>
+                {/* Frequency + Amplitude cluster */}
+                <div className="inline-flex items-center gap-3 bg-white border border-gray-300 rounded-full px-3 py-1.5 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-600">Units:</span>
+                    <label className="inline-flex items-center gap-1"><input type="radio" name="units" checked={freqUnits === 'Hz'} onChange={() => setFreqUnits('Hz')} /> Hz</label>
+                    <label className="inline-flex items-center gap-1"><input type="radio" name="units" checked={freqUnits === 'ratio'} onChange={() => setFreqUnits('ratio')} /> f/f<sub>n</sub></label>
+                  </div>
+                  <div className="h-4 w-px bg-gray-300 mx-1" />
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-600">Amplitude:</span>
+                    <label className="inline-flex items-center gap-1 cursor-pointer">
+                      <input type="radio" name="ampModeGlobal" checked={ampMode === 'absolute'} onChange={() => setAmpMode('absolute')} />
+                      <span>Amplitude Ratio (|X|/|Y|)</span>
+                    </label>
+                    <label className="inline-flex items-center gap-1 cursor-pointer">
+                      <input type="radio" name="ampModeGlobal" checked={ampMode === 'relative'} onChange={() => setAmpMode('relative')} />
+                      <span>Relative Amplitude (|X−Y|/|Y|)</span>
+                    </label>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1001,17 +1020,6 @@ export default function SpringMassSystem() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-2 text-sm">
                     <div className="flex items-center gap-4 flex-wrap">
-                      <div className="flex items-center gap-2">
-                        <span>Amplitude:</span>
-                        <label className="inline-flex items-center gap-1 cursor-pointer">
-                          <input type="radio" name="ampMode" checked={ampMode === 'absolute'} onChange={() => setAmpMode('absolute')} />
-                          <span>Amplitude Ratio (|X|/|Y|)</span>
-                        </label>
-                        <label className="inline-flex items-center gap-1 cursor-pointer">
-                          <input type="radio" name="ampMode" checked={ampMode === 'relative'} onChange={() => setAmpMode('relative')} />
-                          <span>Relative Amplitude (|X−Y|/|Y|)</span>
-                        </label>
-                      </div>
                       <label className="inline-flex items-center gap-2 cursor-pointer">
                         <input 
                           type="checkbox" 
