@@ -222,8 +222,9 @@ export default function SpringMassSystem() {
       const phaseStart = unwrappedPhases[0] || 0;
       for (let i = 0; i < N; i++) {
         let unwrapped = (unwrappedPhases[i] || 0) - phaseStart;
-        unwrapped = (unwrapped % 360 + 360) % 360; // Ensure positive 0-360
-        let phaseDisplay = unwrapped > 180 ? unwrapped - 180 : unwrapped;
+        let phaseDisplay = unwrapped % 360;
+        if (phaseDisplay < 0) phaseDisplay += 360;
+        if (phaseDisplay > 180) phaseDisplay -= 180;
 
         ph[i] = phaseDisplay;
       }
@@ -817,6 +818,7 @@ export default function SpringMassSystem() {
         mode: 'lines',
         line: { color: 'rgba(2,132,199,1)', width: 2 },
         name: 'Mass 1 |X1|/|Y|',
+        visible: 'legendonly',
       } as any);
       traces.push({
         x: mapFreq(spectrumModel.f),
@@ -825,6 +827,7 @@ export default function SpringMassSystem() {
         mode: 'lines',
         line: { color: 'rgba(99,102,241,1)', width: 2 },
         name: 'Mass 2 |X2|/|Y|',
+        visible: 'legendonly',
       } as any);
     } else {
       traces.push({
@@ -1051,7 +1054,7 @@ export default function SpringMassSystem() {
                     <Plot
                       key={`amp-${sweepVersion}`}
                       data={[
-                        { x: mapFreq(bode.f), y: bode.amp, type: 'scatter', mode: 'lines', line: { color: 'rgba(16,185,129,1)', width: 2.5 }, name: 'Combined (max)', visible: true },
+                        { x: mapFreq(bode.f), y: bode.amp, type: 'scatter', mode: 'lines', line: { color: 'rgba(16,185,129,1)', width: 2.5 }, name: 'Combined (max)', visible: 'legendonly' },
                         ...(singleTraceMode 
                           ? (allPts.current.length ? [{
                               x: mapFreq(allPts.current.map(p => p.f)),
