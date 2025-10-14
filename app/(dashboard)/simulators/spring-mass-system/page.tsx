@@ -1024,6 +1024,26 @@ export default function SpringMassSystem() {
                 <label className="inline-flex items-center gap-1"><input type="radio" name="dof" checked={systemDOF === '2DOF'} onChange={() => setSystemDOF('2DOF')} /> 2-DOF</label>
               </div>
             </div>
+            {/* Units + Amplitude controls (moved next to DOF bar) */}
+            <div className="mt-2">
+              <div className="inline-flex items-center gap-3 bg-white border border-gray-300 rounded-full px-3 py-1.5 shadow-sm text-sm">
+                <div className="flex items-center gap-2">
+                  <label className="inline-flex items-center gap-1"><input type="radio" name="units" checked={freqUnits === 'Hz'} onChange={() => setFreqUnits('Hz')} /> Hz</label>
+                  <label className="inline-flex items-center gap-1"><input type="radio" name="units" checked={freqUnits === 'ratio'} onChange={() => setFreqUnits('ratio')} /> f/f<sub>n</sub></label>
+                </div>
+                <div className="h-4 w-px bg-gray-300 mx-1" />
+                <div className="flex items-center gap-2">
+                  <label className="inline-flex items-center gap-1 cursor-pointer">
+                    <input type="radio" name="ampModeGlobal" checked={ampMode === 'absolute'} onChange={() => setAmpMode('absolute')} />
+                    <span title="Absolute amplitude ratio: |X| / |Y|">Amplitude Ratio</span>
+                  </label>
+                  <label className="inline-flex items-center gap-1 cursor-pointer">
+                    <input type="radio" name="ampModeGlobal" checked={ampMode === 'relative'} onChange={() => setAmpMode('relative')} />
+                    <span title="Relative displacement ratio (relative to base): |X − Y| / |Y|">Relative Amplitude</span>
+                  </label>
+                </div>
+              </div>
+            </div>
 
             {/* Collapsible parameters */}
             <div className="rounded border border-gray-200">
@@ -1099,29 +1119,7 @@ export default function SpringMassSystem() {
                 <button className={`px-3 py-1.5 text-sm rounded border ${activeTab === 'bode' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-800 border-gray-300'}`} onClick={() => setActiveTab('bode')}>Bode (Amp & Phase)</button>
               </div>
               
-              {/* Units + Amplitude cluster moved below tabs */}
-              <div className="mb-3">
-                <div className="inline-flex items-center gap-3 bg-white border border-gray-300 rounded-full px-3 py-1.5 shadow-sm text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-600">Units:</span>
-                    <label className="inline-flex items-center gap-1"><input type="radio" name="units" checked={freqUnits === 'Hz'} onChange={() => setFreqUnits('Hz')} /> Hz</label>
-                    <label className="inline-flex items-center gap-1"><input type="radio" name="units" checked={freqUnits === 'ratio'} onChange={() => setFreqUnits('ratio')} /> f/f<sub>n</sub></label>
-                  </div>
-                  <div className="h-4 w-px bg-gray-300 mx-1" />
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-600">Amplitude:</span>
-                    <label className="inline-flex items-center gap-1 cursor-pointer">
-                      <input type="radio" name="ampModeGlobal" checked={ampMode === 'absolute'} onChange={() => setAmpMode('absolute')} />
-                      <span>Amplitude Ratio (|X|/|Y|)</span>
-                    </label>
-                    <label className="inline-flex items-center gap-1 cursor-pointer">
-                      <input type="radio" name="ampModeGlobal" checked={ampMode === 'relative'} onChange={() => setAmpMode('relative')} />
-                      <span>Relative Amplitude (|X−Y|/|Y|)</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-
+              
               {/* FFT Tab: show natural frequency marker */}
               {activeTab === 'fft' && (
                 <div ref={defaultPlotWrapRef} className="bg-white rounded border border-gray-200 p-2 relative overflow-hidden">
