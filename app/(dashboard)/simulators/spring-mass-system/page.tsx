@@ -415,14 +415,9 @@ export default function SpringMassSystem() {
       // Recompute response with updated omega
       const fNow = freqHzRef.current;
       const w = 2 * Math.PI * fNow;
-      // Advance base phase and keep it bounded
-      basePhaseRef.current += w * dt;
-      if (!isFinite(basePhaseRef.current)) basePhaseRef.current = 0;
-      if (basePhaseRef.current > 6.283185307179586) basePhaseRef.current %= 6.283185307179586;
-
       const Yamp = baseAmpRef.current; // meters
-      const yb = Yamp * Math.sin(basePhaseRef.current);
-      const ydot = Yamp * w * Math.cos(basePhaseRef.current);
+      const yb = Yamp * Math.sin(w * tsec);
+      const ydot = Yamp * w * Math.cos(w * tsec);
 
       let x2Val = NaN;
       let xTotal = 0;
@@ -441,9 +436,9 @@ export default function SpringMassSystem() {
         
         for (let step = 0; step < numSubSteps; step++) {
           // Interpolate base motion for this sub-step
-          const subPhase = basePhaseRef.current + (step / numSubSteps) * w * dt;
-          const ybSub = Yamp * Math.sin(subPhase);
-          const ydotSub = Yamp * w * Math.cos(subPhase);
+          const tSub = tsec + step * subDt;
+          const ybSub = Yamp * Math.sin(w * tSub);
+          const ydotSub = Yamp * w * Math.cos(w * tSub);
 
           // Equations of motion with base excitation yb(t)
           // m1*x1dd + c1*(v1 - ydot) + k1*(x1 - yb) + c2*(v1 - v2) + k2*(x1 - x2) = 0
@@ -484,7 +479,7 @@ export default function SpringMassSystem() {
       } else {
         // 1-DOF analytic steady-state + free response superposition
         const br = baseResponse(kRef.current, mRef.current, zetaRef.current, w, Yamp);
-        const xForced = br.X * Math.sin(basePhaseRef.current + br.phi);
+        const xForced = br.X * Math.sin(w * tsec + br.phi);
 
         // Free-vibration transient component x_free(t)
         let xFree = 0;
@@ -1125,7 +1120,7 @@ export default function SpringMassSystem() {
                   <Plot
                     data={[
                       ...(showCombinedTime ? [{ x: combinedTime.t, y: combinedTime.y, type: 'scatter', mode: 'lines', line: { color: 'rgba(16,185,129,1)', width: 2.5 }, name: 'Combined x(t)' }] : []),
-                      { x: rtState.t, y: rtState.yb, type: 'scatter', mode: 'lines', line: { color: 'rgba(234,88,12,0.8)', width: 1, dash: 'dot' }, name: 'Base yb(t)' },
+                      { x: rtState.t, y: rtState.yb, type: 'scatter', mode: 'lines', line: { color: 'rgba(234,88,12,0.9)', width: 2 }, name: 'Base yb(t)' },
                       { x: rtState.t, y: rtState.x, type: 'scatter', mode: 'lines', line: { color: 'rgba(2,132,199,1)', width: 2 }, name: (systemDOF === '2DOF' ? 'Mass 1 x1(t)' : 'Mass x(t)'), visible: 'legendonly' as const } as any,
                       ...(systemDOF === '2DOF' ? [
                         { x: rtState.t, y: rtState.x2, type: 'scatter', mode: 'lines', line: { color: 'rgba(99,102,241,1)', width: 2 }, name: 'Mass 2 x2(t)', visible: 'legendonly' as const } as any
