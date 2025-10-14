@@ -673,6 +673,7 @@ export default function SpringMassSystem() {
   // Tabs and units
   const [activeTab, setActiveTab] = useState<'fft' | 'time' | 'bode'>('fft');
     const [sweepVersion, setSweepVersion] = useState(0); // force re-render on clear
+    const [showCombinedTime, setShowCombinedTime] = useState(true);
 
   // Shared Bode x-axis range and revision for syncing amp/phase plots
   const [bodeXRangeState, setBodeXRangeState] = useState<[number, number]>([0, 25]);
@@ -948,6 +949,19 @@ export default function SpringMassSystem() {
   const x2Px = (rtState.x2.length ? rtState.x2[rtState.x2.length - 1] : 0) * 250;
   const basePx = (rtState.yb.length ? rtState.yb[rtState.yb.length - 1] : 0) * 250;
 
+  const combinedTime = useMemo(() => {
+    const t = rtState.t || [];
+    if (systemDOF === '2DOF') {
+      const y = t.map((_, i) => {
+        const v1 = rtState.x[i] ?? 0;
+        const v2 = rtState.x2[i] ?? 0;
+        return Math.abs(v2) > Math.abs(v1) ? v2 : v1;
+      });
+      return { t, y };
+    }
+    return { t, y: rtState.x || [] };
+  }, [rtState, systemDOF]);
+
   // Collapsible parameters
   const [showParams, setShowParams] = useState(true);
   const [showParams2, setShowParams2] = useState(true);
@@ -1097,13 +1111,25 @@ export default function SpringMassSystem() {
               {/* Time Waveform Tab: real-time */}
               {activeTab === 'time' && (
                 <div className="bg-white rounded border border-gray-200 p-2 relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="inline-flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4"
+                        checked={showCombinedTime}
+                        onChange={(e) => setShowCombinedTime(e.target.checked)}
+                      />
+                      <span>Show combined waveform</span>
+                    </label>
+                  </div>
                   <Plot
                     data={[
-                      { x: rtState.t, y: rtState.x, type: 'scatter', mode: 'lines', line: { color: 'rgba(2,132,199,1)', width: 2 }, name: (systemDOF === '2DOF' ? 'Mass 1 x1(t)' : 'Mass x(t)') },
-                      ...(systemDOF === '2DOF' ? [
-                        { x: rtState.t, y: rtState.x2, type: 'scatter', mode: 'lines', line: { color: 'rgba(99,102,241,1)', width: 2 }, name: 'Mass 2 x2(t)' }
-                      ] : []),
+                      ...(showCombinedTime ? [{ x: combinedTime.t, y: combinedTime.y, type: 'scatter', mode: 'lines', line: { color: 'rgba(16,185,129,1)', width: 2.5 }, name: 'Combined x(t)' }] : []),
                       { x: rtState.t, y: rtState.yb, type: 'scatter', mode: 'lines', line: { color: 'rgba(234,88,12,0.8)', width: 1, dash: 'dot' }, name: 'Base yb(t)' },
+                      { x: rtState.t, y: rtState.x, type: 'scatter', mode: 'lines', line: { color: 'rgba(2,132,199,1)', width: 2 }, name: (systemDOF === '2DOF' ? 'Mass 1 x1(t)' : 'Mass x(t)'), visible: 'legendonly' as const } as any,
+                      ...(systemDOF === '2DOF' ? [
+                        { x: rtState.t, y: rtState.x2, type: 'scatter', mode: 'lines', line: { color: 'rgba(99,102,241,1)', width: 2 }, name: 'Mass 2 x2(t)', visible: 'legendonly' as const } as any
+                      ] : []),
                     ]}
                     layout={{ autosize: true, height: 260, uirevision: "time", margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: 'Time (s)' }, yaxis: { title: 'Displacement (m)', zeroline: false, showgrid: true, range: [-timeYMax, timeYMax], autorange: false } }}
                     onInitialized={(_fig, gd) => { activePlotDivRef.current = gd; requestAnimationFrame(() => requestAnimationFrame(() => updateSliderPads(gd))); }}
