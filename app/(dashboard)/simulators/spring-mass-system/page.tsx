@@ -670,6 +670,46 @@ export default function SpringMassSystem() {
     const [sweepVersion, setSweepVersion] = useState(0); // force re-render on clear
     const [showCombinedTime, setShowCombinedTime] = useState(true);
 
+    // Persist legend visibility across tabs/unit changes until reload
+    const [visVersion, setVisVersion] = useState(0);
+    const visibilityRef = useRef<Record<string, Record<string, boolean | 'legendonly'>>>({});
+    const getTraceVisible = (plotId: string, name: string, def: boolean | 'legendonly' = true) => {
+      const plotMap = visibilityRef.current[plotId];
+      const v = plotMap ? plotMap[name] : undefined;
+      return (v === undefined ? def : v);
+    };
+    const registerVisHandlersSmart = (gd: any) => {
+      try {
+        if (!gd || (gd as any)._visHandlersAdded) return;
+        const guessPlotId = () => {
+          const uir = (gd as any)?._fullLayout?.uirevision;
+          const yTitle = (gd as any)?._fullLayout?.yaxis?.title?.text || '';
+          if (uir === 'fft') return 'default-spectrum';
+          if (uir === 'time') return 'time-waveform';
+          if ((yTitle || '').toLowerCase().includes('phase')) return 'bode-phase';
+          return 'bode-amp';
+        };
+        const syncAll = () => {
+          try {
+            const data = (gd?.data ?? []) as any[];
+            const plotId = guessPlotId();
+            const map = visibilityRef.current[plotId] || (visibilityRef.current[plotId] = {});
+            for (let i = 0; i < data.length; i++) {
+              const name = data[i]?.name ?? `trace${i}`;
+              let vis: any = data[i]?.visible;
+              if (vis === undefined) vis = true;
+              map[name] = vis as any;
+            }
+            setVisVersion(v => v + 1);
+          } catch {}
+        };
+        gd.on('plotly_legendclick', syncAll);
+        gd.on('plotly_legenddoubleclick', syncAll);
+        gd.on('plotly_restyle', syncAll);
+        (gd as any)._visHandlersAdded = true;
+      } catch {}
+    };
+
   // Shared Bode x-axis range and revision for syncing amp/phase plots
   const [bodeXRangeState, setBodeXRangeState] = useState<[number, number]>([0, 25]);
   const [bodeRevision, setBodeRevision] = useState<number>(0);
@@ -783,6 +823,8 @@ export default function SpringMassSystem() {
   const updateSliderPads = (graphDiv?: HTMLDivElement) => {
     try {
       const gd = graphDiv ?? activePlotDivRef.current;
+      // Register legend visibility handlers once per graph div
+      registerVisHandlersSmart(gd);
       const sliderWrap = sliderWrapRef.current;
       if (!gd || !sliderWrap) return;
 
@@ -891,6 +933,7 @@ export default function SpringMassSystem() {
         mode: 'lines',
         line: { color: 'rgba(16,185,129,1)', width: 2.5 },
         name: 'Combined (max)',
+        visible: getTraceVisible('default-spectrum', 'Combined (max)', true),
       } as any);
       traces.push({
         x: mapFreq(spectrumModel.f),
@@ -899,7 +942,7 @@ export default function SpringMassSystem() {
         mode: 'lines',
         line: { color: 'rgba(2,132,199,1)', width: 2 },
         name: 'Mass 1 |X1|/|Y|',
-        visible: 'legendonly',
+        visible: getTraceVisible('default-spectrum', 'Mass 1 |X1|/|Y|', 'legendonly'),
       } as any);
       traces.push({
         x: mapFreq(spectrumModel.f),
@@ -908,7 +951,7 @@ export default function SpringMassSystem() {
         mode: 'lines',
         line: { color: 'rgba(99,102,241,1)', width: 2 },
         name: 'Mass 2 |X2|/|Y|',
-        visible: 'legendonly',
+        visible: getTraceVisible('default-spectrum', 'Mass 2 |X2|/|Y|', 'legendonly'),
       } as any);
     } else {
       traces.push({
@@ -918,10 +961,11 @@ export default function SpringMassSystem() {
         mode: 'lines',
         line: { color: 'rgba(2,132,199,1)', width: 2 },
         name: 'Spectrum',
+        visible: getTraceVisible('default-spectrum', 'Spectrum', true),
       } as any);
     }
     return traces;
-  }, [spectrumModel, mapFreq, systemDOF, freqUnits]);
+  }, [spectrumModel, mapFreq, systemDOF, freqUnits, visVersion]);
 
   // Lock Default (FFT) plot axes while sweeping is ON (based on model spectrum)
   useEffect(() => {
@@ -1119,11 +1163,11 @@ export default function SpringMassSystem() {
                   </div>
                   <Plot
                     data={[
-                      ...(showCombinedTime ? [{ x: combinedTime.t, y: combinedTime.y, type: 'scatter', mode: 'lines', line: { color: 'rgba(16,185,129,1)', width: 2.5 }, name: 'Combined x(t)' }] : []),
-                      { x: rtState.t, y: rtState.yb, type: 'scatter', mode: 'lines', line: { color: 'rgba(234,88,12,0.9)', width: 2 }, name: 'Base yb(t)' },
-                      { x: rtState.t, y: rtState.x, type: 'scatter', mode: 'lines', line: { color: 'rgba(2,132,199,1)', width: 2 }, name: (systemDOF === '2DOF' ? 'Mass 1 x1(t)' : 'Mass x(t)'), visible: 'legendonly' as const } as any,
+                      ...(showCombinedTime ? [{ x: combinedTime.t, y: combinedTime.y, type: 'scatter', mode: 'lines', line: { color: 'rgba(16,185,129,1)', width: 2.5 }, name: 'Combined x(t)', visible: getTraceVisible('time-waveform', 'Combined x(t)', true) } as any] : []),
+                      { x: rtState.t, y: rtState.yb, type: 'scatter', mode: 'lines', line: { color: 'rgba(234,88,12,0.9)', width: 2 }, name: 'Base yb(t)', visible: getTraceVisible('time-waveform', 'Base yb(t)', true) } as any,
+                      { x: rtState.t, y: rtState.x, type: 'scatter', mode: 'lines', line: { color: 'rgba(2,132,199,1)', width: 2 }, name: (systemDOF === '2DOF' ? 'Mass 1 x1(t)' : 'Mass x(t)'), visible: getTraceVisible('time-waveform', (systemDOF === '2DOF' ? 'Mass 1 x1(t)' : 'Mass x(t)'), 'legendonly') } as any,
                       ...(systemDOF === '2DOF' ? [
-                        { x: rtState.t, y: rtState.x2, type: 'scatter', mode: 'lines', line: { color: 'rgba(99,102,241,1)', width: 2 }, name: 'Mass 2 x2(t)', visible: 'legendonly' as const } as any
+                        { x: rtState.t, y: rtState.x2, type: 'scatter', mode: 'lines', line: { color: 'rgba(99,102,241,1)', width: 2 }, name: 'Mass 2 x2(t)', visible: getTraceVisible('time-waveform', 'Mass 2 x2(t)', 'legendonly') } as any
                       ] : []),
                     ]}
                     layout={{ autosize: true, height: 260, uirevision: "time", margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: 'Time (s)' }, yaxis: { title: 'Displacement (m)', zeroline: false, showgrid: true, range: [-timeYMax, timeYMax], autorange: false } }}
@@ -1160,7 +1204,7 @@ export default function SpringMassSystem() {
                     <Plot
                       key={`amp-${sweepVersion}`}
                       data={[
-                        { x: mapFreq(bode.f), y: bode.amp, type: 'scatter', mode: 'lines', line: { color: 'rgba(16,185,129,1)', width: 2.5 }, name: 'Combined (max)', visible: 'legendonly' },
+                        { x: mapFreq(bode.f), y: bode.amp, type: 'scatter', mode: 'lines', line: { color: 'rgba(16,185,129,1)', width: 2.5 }, name: 'Combined (max)', visible: getTraceVisible('bode-amp', 'Combined (max)', 'legendonly') } as any,
                         ...(singleTraceMode 
                           ? (allPts.current.length ? [{
                               x: mapFreq(allPts.current.map(p => p.f)),
@@ -1168,7 +1212,8 @@ export default function SpringMassSystem() {
                               type: 'scatter',
                               mode: 'lines',
                               line: { color: 'rgba(99,102,241,0.9)', width: 2 },
-                              name: 'Sweep trace'
+                              name: 'Sweep trace',
+                              visible: getTraceVisible('bode-amp', 'Sweep trace', true)
                             }] : [])
                           : multiTraces.current.filter(t => t && t.length > 0).map((trace, idx) => ({
                               x: mapFreq(trace.map(p => p.f)),
@@ -1179,7 +1224,8 @@ export default function SpringMassSystem() {
                                 color: idx % 2 === 0 ? 'rgba(99,102,241,0.9)' : 'rgba(236,72,153,0.9)', 
                                 width: 2 
                               },
-                              name: `Run ${idx + 1}`
+                              name: `Run ${idx + 1}`,
+                              visible: getTraceVisible('bode-amp', `Run ${idx + 1}`, true)
                             }))
                         )
                       ]}
@@ -1208,7 +1254,7 @@ export default function SpringMassSystem() {
                     <Plot
                       key={`ph-${sweepVersion}`}
                       data={[
-                        { x: mapFreq(bode.f), y: bode.ph, type: 'scatter', mode: 'lines', line: { color: 'rgba(234,88,12,1)', width: 2 }, name: 'Phase (model)', visible: 'legendonly' },
+                        { x: mapFreq(bode.f), y: bode.ph, type: 'scatter', mode: 'lines', line: { color: 'rgba(234,88,12,1)', width: 2 }, name: 'Phase (model)', visible: getTraceVisible('bode-phase', 'Phase (model)', 'legendonly') } as any,
                         ...(singleTraceMode 
                           ? (allPts.current.length ? [{
                               x: mapFreq(allPts.current.map(p => p.f)),
@@ -1216,7 +1262,8 @@ export default function SpringMassSystem() {
                               type: 'scatter',
                               mode: 'lines',
                               line: { color: 'rgba(99,102,241,0.9)', width: 2 },
-                              name: 'Sweep trace'
+                              name: 'Sweep trace',
+                              visible: getTraceVisible('bode-phase', 'Sweep trace', true)
                             }] : [])
                           : multiTraces.current.filter(t => t && t.length > 0).map((trace, idx) => ({
                               x: mapFreq(trace.map(p => p.f)),
@@ -1227,7 +1274,8 @@ export default function SpringMassSystem() {
                                 color: idx % 2 === 0 ? 'rgba(99,102,241,0.9)' : 'rgba(236,72,153,0.9)', 
                                 width: 2 
                               },
-                              name: `Run ${idx + 1}`
+                              name: `Run ${idx + 1}`,
+                              visible: getTraceVisible('bode-phase', `Run ${idx + 1}`, true)
                             }))
                         )
                       ]}
