@@ -1019,13 +1019,15 @@ export default function SpringMassSystem() {
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <h1 className="text-lg font-semibold">Spring–Mass–Damper</h1>
               {/* DOF cluster (right side of title) */}
-              <div className="inline-flex items-center gap-3 bg-white border border-gray-300 rounded-full px-3 py-1.5 shadow-sm text-sm">
-                <label className="inline-flex items-center gap-1"><input type="radio" name="dof" checked={systemDOF === '1DOF'} onChange={() => setSystemDOF('1DOF')} /> 1-DOF</label>
-                <label className="inline-flex items-center gap-1"><input type="radio" name="dof" checked={systemDOF === '2DOF'} onChange={() => setSystemDOF('2DOF')} /> 2-DOF</label>
+              <div className="inline-flex items-center gap-3">
+                <div className="inline-flex items-center gap-3 bg-white border border-gray-300 rounded-full px-3 py-1.5 shadow-sm text-sm">
+                  <label className="inline-flex items-center gap-1"><input type="radio" name="dof" checked={systemDOF === '1DOF'} onChange={() => setSystemDOF('1DOF')} /> 1-DOF</label>
+                  <label className="inline-flex items-center gap-1"><input type="radio" name="dof" checked={systemDOF === '2DOF'} onChange={() => setSystemDOF('2DOF')} /> 2-DOF</label>
+                </div>
               </div>
             </div>
-            {/* Units + Amplitude controls (moved next to DOF bar) */}
-            <div className="mt-2">
+            {/* Units + Amplitude: separate cluster below title, right-aligned */}
+            <div className="mt-2 flex justify-end">
               <div className="inline-flex items-center gap-3 bg-white border border-gray-300 rounded-full px-3 py-1.5 shadow-sm text-sm">
                 <div className="flex items-center gap-2">
                   <label className="inline-flex items-center gap-1"><input type="radio" name="units" checked={freqUnits === 'Hz'} onChange={() => setFreqUnits('Hz')} /> Hz</label>
