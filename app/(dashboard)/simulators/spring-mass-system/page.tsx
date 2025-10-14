@@ -160,39 +160,38 @@ export default function SpringMassSystem() {
     const N = 600; const f: number[] = new Array(N); const amp: number[] = new Array(N); const ph: number[] = new Array(N);
     
     if (systemDOF === '2DOF') {
-      const unwrappedPhases = new Array(N);
-      let lastRawPhase = 0;
-      let phaseOffset = 0;
+      // Compute 2-DOF frequency response; use the dominant mass's phase.
+      const unwrapped: number[] = new Array(N);
+      let lastPhase = 0;
+      let offset = 0;
 
-      // Use 2-DOF response for Bode plot
       for (let i = 0; i < N; i++) {
         const fi = (i / (N - 1)) * fmax;
         const w = 2 * Math.PI * fi;
         const c1 = 2 * zeta * Math.sqrt(Math.max(k, 0) * Math.max(m, 0));
         const c2n = 2 * zeta2 * Math.sqrt(Math.max(k2, 0) * Math.max(m2, 0));
-        
+
         // Complex coefficients for 2-DOF system
         const a11 = { re: -w * w * m + k + k2, im: w * (c1 + c2n) };
         const a12 = { re: -k2, im: -w * c2n };
         const a21 = { re: -k2, im: -w * c2n };
         const a22 = { re: -w * w * m2 + k2, im: w * c2n };
         const b1 = { re: k, im: w * c1 };
-        
+
         const det = {
           re: a11.re * a22.re - a11.im * a22.im - (a12.re * a21.re - a12.im * a21.im),
           im: a11.re * a22.im + a11.im * a22.re - (a12.re * a21.im + a12.im * a21.re),
         };
-        
+
         const num1 = {
           re: b1.re * a22.re - b1.im * a22.im,
           im: b1.re * a22.im + b1.im * a22.re,
         };
-        
+
         const detMag2 = det.re * det.re + det.im * det.im || 1e-18;
         const x1re = (num1.re * det.re + num1.im * det.im) / detMag2;
         const x1im = (num1.im * det.re - num1.re * det.im) / detMag2;
-        
-        const H1 = Math.hypot(x1re, x1im);
+
         const nb = {
           re: a21.re * b1.re - a21.im * b1.im,
           im: a21.re * b1.im + a21.im * b1.re,
@@ -200,33 +199,37 @@ export default function SpringMassSystem() {
         const num2 = { re: -nb.re, im: -nb.im };
         const x2re = (num2.re * det.re + num2.im * det.im) / detMag2;
         const x2im = (num2.im * det.re - num2.re * det.im) / detMag2;
+
+        const H1 = Math.hypot(x1re, x1im);
         const H2 = Math.hypot(x2re, x2im);
 
-        const rawPhase = Math.atan2(x1im, x1re) * 180 / Math.PI;
+        // phase of the dominant mass relative to base input
+        const p1 = Math.atan2(x1im, x1re) * 180 / Math.PI;
+        const p2 = Math.atan2(x2im, x2re) * 180 / Math.PI;
+        const rawPhase = (H1 >= H2 ? p1 : p2);
 
-        if (i > 0) {
-          const diff = rawPhase - lastRawPhase;
+        if (i === 0) {
+          lastPhase = rawPhase;
+          unwrapped[i] = rawPhase;
+        } else {
+          const diff = rawPhase - lastPhase;
           if (diff < -180) {
-            phaseOffset += 360;
+            offset += 360;
           } else if (diff > 180) {
-            phaseOffset -= 360;
+            offset -= 360;
           }
+          unwrapped[i] = rawPhase + offset;
+          lastPhase = rawPhase;
         }
-        lastRawPhase = rawPhase;
-        unwrappedPhases[i] = rawPhase + phaseOffset;
 
         f[i] = fi;
         amp[i] = Math.max(H1, H2);
       }
 
-      const phaseStart = unwrappedPhases[0] || 0;
+      const phi0 = unwrapped[0] || 0;
       for (let i = 0; i < N; i++) {
-        let unwrapped = (unwrappedPhases[i] || 0) - phaseStart;
-        let phaseDisplay = unwrapped % 360;
-        if (phaseDisplay < 0) phaseDisplay += 360;
-        if (phaseDisplay > 180) phaseDisplay -= 180;
-
-        ph[i] = phaseDisplay;
+        const d = Math.abs((unwrapped[i] || 0) - phi0);
+        ph[i] = Math.max(0, Math.min(180, d));
       }
     } else {
       // Use 1-DOF response for Bode plot
@@ -344,9 +347,50 @@ export default function SpringMassSystem() {
         // capture sweep traces
         if (ts - lastCapture.current > 40) {
           lastCapture.current = ts;
-          const br = (ampMode === 'relative') ? baseRelativeResponse(k, m, zeta, 2 * Math.PI * fNew, 1) : baseResponse(k, m, zeta, 2 * Math.PI * fNew, 1);
-          const phd = phaseDeg(k, m, zeta, 2 * Math.PI * fNew);
-          const point = { f: fNew, amp: br.H, ph: phd };
+          const wNew = 2 * Math.PI * fNew;
+          let ampVal = 0;
+          let phaseDisplay = 0;
+          if (systemDOFRef.current === '2DOF') {
+            const c1 = 2 * zetaRef.current * Math.sqrt(Math.max(kRef.current, 0) * Math.max(mRef.current, 0));
+            const c2n = 2 * zeta2Ref.current * Math.sqrt(Math.max(k2Ref.current, 0) * Math.max(m2Ref.current, 0));
+            const a11 = { re: -wNew * wNew * mRef.current + kRef.current + k2Ref.current, im: wNew * (c1 + c2n) };
+            const a12 = { re: -k2Ref.current, im: -wNew * c2n };
+            const a21 = { re: -k2Ref.current, im: -wNew * c2n };
+            const a22 = { re: -wNew * wNew * m2Ref.current + k2Ref.current, im: wNew * c2n };
+            const b1 = { re: kRef.current, im: wNew * c1 };
+            const det = {
+              re: a11.re * a22.re - a11.im * a22.im - (a12.re * a21.re - a12.im * a21.im),
+              im: a11.re * a22.im + a11.im * a22.re - (a12.re * a21.im + a12.im * a21.re),
+            };
+            const num1 = {
+              re: b1.re * a22.re - b1.im * a22.im,
+              im: b1.re * a22.im + b1.im * a22.re,
+            };
+            const detMag2 = det.re * det.re + det.im * det.im || 1e-18;
+            const x1re = (num1.re * det.re + num1.im * det.im) / detMag2;
+            const x1im = (num1.im * det.re - num1.re * det.im) / detMag2;
+            const nb = {
+              re: a21.re * b1.re - a21.im * b1.im,
+              im: a21.re * b1.im + a21.im * b1.re,
+            };
+            const num2 = { re: -nb.re, im: -nb.im };
+            const x2re = (num2.re * det.re + num2.im * det.im) / detMag2;
+            const x2im = (num2.im * det.re - num2.re * det.im) / detMag2;
+            const H1 = Math.hypot(x1re, x1im);
+            const H2 = Math.hypot(x2re, x2im);
+            ampVal = Math.max(H1, H2);
+            const p1 = Math.atan2(x1im, x1re) * 180 / Math.PI;
+            const p2 = Math.atan2(x2im, x2re) * 180 / Math.PI;
+            let p = (H1 >= H2 ? p1 : p2);
+            if (p <= -180) p += 360;
+            if (p > 180) p -= 360;
+            phaseDisplay = Math.abs(p);
+          } else {
+            const br = (ampModeRef.current === 'relative') ? baseRelativeResponse(kRef.current, mRef.current, zetaRef.current, wNew, 1) : baseResponse(kRef.current, mRef.current, zetaRef.current, wNew, 1);
+            ampVal = br.H;
+            phaseDisplay = phaseDeg(kRef.current, mRef.current, zetaRef.current, wNew);
+          }
+          const point = { f: fNew, amp: ampVal, ph: phaseDisplay };
           
           if (singleTraceMode) {
             // Single trace: add break point (NaN) when direction changes
@@ -511,9 +555,50 @@ export default function SpringMassSystem() {
       const prev = prevFreqRef.current;
       if (freqHz !== prev && now - lastManualCaptureRef.current > 40) {
         lastManualCaptureRef.current = now;
-        const br = (ampMode === 'relative') ? baseRelativeResponse(k, m, zeta, 2 * Math.PI * freqHz, 1) : baseResponse(k, m, zeta, 2 * Math.PI * freqHz, 1);
-        const phd = phaseDeg(k, m, zeta, 2 * Math.PI * freqHz);
-        const point = { f: freqHz, amp: br.H, ph: phd };
+        const wNow = 2 * Math.PI * freqHz;
+        let ampVal = 0;
+        let phaseDisplay = 0;
+        if (systemDOF === '2DOF') {
+          const c1 = 2 * zeta * Math.sqrt(Math.max(k, 0) * Math.max(m, 0));
+          const c2n = 2 * zeta2 * Math.sqrt(Math.max(k2, 0) * Math.max(m2, 0));
+          const a11 = { re: -wNow * wNow * m + k + k2, im: wNow * (c1 + c2n) };
+          const a12 = { re: -k2, im: -wNow * c2n };
+          const a21 = { re: -k2, im: -wNow * c2n };
+          const a22 = { re: -wNow * wNow * m2 + k2, im: wNow * c2n };
+          const b1 = { re: k, im: wNow * c1 };
+          const det = {
+            re: a11.re * a22.re - a11.im * a22.im - (a12.re * a21.re - a12.im * a21.im),
+            im: a11.re * a22.im + a11.im * a22.re - (a12.re * a21.im + a12.im * a21.re),
+          };
+          const num1 = {
+            re: b1.re * a22.re - b1.im * a22.im,
+            im: b1.re * a22.im + b1.im * a22.re,
+          };
+          const detMag2 = det.re * det.re + det.im * det.im || 1e-18;
+          const x1re = (num1.re * det.re + num1.im * det.im) / detMag2;
+          const x1im = (num1.im * det.re - num1.re * det.im) / detMag2;
+          const nb = {
+            re: a21.re * b1.re - a21.im * b1.im,
+            im: a21.re * b1.im + a21.im * b1.re,
+          };
+          const num2 = { re: -nb.re, im: -nb.im };
+          const x2re = (num2.re * det.re + num2.im * det.im) / detMag2;
+          const x2im = (num2.im * det.re - num2.re * det.im) / detMag2;
+          const H1 = Math.hypot(x1re, x1im);
+          const H2 = Math.hypot(x2re, x2im);
+          ampVal = Math.max(H1, H2);
+          const p1 = Math.atan2(x1im, x1re) * 180 / Math.PI;
+          const p2 = Math.atan2(x2im, x2re) * 180 / Math.PI;
+          let p = (H1 >= H2 ? p1 : p2);
+          if (p <= -180) p += 360;
+          if (p > 180) p -= 360;
+          phaseDisplay = Math.abs(p);
+        } else {
+          const br = (ampMode === 'relative') ? baseRelativeResponse(k, m, zeta, wNow, 1) : baseResponse(k, m, zeta, wNow, 1);
+          ampVal = br.H;
+          phaseDisplay = phaseDeg(k, m, zeta, wNow);
+        }
+        const point = { f: freqHz, amp: ampVal, ph: phaseDisplay };
         
         // Detect direction change in manual mode
         const currentDir: 1 | -1 = freqHz > prev ? 1 : -1;
