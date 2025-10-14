@@ -1362,16 +1362,8 @@ export default function SpringMassSystem() {
                     // Crossbar position (above mass)
                     const crossbarY = massY - 18;
 
-                    // Camera vertical pan to keep the assembly centered in the viewport
-                    const vbH = h;
-                    let contentTop = baseY - 15 + baseOffset; // top of hatched base
-                    let contentBottom = massY + massH;        // bottom of mass 1
-                    if (systemDOF === '2DOF') {
-                      const rel2 = x2Px - xPx;
-                      const mass2Y_cam = massY + 120 + rel2; // same gap as used below
-                      contentBottom = Math.max(contentBottom, mass2Y_cam + mass2Size.h);
-                    }
-                    const yCam = (vbH / 2) - ((contentTop + contentBottom) / 2);
+                    // Keep camera fixed to avoid shifting reference frame; improves perceived phase correctness
+                    const yCam = 0;
 
                     return (
                       <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-full">
