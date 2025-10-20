@@ -39,7 +39,8 @@
     "react-dom": "^18.2.0",
     "react-plotly.js": "^2.6.0",
     "uuid": "^9.0.1",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@playwright/test": "^1.40.1",

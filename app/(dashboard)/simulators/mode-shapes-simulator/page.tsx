@@ -1,20 +1,35 @@
-import ClientImage from '@/app/components/ClientImage'
+import React from 'react';
+import BeamAnimation from './components/BeamAnimation';
+import BodePlot from './components/BodePlot';
+import ControlPanel from './components/ControlPanel';
 
-export const metadata = { title: 'Mode Shapes Simulator | Simulators' }
+export const metadata = { title: 'Mode Shapes Simulator | Simulators' };
 
-export default function ModeShapesComingSoon() {
+export default function ModeShapesSimulatorPage() {
   return (
     <div className="container-fluid">
       <div className="row mb-4">
         <div className="col">
           <h1 className="h3 mb-0">Mode Shapes Simulator</h1>
-          <p className="text-muted">This simulator is under progress.</p>
+          <p className="text-muted">Cantilever/Overhung beam mode shapes and frequency response</p>
         </div>
       </div>
-      <div className="text-center p-5 bg-light rounded border">
-        <ClientImage src="/coming-soon.png" alt="Coming soon" style={{ maxWidth: 280 }} width={280} height={200} />
-        <div className="mt-3">Coming soon</div>
+
+      <div className="row g-3">
+        <div className="col-lg-4 order-2 order-lg-1">
+          <ControlPanel />
+        </div>
+        <div className="col-lg-8 order-1 order-lg-2">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 mb-3">
+            <h2 className="h6 mb-3">Beam Visualization</h2>
+            <div style={{ minHeight: 280 }}> <BeamAnimation /> </div>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
+            <h2 className="h6 mb-3">Bode Plot</h2>
+            <BodePlot />
+          </div>
+        </div>
       </div>
     </div>
-  )
+  );
 }
