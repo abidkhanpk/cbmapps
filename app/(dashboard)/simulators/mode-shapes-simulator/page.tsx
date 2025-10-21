@@ -2,6 +2,7 @@ import React from 'react';
 import BeamAnimation from './components/BeamAnimation';
 import BodePlot from './components/BodePlot';
 import ControlPanel from './components/ControlPanel';
+import AnimationControlsBelow from './components/AnimationControlsBelow';
 
 export const metadata = { title: 'Mode Shapes Simulator | Simulators' };
 
@@ -23,6 +24,7 @@ export default function ModeShapesSimulatorPage() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 mb-3">
             <h2 className="h6 mb-3">Beam Visualization</h2>
             <div style={{ minHeight: 280 }}> <BeamAnimation /> </div>
+            <AnimationControlsBelow />
           </div>
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
             <h2 className="h6 mb-3">Bode Plot</h2>

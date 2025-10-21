@@ -66,35 +66,50 @@ export default function BeamAnimation() {
 
       // Frequency response at current forcing frequency for each mode
       const [fn1, fn2, fn3] = state.fn;
-      const om = 2 * Math.PI * state.freqHz;
-      const A1 = frfMagnitude(om, 2 * Math.PI * fn1, state.zeta);
-      const A2 = frfMagnitude(om, 2 * Math.PI * fn2, state.zeta);
-      const A3 = frfMagnitude(om, 2 * Math.PI * fn3, state.zeta);
-      const ph1 = state.phaseEnabled ? frfPhase(om, 2 * Math.PI * fn1, state.zeta) : 0;
-      const ph2 = state.phaseEnabled ? frfPhase(om, 2 * Math.PI * fn2, state.zeta) : 0;
-      const ph3 = state.phaseEnabled ? frfPhase(om, 2 * Math.PI * fn3, state.zeta) : 0;
+      const omegaF = 2 * Math.PI * state.forceFreqHz; // forcing frequency
 
-      // Select a single pure mode based on UI
-      const sel = state.selectedMode || 1;
-      const A_sel = sel === 1 ? A1 : sel === 2 ? A2 : A3;
-      const ph_sel = sel === 1 ? ph1 : sel === 2 ? ph2 : ph3;
-      const phi_arr = sel === 1 ? modesPhi.phi1 : sel === 2 ? modesPhi.phi2 : modesPhi.phi3;
+      // Animation playback frequency controlled by animRate; slow near 0, equals forcing near 1
+      const K = 100; // large divisor for slow motion
+      const playbackHz = Math.max(0.05, state.forceFreqHz * (state.animRate * (1 - 1 / K) + 1 / K));
+      const omegaAnim = 2 * Math.PI * playbackHz;
 
-      // Initialize offset so initial deflection is zero (no drop at start)
-      if (initOffset == null) {
-        initOffset = Math.sin(ph_sel);
+      // Determine auto-selected mode based on 20% band around natural frequencies when no explicit selection
+      const band = 0.2; // 20%
+      let activeMode: 1 | 2 | 3 | null = state.selectedMode;
+      if (activeMode == null) {
+        const within = (f: number, fn: number) => Math.abs(f - fn) <= band * fn;
+        if (within(state.forceFreqHz, fn1)) activeMode = 1;
+        else if (within(state.forceFreqHz, fn2)) activeMode = 2;
+        else if (within(state.forceFreqHz, fn3)) activeMode = 3;
+        else activeMode = null;
       }
 
-      // Compose instantaneous displacement y(x,t) = Σ Φ_n(x) * q_n(t)
-      // q_n(t) ~ A_n * sin(ω t + φ_n)
-      const scale = (beamX1 - beamX0) * BEAM_STYLE.deflectionScale / BEAM_LENGTH_M;
+      // Compose instantaneous displacement y(x,t) = Φ_n(x) * q_n(t) for active mode; otherwise no vibration
+      const scale = (beamX1 - beamX0) * BEAM_STYLE.deflectionScale / BEAM_LENGTH_M * (state.ampScale ?? 1);
 
       const pts: { x: number; y: number }[] = [];
       for (let i = 0; i < xArr.length; i++) {
         const xi = xArr[i];
         const sx = beamX0 + (beamX1 - beamX0) * (xi / BEAM_LENGTH_M);
         const y0 = beamY;
-        const yDefl = (phi_arr[i] * (A_sel * (Math.sin(om * t + ph_sel) - (initOffset ?? 0)))) * scale;
+
+        let yDefl = 0;
+        if (activeMode === 1) {
+          const ph = state.phaseEnabled ? frfPhase(omegaF, 2 * Math.PI * fn1, state.zeta) : 0;
+          const A = frfMagnitude(omegaF, 2 * Math.PI * fn1, state.zeta);
+          yDefl = modesPhi.phi1[i] * (A * Math.sin(omegaAnim * t + ph)) * scale;
+        } else if (activeMode === 2) {
+          const ph = state.phaseEnabled ? frfPhase(omegaF, 2 * Math.PI * fn2, state.zeta) : 0;
+          const A = frfMagnitude(omegaF, 2 * Math.PI * fn2, state.zeta);
+          yDefl = modesPhi.phi2[i] * (A * Math.sin(omegaAnim * t + ph)) * scale;
+        } else if (activeMode === 3) {
+          const ph = state.phaseEnabled ? frfPhase(omegaF, 2 * Math.PI * fn3, state.zeta) : 0;
+          const A = frfMagnitude(omegaF, 2 * Math.PI * fn3, state.zeta);
+          yDefl = modesPhi.phi3[i] * (A * Math.sin(omegaAnim * t + ph)) * scale;
+        } else {
+          yDefl = 0; // outside bands and no explicit selection
+        }
+
         pts.push({ x: sx, y: y0 + yDefl });
       }
 
@@ -138,7 +153,9 @@ export default function BeamAnimation() {
       // Axis and labels (minimal)
       ctx.fillStyle = '#334155';
       ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
-      ctx.fillText(`f = ${state.freqHz.toFixed(2)} Hz`, width - 120, 22);
+      ctx.textAlign = 'right';
+      ctx.fillText(`${state.forceFreqHz.toFixed(2)} Hz`, width - 10, 18);
+      ctx.textAlign = 'left';
 
       if (state.running) raf = requestAnimationFrame(render); else raf = requestAnimationFrame(render); // keep rendering to allow slider updates
     };
