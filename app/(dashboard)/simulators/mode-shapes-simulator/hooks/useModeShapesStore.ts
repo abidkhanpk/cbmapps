@@ -11,6 +11,7 @@ export interface SimulatorState {
   forceFreqHz: number; // forcing frequency (Hz)
   maxFreqHz: number; // sweep upper bound
   phaseEnabled: boolean;
+  xAxisMax: number; // Bode plot max frequency (Hz)
 
   // New: physical sliders
   stiffness: number; // relative stiffness factor (E*I)
@@ -26,6 +27,7 @@ export interface SimulatorState {
   setForceFreqHz: (f: number) => void;
   setMaxFreqHz: (f: number) => void;
   setPhaseEnabled: (p: boolean) => void;
+  setXAxisMax: (f: number) => void;
 
   setStiffness: (k: number) => void;
   setMass: (m: number) => void;
@@ -58,6 +60,7 @@ export const useModeShapesStore = create<SimulatorState>((set, get) => ({
   maxFreqHz: DEFAULT_MAX_SWEEP_HZ,
   phaseEnabled: true,
   ampScale: 1,
+  xAxisMax: DEFAULT_MAX_SWEEP_HZ,
 
   setBoundary: (b) => set({ boundary: b }),
   setZeta: (z) => set({ zeta: Math.max(0, Math.min(0.2, z)) }),
@@ -67,6 +70,7 @@ export const useModeShapesStore = create<SimulatorState>((set, get) => ({
   setForceFreqHz: (f) => set({ forceFreqHz: Math.max(0, f) }),
   setMaxFreqHz: (f) => set({ maxFreqHz: Math.max(1, f) }),
   setPhaseEnabled: (p) => set({ phaseEnabled: p }),
+  setXAxisMax: (f) => set({ xAxisMax: Math.max(10, f) }),
 
   setStiffness: (k) => {
     const kk = Math.max(0.1, Math.min(10, k));
@@ -95,5 +99,6 @@ export const useModeShapesStore = create<SimulatorState>((set, get) => ({
     maxFreqHz: DEFAULT_MAX_SWEEP_HZ,
     phaseEnabled: true,
     ampScale: 1,
+    xAxisMax: DEFAULT_MAX_SWEEP_HZ,
   })),
 }));

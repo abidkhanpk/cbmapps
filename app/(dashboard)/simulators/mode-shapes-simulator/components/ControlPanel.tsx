@@ -3,10 +3,9 @@ import React, { useEffect } from 'react';
 import { useModeShapesStore } from '../hooks/useModeShapesStore';
 
 export default function ControlPanel() {
-  const {
-    boundary, zeta, fn, running, autoSweep, forceFreqHz, maxFreqHz,
-    stiffness, mass, selectedMode,
-    setBoundary, setZeta, setRunning, setAutoSweep, setForceFreqHz, setMaxFreqHz, reset,
+  const { zeta, fn, running, autoSweep, forceFreqHz,
+    stiffness, mass, selectedMode, xAxisMax,
+    setZeta, setRunning, setAutoSweep, setForceFreqHz, reset,
     setStiffness, setMass, setSelectedMode
   } = useModeShapesStore();
 
@@ -19,25 +18,31 @@ export default function ControlPanel() {
       prev = ts;
       const rate = 0.5; // Hz per second
       const f = forceFreqHz + rate * dt;
-      const next = f >= maxFreqHz ? 0 : f;
+      const next = f >= xAxisMax ? 0 : f;
       setForceFreqHz(next);
       raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [autoSweep, forceFreqHz, maxFreqHz, setForceFreqHz]);
+  }, [autoSweep, forceFreqHz, xAxisMax, setForceFreqHz]);
+
+  // Auto-unselect mode if forcing frequency moves outside 20% band of selected mode
+  useEffect(() => {
+    if (selectedMode == null) return;
+    const f = forceFreqHz;
+    const target = selectedMode === 1 ? fn[0] : selectedMode === 2 ? fn[1] : fn[2];
+    const band = 0.2;
+    const within = Math.abs(f - target) <= band * target;
+    if (!within) setSelectedMode(null);
+  }, [forceFreqHz, selectedMode, fn, setSelectedMode]);
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-5 space-y-4">
       <h2 className="text-base font-semibold">Controls</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium">Max Forcing Frequency (Hz)</label>
-          <input type="range" min={10} max={240} step={1} value={maxFreqHz} onChange={e => setMaxFreqHz(Number(e.target.value))} className="w-full" />
-        </div>
-        <div>
+                <div>
           <label className="block text-sm font-medium">Forcing Frequency (Hz)</label>
-          <input type="range" min={0} max={maxFreqHz} step={0.1} value={forceFreqHz} onChange={e => setForceFreqHz(Number(e.target.value))} className="w-full" />
+          <input type="range" min={0} max={xAxisMax} step={0.1} value={forceFreqHz} onChange={e => setForceFreqHz(Number(e.target.value))} className="w-full" />
         </div>
         <div>
           <label className="block text-sm font-medium">Damping Ratio ζ</label>
@@ -53,7 +58,7 @@ export default function ControlPanel() {
         </div>
         <div>
           <label className="block text-sm font-medium">Mode</label>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex gap-2">
             <button
               className={`btn ${selectedMode === 1 ? 'btn-primary' : 'btn-outline-primary'}`}
               onClick={() => {
@@ -101,9 +106,7 @@ export default function ControlPanel() {
         <button className={`btn ${running ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setRunning(!running)}>{running ? 'Pause' : 'Run'}</button>
         <button className={`btn ${autoSweep ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setAutoSweep(!autoSweep)}>{autoSweep ? 'Stop Sweep' : 'Start Sweep'}</button>
         <button className="btn btn-outline-secondary" onClick={() => reset()}>Reset</button>
-        <div className="text-xs text-gray-600">Click a mode again to unselect it.</div>
       </div>
-      <div className="text-xs text-gray-600">Boundary: {boundary === 'cantilever' ? 'Cantilever' : 'Overhung'} (cantilever mode shapes used)</div>
     </div>
   );
 }

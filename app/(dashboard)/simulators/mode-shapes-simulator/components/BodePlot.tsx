@@ -1,10 +1,9 @@
 "use client";
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { PlotParams } from 'react-plotly.js';
 const Plot = dynamic<PlotParams>(() => import('react-plotly.js'), { ssr: false });
 import { useModeShapesStore } from '../hooks/useModeShapesStore';
-import { DEFAULT_MAX_SWEEP_HZ } from '../lib/constants';
 
 function computeBode(fn: [number, number, number], zeta: number, fmax: number) {
   const N = 700;
@@ -33,8 +32,8 @@ function computeBode(fn: [number, number, number], zeta: number, fmax: number) {
 }
 
 export default function BodePlot() {
-  const { fn, zeta, forceFreqHz, maxFreqHz } = useModeShapesStore();
-  const bode = useMemo(() => computeBode(fn, zeta, Math.max(1, maxFreqHz)), [fn, zeta, maxFreqHz]);
+  const { fn, zeta, forceFreqHz, xAxisMax, setXAxisMax } = useModeShapesStore();
+  const bode = useMemo(() => computeBode(fn, zeta, Math.max(1, xAxisMax)), [fn, zeta, xAxisMax]);
   const [revision, setRevision] = useState(0);
 
   useEffect(() => { setRevision(r => r + 1); }, [forceFreqHz]);
@@ -48,20 +47,34 @@ export default function BodePlot() {
                   { x: [fn[1], fn[1]], y: [0, Math.max(...bode.amp)], mode: 'lines', line: { color: 'rgba(234,88,12,0.8)', width: 1.5, dash: 'dash' }, name: 'f2' },
                   { x: [fn[2], fn[2]], y: [0, Math.max(...bode.amp)], mode: 'lines', line: { color: 'rgba(99,102,241,0.8)', width: 1.5, dash: 'dash' }, name: 'f3' },
                   { x: [forceFreqHz, forceFreqHz], y: [0, Math.max(...bode.amp)], mode: 'lines', line: { color: 'rgba(220,38,38,0.9)', width: 2 }, name: 'forcing' }] as any}
-          layout={{ autosize: true, height: 240, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: 'Frequency (Hz)', range: [0, Math.max(10, maxFreqHz)] }, yaxis: { title: 'Amplitude (arb.)', rangemode: 'tozero' }, uirevision: revision as any }}
+          layout={{ autosize: true, height: 240, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: 'Frequency (Hz)', range: [0, Math.max(10, xAxisMax)] }, yaxis: { title: 'Amplitude (arb.)', rangemode: 'tozero' }, uirevision: revision as any }}
           config={{ displayModeBar: false, responsive: true }}
           useResizeHandler
           style={{ width: '100%', height: 240 }}
+          onRelayout={(e: any) => {
+            const ex = e as Record<string, any>;
+            const xr1 = ex['xaxis.range[1]'];
+            const xr = ex['xaxis.range'];
+            const xmax = typeof xr1 === 'number' ? xr1 : (Array.isArray(xr) ? xr[1] : undefined);
+            if (typeof xmax === 'number' && isFinite(xmax)) setXAxisMax(xmax);
+          }}
         />
       </div>
       <div className="bg-white rounded border border-gray-200 p-2">
         <Plot
           data={[{ x: bode.f, y: bode.phase, type: 'scatter', mode: 'lines', line: { color: 'rgba(234,88,12,1)', width: 2 }, name: 'Phase' },
                   { x: [forceFreqHz, forceFreqHz], y: [0, 180], mode: 'lines', line: { color: 'rgba(220,38,38,0.9)', width: 2 }, name: 'forcing' }] as any}
-          layout={{ autosize: true, height: 200, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: 'Frequency (Hz)', range: [0, Math.max(10, maxFreqHz)] }, yaxis: { title: 'Phase (deg)' }, uirevision: revision as any }}
+          layout={{ autosize: true, height: 200, margin: { l: 55, r: 10, t: 10, b: 40 }, xaxis: { title: 'Frequency (Hz)', range: [0, Math.max(10, xAxisMax)] }, yaxis: { title: 'Phase (deg)' }, uirevision: revision as any }}
           config={{ displayModeBar: false, responsive: true }}
           useResizeHandler
           style={{ width: '100%', height: 200 }}
+          onRelayout={(e: any) => {
+            const ex = e as Record<string, any>;
+            const xr1 = ex['xaxis.range[1]'];
+            const xr = ex['xaxis.range'];
+            const xmax = typeof xr1 === 'number' ? xr1 : (Array.isArray(xr) ? xr[1] : undefined);
+            if (typeof xmax === 'number' && isFinite(xmax)) setXAxisMax(xmax);
+          }}
         />
       </div>
     </div>

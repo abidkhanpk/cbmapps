@@ -1,22 +1,16 @@
 "use client";
 import React, { useEffect, useMemo, useRef } from 'react';
 import { BEAM_LENGTH_M, BEAM_STYLE, NUM_POINTS } from '../lib/constants';
-import { cantileverModeShape, overhungModeShape, frfMagnitude, frfPhase, makeLinspace } from '../lib/beamMath';
+import { cantileverModeShape, frfMagnitude, frfPhase, makeLinspace } from '../lib/beamMath';
 import { useModeShapesStore } from '../hooks/useModeShapesStore';
 
 // Lightweight Canvas 2D beam renderer with requestAnimationFrame loop.
 // We avoid Three.js here to minimize bundle weight and keep rendering simple and fast.
 
-function composeModeShape(boundary: 'cantilever' | 'overhung', x: number, modes: [number, number, number]) {
-  const phi1 = boundary === 'cantilever' ? cantileverModeShape(1, x, BEAM_LENGTH_M) : overhungModeShape(1, x, BEAM_LENGTH_M);
-  const phi2 = boundary === 'cantilever' ? cantileverModeShape(2, x, BEAM_LENGTH_M) : overhungModeShape(2, x, BEAM_LENGTH_M);
-  const phi3 = boundary === 'cantilever' ? cantileverModeShape(3, x, BEAM_LENGTH_M) : overhungModeShape(3, x, BEAM_LENGTH_M);
-  return [phi1, phi2, phi3] as const;
-}
 
 export default function BeamAnimation() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const state = useModeShapesStore();
+  // No direct subscription here; we read the latest store state each frame via getState()
 
   const xArr = useMemo(() => makeLinspace(NUM_POINTS, 0, BEAM_LENGTH_M), []);
 
@@ -31,7 +25,6 @@ export default function BeamAnimation() {
   useEffect(() => {
     let raf = 0;
     let t0: number | null = null;
-    let initOffset: number | null = null;
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx || !canvasRef.current) return;
 
@@ -62,30 +55,31 @@ export default function BeamAnimation() {
       const beamX0 = pad + 30; // leave space for clamp hatch
       const beamX1 = width - pad;
       const beamY = Math.floor(height / 2);
-      const strokeW = Math.max(5, Math.min(10, 4 + 2 * Math.sqrt(state.stiffness)));
+      const s = useModeShapesStore.getState();
+      const strokeW = Math.max(5, Math.min(10, 4 + 2 * Math.sqrt(s.stiffness)));
 
       // Frequency response at current forcing frequency for each mode
-      const [fn1, fn2, fn3] = state.fn;
-      const omegaF = 2 * Math.PI * state.forceFreqHz; // forcing frequency
+      const [fn1, fn2, fn3] = s.fn;
+      const omegaF = 2 * Math.PI * s.forceFreqHz; // forcing frequency
 
       // Animation playback frequency controlled by animRate; slow near 0, equals forcing near 1
       const K = 100; // large divisor for slow motion
-      const playbackHz = Math.max(0.05, state.forceFreqHz * (state.animRate * (1 - 1 / K) + 1 / K));
+      const playbackHz = Math.max(0.05, s.forceFreqHz * (s.animRate * (1 - 1 / K) + 1 / K));
       const omegaAnim = 2 * Math.PI * playbackHz;
 
       // Determine auto-selected mode based on 20% band around natural frequencies when no explicit selection
       const band = 0.2; // 20%
-      let activeMode: 1 | 2 | 3 | null = state.selectedMode;
+      let activeMode: 1 | 2 | 3 | null = s.selectedMode;
       if (activeMode == null) {
         const within = (f: number, fn: number) => Math.abs(f - fn) <= band * fn;
-        if (within(state.forceFreqHz, fn1)) activeMode = 1;
-        else if (within(state.forceFreqHz, fn2)) activeMode = 2;
-        else if (within(state.forceFreqHz, fn3)) activeMode = 3;
+        if (within(s.forceFreqHz, fn1)) activeMode = 1;
+        else if (within(s.forceFreqHz, fn2)) activeMode = 2;
+        else if (within(s.forceFreqHz, fn3)) activeMode = 3;
         else activeMode = null;
       }
 
       // Compose instantaneous displacement y(x,t) = Φ_n(x) * q_n(t) for active mode; otherwise no vibration
-      const scale = (beamX1 - beamX0) * BEAM_STYLE.deflectionScale / BEAM_LENGTH_M * (state.ampScale ?? 1);
+      const scale = (beamX1 - beamX0) * BEAM_STYLE.deflectionScale / BEAM_LENGTH_M * (s.ampScale ?? 1);
 
       const pts: { x: number; y: number }[] = [];
       for (let i = 0; i < xArr.length; i++) {
@@ -95,16 +89,16 @@ export default function BeamAnimation() {
 
         let yDefl = 0;
         if (activeMode === 1) {
-          const ph = state.phaseEnabled ? frfPhase(omegaF, 2 * Math.PI * fn1, state.zeta) : 0;
-          const A = frfMagnitude(omegaF, 2 * Math.PI * fn1, state.zeta);
+          const ph = s.phaseEnabled ? frfPhase(omegaF, 2 * Math.PI * fn1, s.zeta) : 0;
+          const A = frfMagnitude(omegaF, 2 * Math.PI * fn1, s.zeta);
           yDefl = modesPhi.phi1[i] * (A * Math.sin(omegaAnim * t + ph)) * scale;
         } else if (activeMode === 2) {
-          const ph = state.phaseEnabled ? frfPhase(omegaF, 2 * Math.PI * fn2, state.zeta) : 0;
-          const A = frfMagnitude(omegaF, 2 * Math.PI * fn2, state.zeta);
+          const ph = s.phaseEnabled ? frfPhase(omegaF, 2 * Math.PI * fn2, s.zeta) : 0;
+          const A = frfMagnitude(omegaF, 2 * Math.PI * fn2, s.zeta);
           yDefl = modesPhi.phi2[i] * (A * Math.sin(omegaAnim * t + ph)) * scale;
         } else if (activeMode === 3) {
-          const ph = state.phaseEnabled ? frfPhase(omegaF, 2 * Math.PI * fn3, state.zeta) : 0;
-          const A = frfMagnitude(omegaF, 2 * Math.PI * fn3, state.zeta);
+          const ph = s.phaseEnabled ? frfPhase(omegaF, 2 * Math.PI * fn3, s.zeta) : 0;
+          const A = frfMagnitude(omegaF, 2 * Math.PI * fn3, s.zeta);
           yDefl = modesPhi.phi3[i] * (A * Math.sin(omegaAnim * t + ph)) * scale;
         } else {
           yDefl = 0; // outside bands and no explicit selection
@@ -154,15 +148,15 @@ export default function BeamAnimation() {
       ctx.fillStyle = '#334155';
       ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
       ctx.textAlign = 'right';
-      ctx.fillText(`${state.forceFreqHz.toFixed(2)} Hz`, width - 10, 18);
+      ctx.fillText(`${s.forceFreqHz.toFixed(2)} Hz`, width - 10, 18);
       ctx.textAlign = 'left';
 
-      if (state.running) raf = requestAnimationFrame(render); else raf = requestAnimationFrame(render); // keep rendering to allow slider updates
+      raf = requestAnimationFrame(render);
     };
 
     raf = requestAnimationFrame(render);
     return () => cancelAnimationFrame(raf);
-  }, [xArr, modesPhi, state]);
+  }, [xArr, modesPhi]);
 
   return (
     <div className="w-100 h-100" style={{ minHeight: 260 }}>
