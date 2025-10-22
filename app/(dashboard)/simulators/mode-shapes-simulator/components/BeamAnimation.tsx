@@ -61,25 +61,27 @@ export default function BeamAnimation() {
       // Frequency response at current forcing frequency for each mode
       const [fn1, fn2, fn3] = s.fn;
       const omegaF = 2 * Math.PI * s.forceFreqHz; // forcing frequency
+      // Precompute FRF magnitudes and phases for all 3 modes
+      const A1 = frfMagnitude(omegaF, 2 * Math.PI * fn1, s.zeta);
+      const A2 = frfMagnitude(omegaF, 2 * Math.PI * fn2, s.zeta);
+      const A3 = frfMagnitude(omegaF, 2 * Math.PI * fn3, s.zeta);
+      const ph1 = s.phaseEnabled ? frfPhase(omegaF, 2 * Math.PI * fn1, s.zeta) : 0;
+      const ph2 = s.phaseEnabled ? frfPhase(omegaF, 2 * Math.PI * fn2, s.zeta) : 0;
+      const ph3 = s.phaseEnabled ? frfPhase(omegaF, 2 * Math.PI * fn3, s.zeta) : 0;
 
       // Animation playback frequency controlled by animRate; slow near 0, equals forcing near 1
       const K = 100; // large divisor for slow motion
       const playbackHz = Math.max(0.05, s.forceFreqHz * (s.animRate * (1 - 1 / K) + 1 / K));
       const omegaAnim = 2 * Math.PI * playbackHz;
 
-      // Determine auto-selected mode based on 20% band around natural frequencies when no explicit selection
-      const band = 0.2; // 20%
+      // Determine active mode: if not explicitly selected, use the mode with the largest FRF magnitude
       let activeMode: 1 | 2 | 3 | null = s.selectedMode;
       if (activeMode == null) {
-        const within = (f: number, fn: number) => Math.abs(f - fn) <= band * fn;
-        if (within(s.forceFreqHz, fn1)) activeMode = 1;
-        else if (within(s.forceFreqHz, fn2)) activeMode = 2;
-        else if (within(s.forceFreqHz, fn3)) activeMode = 3;
-        else activeMode = null;
+        if (A1 >= A2 && A1 >= A3) activeMode = 1; else if (A2 >= A3) activeMode = 2; else activeMode = 3;
       }
 
-      // Compose instantaneous displacement y(x,t) = Φ_n(x) * q_n(t) for active mode; otherwise no vibration
-      const scale = (beamX1 - beamX0) * BEAM_STYLE.deflectionScale / BEAM_LENGTH_M * (s.ampScale ?? 1);
+      // Compose instantaneous displacement y(x,t) = Φ_n(x) * q_n(t); amplitude decays smoothly with FRF
+      const scale = (beamX1 - beamX0) * BEAM_STYLE.deflectionScale / BEAM_LENGTH_M * (s.ampScale ?? 1) * 0.1;
 
       const pts: { x: number; y: number }[] = [];
       for (let i = 0; i < xArr.length; i++) {
@@ -89,19 +91,11 @@ export default function BeamAnimation() {
 
         let yDefl = 0;
         if (activeMode === 1) {
-          const ph = s.phaseEnabled ? frfPhase(omegaF, 2 * Math.PI * fn1, s.zeta) : 0;
-          const A = frfMagnitude(omegaF, 2 * Math.PI * fn1, s.zeta);
-          yDefl = modesPhi.phi1[i] * (A * Math.sin(omegaAnim * t + ph)) * scale;
+          yDefl = modesPhi.phi1[i] * (A1 * Math.sin(omegaAnim * t + ph1)) * scale;
         } else if (activeMode === 2) {
-          const ph = s.phaseEnabled ? frfPhase(omegaF, 2 * Math.PI * fn2, s.zeta) : 0;
-          const A = frfMagnitude(omegaF, 2 * Math.PI * fn2, s.zeta);
-          yDefl = modesPhi.phi2[i] * (A * Math.sin(omegaAnim * t + ph)) * scale;
+          yDefl = modesPhi.phi2[i] * (A2 * Math.sin(omegaAnim * t + ph2)) * scale;
         } else if (activeMode === 3) {
-          const ph = s.phaseEnabled ? frfPhase(omegaF, 2 * Math.PI * fn3, s.zeta) : 0;
-          const A = frfMagnitude(omegaF, 2 * Math.PI * fn3, s.zeta);
-          yDefl = modesPhi.phi3[i] * (A * Math.sin(omegaAnim * t + ph)) * scale;
-        } else {
-          yDefl = 0; // outside bands and no explicit selection
+          yDefl = modesPhi.phi3[i] * (A3 * Math.sin(omegaAnim * t + ph3)) * scale;
         }
 
         pts.push({ x: sx, y: y0 + yDefl });
