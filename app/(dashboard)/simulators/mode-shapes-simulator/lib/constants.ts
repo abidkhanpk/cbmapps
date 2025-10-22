@@ -29,4 +29,4 @@ export const BEAM_STYLE = {
   deflectionScale: 0.12, // visual scaling factor (m of deflection rendered per unit response)
 };
 
-export type BoundaryCondition = 'cantilever' | 'overhung' | 'simply-supported';
+export type BoundaryCondition = 'cantilever' | 'simply-supported';

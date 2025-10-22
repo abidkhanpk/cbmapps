@@ -42,11 +42,10 @@ export default function ControlPanel() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium">Boundary Condition</label>
-          <div className="flex flex-wrap gap-2">
-            <button className={`btn ${boundary === 'cantilever' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setBoundary('cantilever')}>Cantilever</button>
-            <button className={`btn ${boundary === 'simply-supported' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setBoundary('simply-supported')}>Simply Supported</button>
-            <button className={`btn ${boundary === 'overhung' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setBoundary('overhung')}>Overhung</button>
-          </div>
+          <select className="form-select" value={boundary} onChange={e => setBoundary(e.target.value as any)}>
+            <option value="cantilever">Cantilever</option>
+            <option value="simply-supported">Simply Supported</option>
+          </select>
         </div>
         <div>
           <label className="block text-sm font-medium">Forcing Frequency (Hz)</label>
@@ -64,9 +63,9 @@ export default function ControlPanel() {
           <label className="block text-sm font-medium">Mass (ρ·A)</label>
           <input type="range" min={0.1} max={10} step={0.1} value={mass} onChange={e => setMass(Number(e.target.value))} className="w-full" />
         </div>
-        <div>
+        <div className="col-span-1 md:col-span-2">
           <label className="block text-sm font-medium">Mode</label>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               className={`btn ${selectedMode === 1 ? 'btn-primary' : 'btn-outline-primary'}`}
               onClick={() => {

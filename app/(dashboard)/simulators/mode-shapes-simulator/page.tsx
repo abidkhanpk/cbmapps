@@ -12,7 +12,7 @@ export default function ModeShapesSimulatorPage() {
       <div className="row mb-4">
         <div className="col">
           <h1 className="h3 mb-0">Mode Shapes Simulator</h1>
-          <p className="text-muted">Cantilever, Simply Supported, and Overhung beam mode shapes and frequency response</p>
+          <p className="text-muted">Cantilever and Simply Supported beam mode shapes and frequency response</p>
         </div>
       </div>
 
