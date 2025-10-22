@@ -4,9 +4,9 @@ import { useModeShapesStore } from '../hooks/useModeShapesStore';
 
 export default function ControlPanel() {
   const { zeta, fn, running, autoSweep, forceFreqHz,
-    stiffness, mass, selectedMode, xAxisMax,
+    stiffness, mass, selectedMode, xAxisMax, boundary,
     setZeta, setRunning, setAutoSweep, setForceFreqHz, reset,
-    setStiffness, setMass, setSelectedMode
+    setStiffness, setMass, setSelectedMode, setBoundary
   } = useModeShapesStore();
 
   // Auto-sweep loop
@@ -40,7 +40,15 @@ export default function ControlPanel() {
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-5 space-y-4">
       <h2 className="text-base font-semibold">Controls</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
+        <div>
+          <label className="block text-sm font-medium">Boundary Condition</label>
+          <div className="flex flex-wrap gap-2">
+            <button className={`btn ${boundary === 'cantilever' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setBoundary('cantilever')}>Cantilever</button>
+            <button className={`btn ${boundary === 'simply-supported' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setBoundary('simply-supported')}>Simply Supported</button>
+            <button className={`btn ${boundary === 'overhung' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setBoundary('overhung')}>Overhung</button>
+          </div>
+        </div>
+        <div>
           <label className="block text-sm font-medium">Forcing Frequency (Hz)</label>
           <input type="range" min={0} max={xAxisMax} step={0.1} value={forceFreqHz} onChange={e => setForceFreqHz(Number(e.target.value))} className="w-full" />
         </div>

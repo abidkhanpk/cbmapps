@@ -36,11 +36,18 @@ export interface SimulatorState {
   reset: () => void;
 }
 
-function computeFnTriplet(stiffness: number, mass: number, baseF1: number): [number, number, number] {
-  const r2 = Math.pow(CANTILEVER_BETA_L[1] / CANTILEVER_BETA_L[0], 2);
-  const r3 = Math.pow(CANTILEVER_BETA_L[2] / CANTILEVER_BETA_L[0], 2);
+function computeFnTriplet(stiffness: number, mass: number, baseF1: number, boundary: BoundaryCondition = 'cantilever'): [number, number, number] {
+  // Frequency ratios depend on boundary condition. For cantilever we use beta ratios; for simply-supported: 1:4:9
   const scale = Math.sqrt(Math.max(0.05, stiffness) / Math.max(0.05, mass));
   const f1 = baseF1 * scale;
+  let r2: number, r3: number;
+  if (boundary === 'simply-supported') {
+    r2 = 4; // (2/1)^2
+    r3 = 9; // (3/1)^2
+  } else {
+    r2 = Math.pow(CANTILEVER_BETA_L[1] / CANTILEVER_BETA_L[0], 2);
+    r3 = Math.pow(CANTILEVER_BETA_L[2] / CANTILEVER_BETA_L[0], 2);
+  }
   const f2 = f1 * r2;
   const f3 = f1 * r3;
   return [f1, f2, f3];
@@ -62,7 +69,10 @@ export const useModeShapesStore = create<SimulatorState>((set, get) => ({
   ampScale: 1,
   xAxisMax: DEFAULT_MAX_SWEEP_HZ,
 
-  setBoundary: (b) => set({ boundary: b }),
+  setBoundary: (b) => set((state) => ({
+    boundary: b,
+    fn: computeFnTriplet(state.stiffness, state.mass, DEFAULT_FN1_HZ, b),
+  })),
   setZeta: (z) => set({ zeta: Math.max(0, Math.min(0.2, z)) }),
   setRunning: (r) => set({ running: r }),
   setAutoSweep: (v) => set({ autoSweep: v }),
@@ -74,24 +84,24 @@ export const useModeShapesStore = create<SimulatorState>((set, get) => ({
 
   setStiffness: (k) => {
     const kk = Math.max(0.1, Math.min(10, k));
-    const { mass } = get();
-    set({ stiffness: kk, fn: computeFnTriplet(kk, mass, DEFAULT_FN1_HZ) });
+    const { mass, boundary } = get();
+    set({ stiffness: kk, fn: computeFnTriplet(kk, mass, DEFAULT_FN1_HZ, boundary) });
   },
   setMass: (m) => {
     const mm = Math.max(0.1, Math.min(10, m));
-    const { stiffness } = get();
-    set({ mass: mm, fn: computeFnTriplet(stiffness, mm, DEFAULT_FN1_HZ) });
+    const { stiffness, boundary } = get();
+    set({ mass: mm, fn: computeFnTriplet(stiffness, mm, DEFAULT_FN1_HZ, boundary) });
   },
   setSelectedMode: (n) => set({ selectedMode: n }),
   setAmpScale: (a) => set({ ampScale: Math.max(0.05, Math.min(1, a)) }),
 
-  reset: () => set(() => ({
-    boundary: 'cantilever',
+  reset: () => set((state) => ({
+    boundary: state.boundary ?? 'cantilever',
     zeta: DEFAULT_DAMPING,
     stiffness: 1,
     mass: 1,
     selectedMode: null,
-    fn: computeFnTriplet(1, 1, DEFAULT_FN1_HZ),
+    fn: computeFnTriplet(1, 1, DEFAULT_FN1_HZ, state.boundary ?? 'cantilever'),
     running: true,
     autoSweep: false,
     animRate: 0.2,

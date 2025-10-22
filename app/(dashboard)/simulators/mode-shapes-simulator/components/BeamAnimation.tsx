@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useMemo, useRef } from 'react';
 import { BEAM_LENGTH_M, BEAM_STYLE, NUM_POINTS } from '../lib/constants';
-import { cantileverModeShape, frfMagnitude, frfPhase, makeLinspace } from '../lib/beamMath';
+import { cantileverModeShape, frfMagnitude, frfPhase, makeLinspace, simplySupportedModeShape, overhungModeShape } from '../lib/beamMath';
 import { useModeShapesStore } from '../hooks/useModeShapesStore';
 
 // Lightweight Canvas 2D beam renderer with requestAnimationFrame loop.
@@ -14,13 +14,17 @@ export default function BeamAnimation() {
 
   const xArr = useMemo(() => makeLinspace(NUM_POINTS, 0, BEAM_LENGTH_M), []);
 
-  // Precompute static mode shape arrays for speed
+  // Precompute static mode shape arrays for speed; recompute when boundary changes
+  const boundary = useModeShapesStore(s => s.boundary);
   const modesPhi = useMemo(() => {
-    const phi1 = xArr.map(x => cantileverModeShape(1, x));
-    const phi2 = xArr.map(x => cantileverModeShape(2, x));
-    const phi3 = xArr.map(x => cantileverModeShape(3, x));
+    let shapeFn = cantileverModeShape;
+    if (boundary === 'simply-supported') shapeFn = simplySupportedModeShape;
+    else if (boundary === 'overhung') shapeFn = overhungModeShape;
+    const phi1 = xArr.map(x => shapeFn(1, x));
+    const phi2 = xArr.map(x => shapeFn(2, x));
+    const phi3 = xArr.map(x => shapeFn(3, x));
     return { phi1, phi2, phi3 };
-  }, [xArr]);
+  }, [xArr, boundary]);
 
   useEffect(() => {
     let raf = 0;
@@ -121,19 +125,41 @@ export default function BeamAnimation() {
       }
       ctx.stroke();
 
-      // Draw a hatched clamp at the left end to represent cantilever boundary
-      const clampW = 24; const clampH = Math.max(32, strokeW * 3);
-      const clampX = beamX0 - clampW - 6; const clampY = beamY - clampH / 2;
-      ctx.fillStyle = '#3b82f6';
-      ctx.fillRect(clampX, clampY, clampW, clampH);
-      // Hatch lines
-      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-      ctx.lineWidth = 3;
-      for (let y = clampY - 10; y < clampY + clampH + 10; y += 10) {
+      // Draw boundary visualization depending on selected boundary
+      const sBoundary = useModeShapesStore.getState().boundary;
+      if (sBoundary === 'cantilever' || sBoundary === 'overhung') {
+        // Hatched clamp at left
+        const clampW = 24; const clampH = Math.max(32, strokeW * 3);
+        const clampX = beamX0 - clampW - 6; const clampY = beamY - clampH / 2;
+        ctx.fillStyle = '#3b82f6';
+        ctx.fillRect(clampX, clampY, clampW, clampH);
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        ctx.lineWidth = 3;
+        for (let y = clampY - 10; y < clampY + clampH + 10; y += 10) {
+          ctx.beginPath();
+          ctx.moveTo(clampX - 6, y);
+          ctx.lineTo(clampX + clampW + 6, y + 16);
+          ctx.stroke();
+        }
+      } else if (sBoundary === 'simply-supported') {
+        // Draw pins (triangles) at both ends
+        const triH = Math.max(10, strokeW * 1.2);
+        const triW = triH * 1.2;
+        ctx.fillStyle = '#3b82f6';
+        // Left pin
         ctx.beginPath();
-        ctx.moveTo(clampX - 6, y);
-        ctx.lineTo(clampX + clampW + 6, y + 16);
-        ctx.stroke();
+        ctx.moveTo(beamX0, beamY + triH / 2);
+        ctx.lineTo(beamX0 - triW, beamY + triH / 2);
+        ctx.lineTo(beamX0, beamY - triH / 2);
+        ctx.closePath();
+        ctx.fill();
+        // Right pin
+        ctx.beginPath();
+        ctx.moveTo(beamX1, beamY + triH / 2);
+        ctx.lineTo(beamX1 + triW, beamY + triH / 2);
+        ctx.lineTo(beamX1, beamY - triH / 2);
+        ctx.closePath();
+        ctx.fill();
       }
 
       // Tip marker removed to match reference image

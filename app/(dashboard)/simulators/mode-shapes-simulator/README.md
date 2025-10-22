@@ -1,6 +1,6 @@
 # Mode Shapes Simulator
 
-This simulator visualizes the mode shapes and frequency response of a uniform cantilever/overhung beam under harmonic excitation.
+This simulator visualizes the mode shapes and frequency response of a uniform beam under harmonic excitation for multiple boundary conditions (cantilever, simply-supported, overhung).
 
 ## Theory
 
@@ -9,6 +9,10 @@ For a uniform Euler–Bernoulli cantilever beam, mode shapes Φ_n(x) are given b
 Φ_n(x) = cosh(β_n x) − cos(β_n x) − σ_n [sinh(β_n x) − sin(β_n x)]
 
 where β_n L are roots of cosh(β L) cos(β L) = −1 and σ_n = (cosh βL + cos βL)/(sinh βL + sin βL).
+
+For a simply-supported (pinned-pinned) beam, mode shapes are:
+
+Φ_n(x) = sin(n π x / L)
 
 The total displacement is approximated by modal superposition (first three modes):
 
@@ -45,6 +49,7 @@ with small damping ζ (default 0.02). The phase φ_n = atan2(2 ζ r, 1 − r^2).
 
 ## Notes
 
+- Simply-supported boundary option added with exact sin(nπx/L) mode shapes and frequency ratios 1:4:9.
 - Overhung boundary is currently visualized using cantilever mode shapes (can be extended with proper boundary conditions).
 - The Bode amplitude uses a simple sum of the three modal magnitudes for demonstration; more accurate models would include modal participation factors and normalization to physical units.
 

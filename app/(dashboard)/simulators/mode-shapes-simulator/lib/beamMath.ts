@@ -33,6 +33,12 @@ export function overhungModeShape(n: Mode, x: number, L = BEAM_LENGTH_M) {
   return cantileverModeShape(n, x, L);
 }
 
+// Simply-supported (pinned-pinned) beam mode shapes for a uniform Euler–Bernoulli beam
+// Φ_n(x) = sin(n π x / L); already normalized with max amplitude of 1
+export function simplySupportedModeShape(n: Mode, x: number, L = BEAM_LENGTH_M) {
+  return Math.sin((n * Math.PI * x) / L);
+}
+
 // Frequency response magnitude for SDOF-like modal response
 // |H(ω)| = 1 / sqrt((1 - (ω/ωn)^2)^2 + (2 ζ (ω/ωn))^2)
 export function frfMagnitude(omega: number, omegaN: number, zeta: number) {
