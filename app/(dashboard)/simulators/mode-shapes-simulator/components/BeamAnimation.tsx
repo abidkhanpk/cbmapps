@@ -130,25 +130,52 @@ export default function BeamAnimation() {
         pts.push({ x: sx, y: y0 + yDefl });
       }
 
-      // Simple baseline beam and animated deflected shape
-      // Baseline
-      ctx.strokeStyle = 'rgba(59,130,246,0.20)';
-      ctx.lineWidth = Math.max(4, strokeW - 2);
-      ctx.lineCap = 'round';
+      // Deformed 3D-like beam rendering
+      const depth = 10; // px, visual thickness
+      const slantX = 12; // px, perspective slant right
+      const slantY = 8;  // px, perspective slant up
+
+      // Calculate vertices for the deformed beam's edges
+      const frontTopLine = pts.map(p => ({ x: p.x, y: p.y - depth / 2 }));
+      const frontBottomLine = pts.map(p => ({ x: p.x, y: p.y + depth / 2 }));
+      const backTopLine = pts.map(p => ({ x: p.x + slantX, y: p.y - depth / 2 - slantY }));
+      const backBottomLine = pts.map(p => ({ x: p.x + slantX, y: p.y + depth / 2 - slantY }));
+
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#374151'; // gray-700
+
+      // Top Face
+      ctx.fillStyle = '#9ca3af'; // gray-400
       ctx.beginPath();
-      ctx.moveTo(beamX0, beamY);
-      ctx.lineTo(beamX1, beamY);
+      ctx.moveTo(frontTopLine[0].x, frontTopLine[0].y);
+      frontTopLine.forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.lineTo(backTopLine[backTopLine.length - 1].x, backTopLine[backTopLine.length - 1].y);
+      [...backTopLine].reverse().forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.closePath();
+      ctx.fill();
       ctx.stroke();
 
-      // Deflected shape as centerline
-      ctx.strokeStyle = '#1f4fa7';
-      ctx.lineWidth = strokeW;
-      ctx.lineCap = 'round';
+      // Front Face
+      ctx.fillStyle = '#6b7280'; // gray-500
       ctx.beginPath();
-      for (let i = 0; i < pts.length; i++) {
-        const p = pts[i];
-        if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
-      }
+      ctx.moveTo(frontTopLine[0].x, frontTopLine[0].y);
+      frontTopLine.forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.lineTo(frontBottomLine[frontBottomLine.length - 1].x, frontBottomLine[frontBottomLine.length - 1].y);
+      [...frontBottomLine].reverse().forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Right End Cap
+      ctx.fillStyle = '#4b5563'; // gray-600
+      ctx.beginPath();
+      const last = pts.length - 1;
+      ctx.moveTo(frontTopLine[last].x, frontTopLine[last].y);
+      ctx.lineTo(frontBottomLine[last].x, frontBottomLine[last].y);
+      ctx.lineTo(backBottomLine[last].x, backBottomLine[last].y);
+      ctx.lineTo(backTopLine[last].x, backTopLine[last].y);
+      ctx.closePath();
+      ctx.fill();
       ctx.stroke();
 
       // Axis and labels (minimal)
