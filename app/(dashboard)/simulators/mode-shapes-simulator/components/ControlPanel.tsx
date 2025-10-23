@@ -44,14 +44,14 @@ export default function ControlPanel() {
       <h2 className="text-base font-semibold">Controls</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium">Boundary Condition</label>
+          <label className="block text-sm font-medium">Beam Type</label>
           <select className="form-select" value={boundary} onChange={e => setBoundary(e.target.value as any)}>
             <option value="cantilever">Cantilever</option>
             <option value="simply-supported">Simply Supported</option>
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium">Forcing Frequency (Hz)</label>
+          <label className="block text-sm font-medium">Forcing Freq. (Hz)</label>
           <input type="range" min={0} max={xAxisMax} step={0.1} value={forceFreqHz} onChange={e => setForceFreqHz(Number(e.target.value))} className="w-full" />
         </div>
         {autoSweep && (
@@ -62,15 +62,15 @@ export default function ControlPanel() {
           </div>
         )}
         <div>
-          <label className="block text-sm font-medium">Damping Ratio ζ</label>
+          <label className="block text-sm font-medium">Damping Ratio</label>
           <input type="range" min={0} max={0.1} step={0.001} value={zeta} onChange={e => setZeta(Number(e.target.value))} className="w-full" />
         </div>
         <div>
-          <label className="block text-sm font-medium">Stiffness (E·I)</label>
+          <label className="block text-sm font-medium">Stiffness</label>
           <input type="range" min={0.1} max={10} step={0.1} value={stiffness} onChange={e => setStiffness(Number(e.target.value))} className="w-full" />
         </div>
         <div>
-          <label className="block text-sm font-medium">Mass (ρ·A)</label>
+          <label className="block text-sm font-medium">Mass</label>
           <input type="range" min={0.1} max={10} step={0.1} value={mass} onChange={e => setMass(Number(e.target.value))} className="w-full" />
         </div>
         <div className="col-span-1 md:col-span-2">
