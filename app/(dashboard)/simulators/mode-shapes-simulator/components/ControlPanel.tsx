@@ -9,22 +9,25 @@ export default function ControlPanel() {
     setStiffness, setMass, setSelectedMode, setBoundary
   } = useModeShapesStore();
 
-  // Auto-sweep loop
+  // Auto-sweep loop (decoupled from state updates to avoid effect restarts and glitches)
   useEffect(() => {
     if (!autoSweep) return;
-    let raf = 0; let prev = performance.now();
+    let raf = 0;
+    let prev = performance.now();
+    let f = useModeShapesStore.getState().forceFreqHz; // start from current value
     const step = (ts: number) => {
       const dt = Math.min(0.03, Math.max(0.001, (ts - prev) / 1000));
       prev = ts;
       const rate = 0.5; // Hz per second
-      const f = forceFreqHz + rate * dt;
-      const next = f >= xAxisMax ? 0 : f;
-      setForceFreqHz(next);
+      f += rate * dt;
+      const xmax = useModeShapesStore.getState().xAxisMax;
+      if (f >= xmax) f = 0;
+      setForceFreqHz(f);
       raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [autoSweep, forceFreqHz, xAxisMax, setForceFreqHz]);
+  }, [autoSweep, setForceFreqHz]);
 
   // Auto-unselect mode if forcing frequency moves outside 20% band of selected mode
   useEffect(() => {

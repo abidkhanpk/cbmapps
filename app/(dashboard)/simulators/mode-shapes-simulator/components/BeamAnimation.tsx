@@ -28,15 +28,22 @@ export default function BeamAnimation() {
 
   useEffect(() => {
     let raf = 0;
-    let t0: number | null = null;
+    let prevTs: number | null = null;
+    let theta = 0; // accumulated animation phase to ensure continuity
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx || !canvasRef.current) return;
 
     const dpr = Math.max(1, window.devicePixelRatio || 1);
 
     const render = (ts: number) => {
-      if (t0 === null) t0 = ts;
-      const t = (ts - t0) / 1000;
+      let dt = 0;
+      if (prevTs === null) {
+        dt = 0;
+        prevTs = ts;
+      } else {
+        dt = Math.min(0.05, Math.max(0.0005, (ts - prevTs) / 1000));
+        prevTs = ts;
+      }
 
       // Resize to parent while keeping crisp lines
       const c = canvasRef.current!;
@@ -77,6 +84,7 @@ export default function BeamAnimation() {
       const K = 100; // large divisor for slow motion
       const playbackHz = Math.max(0.05, s.forceFreqHz * (s.animRate * (1 - 1 / K) + 1 / K));
       const omegaAnim = 2 * Math.PI * playbackHz;
+      theta += omegaAnim * dt;
 
       // Determine active mode: if not explicitly selected, use the mode with the largest FRF magnitude
       let activeMode: 1 | 2 | 3 | null = s.selectedMode;
@@ -95,11 +103,11 @@ export default function BeamAnimation() {
 
         let yDefl = 0;
         if (activeMode === 1) {
-          yDefl = modesPhi.phi1[i] * (A1 * Math.sin(omegaAnim * t + ph1)) * scale;
+          yDefl = modesPhi.phi1[i] * (A1 * Math.sin(theta + ph1)) * scale;
         } else if (activeMode === 2) {
-          yDefl = modesPhi.phi2[i] * (A2 * Math.sin(omegaAnim * t + ph2)) * scale;
+          yDefl = modesPhi.phi2[i] * (A2 * Math.sin(theta + ph2)) * scale;
         } else if (activeMode === 3) {
-          yDefl = modesPhi.phi3[i] * (A3 * Math.sin(omegaAnim * t + ph3)) * scale;
+          yDefl = modesPhi.phi3[i] * (A3 * Math.sin(theta + ph3)) * scale;
         }
 
         pts.push({ x: sx, y: y0 + yDefl });
