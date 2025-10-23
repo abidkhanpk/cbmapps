@@ -190,17 +190,22 @@ export default function BeamAnimation() {
         }
         ctx.stroke();
 
-        // Draw envelope
+        // Draw envelope as two separate paths to avoid vertical connector at the end
         ctx.strokeStyle = 'red';
         ctx.lineWidth = 1;
-        ctx.beginPath();
         const envelopePts = pts.map(p => Math.abs(p.y - beamY));
+        // Top envelope
+        ctx.beginPath();
         for (let i = 0; i < pts.length; i++) {
           if (i === 0) ctx.moveTo(pts[i].x, beamY - envelopePts[i]);
           else ctx.lineTo(pts[i].x, beamY - envelopePts[i]);
         }
-        for (let i = pts.length - 1; i >= 0; i--) {
-          ctx.lineTo(pts[i].x, beamY + envelopePts[i]);
+        ctx.stroke();
+        // Bottom envelope
+        ctx.beginPath();
+        for (let i = 0; i < pts.length; i++) {
+          if (i === 0) ctx.moveTo(pts[i].x, beamY + envelopePts[i]);
+          else ctx.lineTo(pts[i].x, beamY + envelopePts[i]);
         }
         ctx.stroke();
 
