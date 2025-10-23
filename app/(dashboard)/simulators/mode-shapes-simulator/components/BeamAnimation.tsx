@@ -179,8 +179,8 @@ export default function BeamAnimation() {
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
-      } else {
-        // Line mode with nodes and antinodes
+      } else if (view === 'line') {
+        // Single vibrating centerline, no nodes/antinodes, no envelopes
         ctx.strokeStyle = 'blue';
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -189,58 +189,82 @@ export default function BeamAnimation() {
           if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
         }
         ctx.stroke();
-
-        // Draw envelope as two separate paths to avoid vertical connector at the end
-        ctx.strokeStyle = 'red';
-        ctx.lineWidth = 1;
-        const envelopePts = pts.map(p => Math.abs(p.y - beamY));
-        // Top envelope
+      } else {
+        // 'string' view: static mode shape with node/antinode markers and legend
+        // choose mode: selectedMode or nearest to forcing frequency
+        let modeN: 1 | 2 | 3 = s.selectedMode ?? (Math.abs(s.forceFreqHz - fn1) <= Math.abs(s.forceFreqHz - fn2) && Math.abs(s.forceFreqHz - fn1) <= Math.abs(s.forceFreqHz - fn3) ? 1 : (Math.abs(s.forceFreqHz - fn2) <= Math.abs(s.forceFreqHz - fn3) ? 2 : 3));
+        const phiArr = modeN === 1 ? modesPhi.phi1 : modeN === 2 ? modesPhi.phi2 : modesPhi.phi3;
+        const staticAmp = 0.6; // relative visualization amplitude
+        const ptsStr: { x: number; y: number; phi: number; xi: number }[] = [];
+        for (let i = 0; i < xArr.length; i++) {
+          const xi = xArr[i];
+          const sx = beamX0 + (beamX1 - beamX0) * (xi / BEAM_LENGTH_M);
+          const phi = phiArr[i];
+          const y = beamY + phi * staticAmp * ((beamX1 - beamX0) * BEAM_STYLE.deflectionScale / BEAM_LENGTH_M * (s.ampScale ?? 1) * 0.1);
+          ptsStr.push({ x: sx, y, phi, xi });
+        }
+        // draw static centerline
+        ctx.strokeStyle = 'blue';
+        ctx.lineWidth = 2;
         ctx.beginPath();
-        for (let i = 0; i < pts.length; i++) {
-          if (i === 0) ctx.moveTo(pts[i].x, beamY - envelopePts[i]);
-          else ctx.lineTo(pts[i].x, beamY - envelopePts[i]);
+        for (let i = 0; i < ptsStr.length; i++) {
+          const p = ptsStr[i];
+          if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
         }
         ctx.stroke();
-        // Bottom envelope
-        ctx.beginPath();
-        for (let i = 0; i < pts.length; i++) {
-          if (i === 0) ctx.moveTo(pts[i].x, beamY + envelopePts[i]);
-          else ctx.lineTo(pts[i].x, beamY + envelopePts[i]);
-        }
-        ctx.stroke();
 
-        // Find and draw nodes and antinodes
-        const amplitudes = pts.map(p => p.y - beamY);
-        for (let i = 0; i < amplitudes.length; i++) {
-          const prev = i > 0 ? amplitudes[i-1] : 0;
-          const curr = amplitudes[i];
-          const next = i < amplitudes.length - 1 ? amplitudes[i+1] : 0;
-
-          // Antinode
-          if (Math.abs(curr) > Math.abs(prev) && Math.abs(curr) > Math.abs(next)) {
-            ctx.fillStyle = 'purple';
-            ctx.beginPath();
-            ctx.arc(pts[i].x, pts[i].y, 8, 0, 2 * Math.PI);
-            ctx.fill();
-          }
-
-          // Node
-          if (i > 0 && (prev < 0 && curr >= 0 || prev > 0 && curr <= 0)) {
+        // nodes: zero crossings of phi
+        for (let i = 1; i < ptsStr.length; i++) {
+          const p0 = ptsStr[i-1], p1 = ptsStr[i];
+          if ((p0.phi === 0) || (p0.phi < 0 && p1.phi > 0) || (p0.phi > 0 && p1.phi < 0)) {
+            // interpolate x of zero crossing
+            const denom = (p1.phi - p0.phi);
+            const t = denom !== 0 ? (-p0.phi) / denom : 0;
+            const xz = p0.x + (p1.x - p0.x) * Math.max(0, Math.min(1, t));
             ctx.fillStyle = 'green';
             ctx.beginPath();
-            ctx.arc(pts[i].x, beamY, 8, 0, 2 * Math.PI);
+            ctx.arc(xz, beamY, 8, 0, 2 * Math.PI);
             ctx.fill();
           }
         }
-
-        // Legend
+        // include boundary nodes
+        if (s.boundary === 'simply-supported') {
+          // both ends are nodes
+          ctx.fillStyle = 'green';
+          ctx.beginPath(); ctx.arc(ptsStr[0].x, beamY, 8, 0, 2 * Math.PI); ctx.fill();
+          ctx.beginPath(); ctx.arc(ptsStr[ptsStr.length-1].x, beamY, 8, 0, 2 * Math.PI); ctx.fill();
+        } else if (s.boundary === 'cantilever') {
+          // fixed end is a node
+          ctx.fillStyle = 'green';
+          ctx.beginPath(); ctx.arc(ptsStr[0].x, beamY, 8, 0, 2 * Math.PI); ctx.fill();
+        }
+        // antinodes: local maxima in |phi|
+        for (let i = 1; i < ptsStr.length - 1; i++) {
+          const a = Math.abs(ptsStr[i-1].phi), b = Math.abs(ptsStr[i].phi), c = Math.abs(ptsStr[i+1].phi);
+          if (b >= a && b >= c && (b > a || b > c)) {
+            ctx.fillStyle = 'purple';
+            ctx.beginPath();
+            ctx.arc(ptsStr[i].x, ptsStr[i].y, 8, 0, 2 * Math.PI);
+            ctx.fill();
+          }
+        }
+        // include endpoint antinode (e.g., free tip in cantilever)
+        if (s.boundary === 'cantilever') {
+          const last = ptsStr.length - 1;
+          if (Math.abs(ptsStr[last].phi) >= Math.abs(ptsStr[last-1].phi)) {
+            ctx.fillStyle = 'purple';
+            ctx.beginPath();
+            ctx.arc(ptsStr[last].x, ptsStr[last].y, 8, 0, 2 * Math.PI);
+            ctx.fill();
+          }
+        }
+        // legend
         ctx.fillStyle = 'green';
         ctx.beginPath();
         ctx.arc(20, 20, 8, 0, 2 * Math.PI);
         ctx.fill();
         ctx.fillStyle = '#334155';
         ctx.fillText('Node', 35, 25);
-
         ctx.fillStyle = 'purple';
         ctx.beginPath();
         ctx.arc(100, 20, 8, 0, 2 * Math.PI);

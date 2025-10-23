@@ -20,6 +20,12 @@ export default function ViewControls() {
       >
         Line
       </button>
+      <button
+        className={`px-3 py-1 text-sm rounded-md ${view === 'string' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+        onClick={() => setView('string')}
+      >
+        String
+      </button>
     </div>
   );
 }

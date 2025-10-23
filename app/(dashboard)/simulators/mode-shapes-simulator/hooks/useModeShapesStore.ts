@@ -19,7 +19,7 @@ export interface SimulatorState {
   mass: number; // relative mass factor (rho*A)
   selectedMode: 1 | 2 | 3 | null; // null = auto-select by forcing band or stop
   ampScale: number; // visualization amplitude scaling (0..1)
-  view: '3D' | 'line';
+  view: '3D' | 'line' | 'string';
 
   setBoundary: (b: BoundaryCondition) => void;
   setZeta: (z: number) => void;
@@ -36,7 +36,7 @@ export interface SimulatorState {
   setMass: (m: number) => void;
   setSelectedMode: (n: 1 | 2 | 3 | null) => void;
   setAmpScale: (a: number) => void;
-  setView: (v: '3D' | 'line') => void;
+  setView: (v: '3D' | 'line' | 'string') => void;
   reset: () => void;
 }
 
