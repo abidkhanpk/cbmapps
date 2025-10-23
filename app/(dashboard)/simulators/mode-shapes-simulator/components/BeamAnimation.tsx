@@ -73,12 +73,27 @@ export default function BeamAnimation() {
       const [fn1, fn2, fn3] = s.fn;
       const omegaF = 2 * Math.PI * s.forceFreqHz; // forcing frequency
       // Precompute FRF magnitudes and phases for all 3 modes
-      const A1 = frfMagnitude(omegaF, 2 * Math.PI * fn1, s.zeta);
-      const A2 = frfMagnitude(omegaF, 2 * Math.PI * fn2, s.zeta);
-      const A3 = frfMagnitude(omegaF, 2 * Math.PI * fn3, s.zeta);
+      let A1 = frfMagnitude(omegaF, 2 * Math.PI * fn1, s.zeta);
+      let A2 = frfMagnitude(omegaF, 2 * Math.PI * fn2, s.zeta);
+      let A3 = frfMagnitude(omegaF, 2 * Math.PI * fn3, s.zeta);
       const ph1 = s.phaseEnabled ? frfPhase(omegaF, 2 * Math.PI * fn1, s.zeta) : 0;
       const ph2 = s.phaseEnabled ? frfPhase(omegaF, 2 * Math.PI * fn2, s.zeta) : 0;
       const ph3 = s.phaseEnabled ? frfPhase(omegaF, 2 * Math.PI * fn3, s.zeta) : 0;
+
+      // Smooth band envelope: ramp up inside 30% band, max at center, ramp down out of band
+      function smoothstep(x: number) { return x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x); }
+      function bandFade(f: number, fn: number) {
+        const band = 0.3 * fn;
+        const d = Math.abs(f - fn);
+        if (d >= band) return 0;
+        // Map d in [band, 0] to [0, 1] then smoothstep
+        const t = 1 - d / band;
+        return smoothstep(t);
+      }
+      const fade1 = bandFade(s.forceFreqHz, fn1);
+      const fade2 = bandFade(s.forceFreqHz, fn2);
+      const fade3 = bandFade(s.forceFreqHz, fn3);
+      A1 *= fade1; A2 *= fade2; A3 *= fade3;
 
       // Animation playback frequency controlled by animRate; slow near 0, equals forcing near 1
       const K = 100; // large divisor for slow motion
@@ -86,13 +101,9 @@ export default function BeamAnimation() {
       const omegaAnim = 2 * Math.PI * playbackHz;
       theta += omegaAnim * dt;
 
-      // Determine active mode: if not explicitly selected, use the mode with the largest FRF magnitude
+      // If a mode is selected, use that; otherwise blend nearby modes using the fade envelopes
       let activeMode: 1 | 2 | 3 | null = s.selectedMode;
-      if (activeMode == null) {
-        if (A1 >= A2 && A1 >= A3) activeMode = 1; else if (A2 >= A3) activeMode = 2; else activeMode = 3;
-      }
 
-      // Compose instantaneous displacement y(x,t) = Φ_n(x) * q_n(t); amplitude decays smoothly with FRF
       const scale = (beamX1 - beamX0) * BEAM_STYLE.deflectionScale / BEAM_LENGTH_M * (s.ampScale ?? 1) * 0.1;
 
       const pts: { x: number; y: number }[] = [];
@@ -108,6 +119,12 @@ export default function BeamAnimation() {
           yDefl = modesPhi.phi2[i] * (A2 * Math.sin(theta + ph2)) * scale;
         } else if (activeMode === 3) {
           yDefl = modesPhi.phi3[i] * (A3 * Math.sin(theta + ph3)) * scale;
+        } else {
+          // Blend by summing contributions with fades; phases per mode
+          const y1 = modesPhi.phi1[i] * (A1 * Math.sin(theta + ph1));
+          const y2 = modesPhi.phi2[i] * (A2 * Math.sin(theta + ph2));
+          const y3 = modesPhi.phi3[i] * (A3 * Math.sin(theta + ph3));
+          yDefl = (y1 + y2 + y3) * scale;
         }
 
         pts.push({ x: sx, y: y0 + yDefl });

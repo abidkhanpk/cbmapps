@@ -7,6 +7,7 @@ export interface SimulatorState {
   fn: [number, number, number]; // natural frequencies (Hz) for first 3 modes (derived from stiffness/mass)
   running: boolean;
   autoSweep: boolean;
+  sweepRate: number; // Hz per second during sweep
   animRate: number; // 0..1 UI rate controlling playback speed
   forceFreqHz: number; // forcing frequency (Hz)
   maxFreqHz: number; // sweep upper bound
@@ -23,6 +24,7 @@ export interface SimulatorState {
   setZeta: (z: number) => void;
   setRunning: (r: boolean) => void;
   setAutoSweep: (v: boolean) => void;
+  setSweepRate: (r: number) => void;
   setAnimRate: (r: number) => void;
   setForceFreqHz: (f: number) => void;
   setMaxFreqHz: (f: number) => void;
@@ -62,6 +64,7 @@ export const useModeShapesStore = create<SimulatorState>((set, get) => ({
   fn: computeFnTriplet(1, 1, DEFAULT_FN1_HZ),
   running: true,
   autoSweep: false,
+  sweepRate: 0.5,
   animRate: 0.2,
   forceFreqHz: 0.8,
   maxFreqHz: DEFAULT_MAX_SWEEP_HZ,
@@ -76,6 +79,7 @@ export const useModeShapesStore = create<SimulatorState>((set, get) => ({
   setZeta: (z) => set({ zeta: Math.max(0, Math.min(0.2, z)) }),
   setRunning: (r) => set({ running: r }),
   setAutoSweep: (v) => set({ autoSweep: v }),
+  setSweepRate: (r) => set({ sweepRate: Math.max(0.01, Math.min(10, r)) }),
   setAnimRate: (r) => set({ animRate: Math.max(0, Math.min(1, r)) }),
   setForceFreqHz: (f) => set({ forceFreqHz: Math.max(0, f) }),
   setMaxFreqHz: (f) => set({ maxFreqHz: Math.max(1, f) }),
@@ -104,6 +108,7 @@ export const useModeShapesStore = create<SimulatorState>((set, get) => ({
     fn: computeFnTriplet(1, 1, DEFAULT_FN1_HZ, state.boundary ?? 'cantilever'),
     running: true,
     autoSweep: false,
+    sweepRate: 0.5,
     animRate: 0.2,
     forceFreqHz: 0.8,
     maxFreqHz: DEFAULT_MAX_SWEEP_HZ,

@@ -4,12 +4,12 @@ import { useModeShapesStore } from '../hooks/useModeShapesStore';
 
 export default function ControlPanel() {
   const { zeta, fn, running, autoSweep, forceFreqHz,
-    stiffness, mass, selectedMode, xAxisMax, boundary,
+    stiffness, mass, selectedMode, xAxisMax, boundary, sweepRate,
     setZeta, setRunning, setAutoSweep, setForceFreqHz, reset,
-    setStiffness, setMass, setSelectedMode, setBoundary
+    setStiffness, setMass, setSelectedMode, setBoundary, setSweepRate
   } = useModeShapesStore();
 
-  // Auto-sweep loop (decoupled from state updates to avoid effect restarts and glitches)
+  // Auto-sweep loop (decoupled) using adjustable sweepRate
   useEffect(() => {
     if (!autoSweep) return;
     let raf = 0;
@@ -18,7 +18,7 @@ export default function ControlPanel() {
     const step = (ts: number) => {
       const dt = Math.min(0.03, Math.max(0.001, (ts - prev) / 1000));
       prev = ts;
-      const rate = 0.5; // Hz per second
+      const rate = useModeShapesStore.getState().sweepRate; // Hz per second
       f += rate * dt;
       const xmax = useModeShapesStore.getState().xAxisMax;
       if (f >= xmax) f = 0;
@@ -54,6 +54,13 @@ export default function ControlPanel() {
           <label className="block text-sm font-medium">Forcing Frequency (Hz)</label>
           <input type="range" min={0} max={xAxisMax} step={0.1} value={forceFreqHz} onChange={e => setForceFreqHz(Number(e.target.value))} className="w-full" />
         </div>
+        {autoSweep && (
+          <div>
+            <label className="block text-sm font-medium">Sweep Rate (Hz/s)</label>
+            <input type="range" min={0.05} max={5} step={0.05} value={sweepRate} onChange={e => setSweepRate(Number(e.target.value))} className="w-full" />
+            <div className="text-xs text-gray-600 mt-1">{sweepRate.toFixed(2)} Hz/s</div>
+          </div>
+        )}
         <div>
           <label className="block text-sm font-medium">Damping Ratio ζ</label>
           <input type="range" min={0} max={0.1} step={0.001} value={zeta} onChange={e => setZeta(Number(e.target.value))} className="w-full" />
