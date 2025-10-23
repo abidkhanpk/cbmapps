@@ -69,7 +69,7 @@ export const useModeShapesStore = create<SimulatorState>((set, get) => ({
   forceFreqHz: 0.8,
   maxFreqHz: DEFAULT_MAX_SWEEP_HZ,
   phaseEnabled: true,
-  ampScale: 1,
+  ampScale: 0.2,
   xAxisMax: DEFAULT_MAX_SWEEP_HZ,
 
   setBoundary: (b) => set((state) => ({
@@ -113,7 +113,7 @@ export const useModeShapesStore = create<SimulatorState>((set, get) => ({
     forceFreqHz: 0.8,
     maxFreqHz: DEFAULT_MAX_SWEEP_HZ,
     phaseEnabled: true,
-    ampScale: 1,
+    ampScale: 0.2,
     xAxisMax: DEFAULT_MAX_SWEEP_HZ,
   })),
 }));
