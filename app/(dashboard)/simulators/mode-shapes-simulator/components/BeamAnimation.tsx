@@ -194,24 +194,22 @@ export default function BeamAnimation() {
         ctx.strokeStyle = 'red';
         ctx.lineWidth = 1;
         ctx.beginPath();
+        const envelopePts = pts.map(p => Math.abs(p.y - beamY));
         for (let i = 0; i < pts.length; i++) {
-          const p = pts[i];
-          const amplitude = Math.sqrt(Math.pow(p.y - beamY, 2));
-          if (i === 0) ctx.moveTo(p.x, beamY - amplitude); else ctx.lineTo(p.x, beamY - amplitude);
+          if (i === 0) ctx.moveTo(pts[i].x, beamY - envelopePts[i]);
+          else ctx.lineTo(pts[i].x, beamY - envelopePts[i]);
         }
         for (let i = pts.length - 1; i >= 0; i--) {
-          const p = pts[i];
-          const amplitude = Math.sqrt(Math.pow(p.y - beamY, 2));
-          ctx.lineTo(p.x, beamY + amplitude);
+          ctx.lineTo(pts[i].x, beamY + envelopePts[i]);
         }
         ctx.stroke();
 
         // Find and draw nodes and antinodes
         const amplitudes = pts.map(p => p.y - beamY);
-        for (let i = 1; i < amplitudes.length - 1; i++) {
-          const prev = amplitudes[i-1];
+        for (let i = 0; i < amplitudes.length; i++) {
+          const prev = i > 0 ? amplitudes[i-1] : 0;
           const curr = amplitudes[i];
-          const next = amplitudes[i+1];
+          const next = i < amplitudes.length - 1 ? amplitudes[i+1] : 0;
 
           // Antinode
           if (Math.abs(curr) > Math.abs(prev) && Math.abs(curr) > Math.abs(next)) {
@@ -222,13 +220,28 @@ export default function BeamAnimation() {
           }
 
           // Node
-          if (prev < 0 && curr >= 0 || prev > 0 && curr <= 0) {
+          if (i > 0 && (prev < 0 && curr >= 0 || prev > 0 && curr <= 0)) {
             ctx.fillStyle = 'green';
             ctx.beginPath();
             ctx.arc(pts[i].x, beamY, 8, 0, 2 * Math.PI);
             ctx.fill();
           }
         }
+
+        // Legend
+        ctx.fillStyle = 'green';
+        ctx.beginPath();
+        ctx.arc(20, 20, 8, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.fillStyle = '#334155';
+        ctx.fillText('Node', 35, 25);
+
+        ctx.fillStyle = 'purple';
+        ctx.beginPath();
+        ctx.arc(100, 20, 8, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.fillStyle = '#334155';
+        ctx.fillText('Antinode', 115, 25);
       }
 
       // Axis and labels (minimal)
