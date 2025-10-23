@@ -19,6 +19,7 @@ export interface SimulatorState {
   mass: number; // relative mass factor (rho*A)
   selectedMode: 1 | 2 | 3 | null; // null = auto-select by forcing band or stop
   ampScale: number; // visualization amplitude scaling (0..1)
+  view: '3D' | 'line';
 
   setBoundary: (b: BoundaryCondition) => void;
   setZeta: (z: number) => void;
@@ -35,6 +36,7 @@ export interface SimulatorState {
   setMass: (m: number) => void;
   setSelectedMode: (n: 1 | 2 | 3 | null) => void;
   setAmpScale: (a: number) => void;
+  setView: (v: '3D' | 'line') => void;
   reset: () => void;
 }
 
@@ -71,6 +73,7 @@ export const useModeShapesStore = create<SimulatorState>((set, get) => ({
   phaseEnabled: true,
   ampScale: 0.2,
   xAxisMax: DEFAULT_MAX_SWEEP_HZ,
+  view: '3D',
 
   setBoundary: (b) => set((state) => ({
     boundary: b,
@@ -98,6 +101,7 @@ export const useModeShapesStore = create<SimulatorState>((set, get) => ({
   },
   setSelectedMode: (n) => set({ selectedMode: n }),
   setAmpScale: (a) => set({ ampScale: Math.max(0.05, Math.min(1, a)) }),
+  setView: (v) => set({ view: v }),
 
   reset: () => set((state) => ({
     boundary: state.boundary ?? 'cantilever',
@@ -115,5 +119,6 @@ export const useModeShapesStore = create<SimulatorState>((set, get) => ({
     phaseEnabled: true,
     ampScale: 0.2,
     xAxisMax: DEFAULT_MAX_SWEEP_HZ,
+    view: '3D',
   })),
 }));

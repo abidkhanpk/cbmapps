@@ -69,6 +69,7 @@ export default function BeamAnimation() {
       const s = useModeShapesStore.getState();
       const depth = 4 + 12 * Math.sqrt(s.stiffness / 10); // Scale depth with stiffness
       const strokeW = Math.max(5, Math.min(10, 4 + 2 * Math.sqrt(s.stiffness)));
+      const view = s.view;
 
       // Frequency response at current forcing frequency for each mode
       const [fn1, fn2, fn3] = s.fn;
@@ -131,52 +132,104 @@ export default function BeamAnimation() {
         pts.push({ x: sx, y: y0 + yDefl });
       }
 
-      // Deformed 3D-like beam rendering
-      const slantX = 12; // px, perspective slant right
-      const slantY = 8;  // px, perspective slant up
+      if (view === '3D') {
+        // Deformed 3D-like beam rendering
+        const slantX = 12; // px, perspective slant right
+        const slantY = 8;  // px, perspective slant up
 
-      // Calculate vertices for the deformed beam's edges
-      const frontTopLine = pts.map(p => ({ x: p.x, y: p.y - depth / 2 }));
-      const frontBottomLine = pts.map(p => ({ x: p.x, y: p.y + depth / 2 }));
-      const backTopLine = pts.map(p => ({ x: p.x + slantX, y: p.y - depth / 2 - slantY }));
-      const backBottomLine = pts.map(p => ({ x: p.x + slantX, y: p.y + depth / 2 - slantY }));
+        // Calculate vertices for the deformed beam's edges
+        const frontTopLine = pts.map(p => ({ x: p.x, y: p.y - depth / 2 }));
+        const frontBottomLine = pts.map(p => ({ x: p.x, y: p.y + depth / 2 }));
+        const backTopLine = pts.map(p => ({ x: p.x + slantX, y: p.y - depth / 2 - slantY }));
+        const backBottomLine = pts.map(p => ({ x: p.x + slantX, y: p.y + depth / 2 - slantY }));
 
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = '#374151'; // gray-700
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = '#374151'; // gray-700
 
-      // Top Face
-      ctx.fillStyle = '#9ca3af'; // gray-400
-      ctx.beginPath();
-      ctx.moveTo(frontTopLine[0].x, frontTopLine[0].y);
-      frontTopLine.forEach(p => ctx.lineTo(p.x, p.y));
-      ctx.lineTo(backTopLine[backTopLine.length - 1].x, backTopLine[backTopLine.length - 1].y);
-      [...backTopLine].reverse().forEach(p => ctx.lineTo(p.x, p.y));
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
+        // Top Face
+        ctx.fillStyle = '#9ca3af'; // gray-400
+        ctx.beginPath();
+        ctx.moveTo(frontTopLine[0].x, frontTopLine[0].y);
+        frontTopLine.forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.lineTo(backTopLine[backTopLine.length - 1].x, backTopLine[backTopLine.length - 1].y);
+        [...backTopLine].reverse().forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
 
-      // Front Face
-      ctx.fillStyle = '#6b7280'; // gray-500
-      ctx.beginPath();
-      ctx.moveTo(frontTopLine[0].x, frontTopLine[0].y);
-      frontTopLine.forEach(p => ctx.lineTo(p.x, p.y));
-      ctx.lineTo(frontBottomLine[frontBottomLine.length - 1].x, frontBottomLine[frontBottomLine.length - 1].y);
-      [...frontBottomLine].reverse().forEach(p => ctx.lineTo(p.x, p.y));
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
+        // Front Face
+        ctx.fillStyle = '#6b7280'; // gray-500
+        ctx.beginPath();
+        ctx.moveTo(frontTopLine[0].x, frontTopLine[0].y);
+        frontTopLine.forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.lineTo(frontBottomLine[frontBottomLine.length - 1].x, frontBottomLine[frontBottomLine.length - 1].y);
+        [...frontBottomLine].reverse().forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
 
-      // Right End Cap
-      ctx.fillStyle = '#4b5563'; // gray-600
-      ctx.beginPath();
-      const last = pts.length - 1;
-      ctx.moveTo(frontTopLine[last].x, frontTopLine[last].y);
-      ctx.lineTo(frontBottomLine[last].x, frontBottomLine[last].y);
-      ctx.lineTo(backBottomLine[last].x, backBottomLine[last].y);
-      ctx.lineTo(backTopLine[last].x, backTopLine[last].y);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
+        // Right End Cap
+        ctx.fillStyle = '#4b5563'; // gray-600
+        ctx.beginPath();
+        const last = pts.length - 1;
+        ctx.moveTo(frontTopLine[last].x, frontTopLine[last].y);
+        ctx.lineTo(frontBottomLine[last].x, frontBottomLine[last].y);
+        ctx.lineTo(backBottomLine[last].x, backBottomLine[last].y);
+        ctx.lineTo(backTopLine[last].x, backTopLine[last].y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        // Line mode with nodes and antinodes
+        ctx.strokeStyle = 'blue';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < pts.length; i++) {
+          const p = pts[i];
+          if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+        }
+        ctx.stroke();
+
+        // Draw envelope
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 0; i < pts.length; i++) {
+          const p = pts[i];
+          const amplitude = Math.sqrt(Math.pow(p.y - beamY, 2));
+          if (i === 0) ctx.moveTo(p.x, beamY - amplitude); else ctx.lineTo(p.x, beamY - amplitude);
+        }
+        for (let i = pts.length - 1; i >= 0; i--) {
+          const p = pts[i];
+          const amplitude = Math.sqrt(Math.pow(p.y - beamY, 2));
+          ctx.lineTo(p.x, beamY + amplitude);
+        }
+        ctx.stroke();
+
+        // Find and draw nodes and antinodes
+        const amplitudes = pts.map(p => p.y - beamY);
+        for (let i = 1; i < amplitudes.length - 1; i++) {
+          const prev = amplitudes[i-1];
+          const curr = amplitudes[i];
+          const next = amplitudes[i+1];
+
+          // Antinode
+          if (Math.abs(curr) > Math.abs(prev) && Math.abs(curr) > Math.abs(next)) {
+            ctx.fillStyle = 'purple';
+            ctx.beginPath();
+            ctx.arc(pts[i].x, pts[i].y, 8, 0, 2 * Math.PI);
+            ctx.fill();
+          }
+
+          // Node
+          if (prev < 0 && curr >= 0 || prev > 0 && curr <= 0) {
+            ctx.fillStyle = 'green';
+            ctx.beginPath();
+            ctx.arc(pts[i].x, beamY, 8, 0, 2 * Math.PI);
+            ctx.fill();
+          }
+        }
+      }
 
       // Axis and labels (minimal)
       ctx.fillStyle = '#334155';
