@@ -67,6 +67,7 @@ export default function BeamAnimation() {
       const beamX1 = width - pad;
       const beamY = Math.floor(height / 2);
       const s = useModeShapesStore.getState();
+      const depth = 4 + 12 * Math.sqrt(s.stiffness / 10); // Scale depth with stiffness
       const strokeW = Math.max(5, Math.min(10, 4 + 2 * Math.sqrt(s.stiffness)));
 
       // Frequency response at current forcing frequency for each mode
@@ -131,7 +132,6 @@ export default function BeamAnimation() {
       }
 
       // Deformed 3D-like beam rendering
-      const depth = 10; // px, visual thickness
       const slantX = 12; // px, perspective slant right
       const slantY = 8;  // px, perspective slant up
 
