@@ -205,7 +205,7 @@ export default function BeamAnimation() {
 
         // Build points for the static shape (slightly larger than before to match the reference look)
         const staticScalePx =
-          ((beamX1 - beamX0) * BEAM_STYLE.deflectionScale) / BEAM_LENGTH_M * (s.ampScale ?? 1) * 0.18;
+          ((beamX1 - beamX0) * BEAM_STYLE.deflectionScale) / BEAM_LENGTH_M * (s.ampScale ?? 1) * 0.18 * 15;
         const ptsStr: { x: number; y: number; phi: number }[] = [];
         for (let i = 0; i < xArr.length; i++) {
           const sx = beamX0 + (beamX1 - beamX0) * (xArr[i] / BEAM_LENGTH_M);
