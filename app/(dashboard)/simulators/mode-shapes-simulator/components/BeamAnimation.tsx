@@ -249,15 +249,11 @@ export default function BeamAnimation() {
           for (let m = 0; m <= n; m++) {
             const x = (m / n) * BEAM_LENGTH_M;
             const sx = beamX0 + (beamX1 - beamX0) * (x / BEAM_LENGTH_M);
-            // Node marker: filled green with cyan border and small cross
+            // Node marker: filled green with cyan border
             ctx.fillStyle = 'rgba(34,197,94,0.9)'; // green-500
             ctx.strokeStyle = cyanStroke;
             ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(sx, beamY, nodeRadius, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
-            // cross
-            ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath(); ctx.moveTo(sx - 6, beamY); ctx.lineTo(sx + 6, beamY); ctx.moveTo(sx, beamY - 6); ctx.lineTo(sx, beamY + 6); ctx.stroke();
           }
           // Anti-nodes at x = (2m-1)L/(2n), m = 1..n
           for (let m = 1; m <= n; m++) {
@@ -272,33 +268,37 @@ export default function BeamAnimation() {
           }
         } else {
           // Generic detection (cantilever): zero-crossings for nodes, local |phi| maxima for anti-nodes
-          // Nodes
-          ctx.fillStyle = 'rgba(34,197,94,0.9)';
+          // Nodes (styled like simply supported, with slight transparency)
+          ctx.fillStyle = 'rgba(34,197,94,0.75)';
+          ctx.strokeStyle = cyanStroke;
+          ctx.lineWidth = 2;
           for (let i = 1; i < ptsStr.length; i++) {
             const p0 = ptsStr[i - 1], p1 = ptsStr[i];
             if (p0.phi === 0 || (p0.phi < 0 && p1.phi > 0) || (p0.phi > 0 && p1.phi < 0)) {
               const denom = p1.phi - p0.phi;
               const t = denom !== 0 ? (-p0.phi) / denom : 0;
               const xz = p0.x + (p1.x - p0.x) * Math.max(0, Math.min(1, t));
-              ctx.beginPath(); ctx.arc(xz, beamY, nodeRadius, 0, 2 * Math.PI); ctx.fill();
+              ctx.beginPath(); ctx.arc(xz, beamY, nodeRadius, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
             }
           }
           // Fixed-end node
-          ctx.beginPath(); ctx.arc(ptsStr[0].x, beamY, nodeRadius, 0, 2 * Math.PI); ctx.fill();
+          ctx.beginPath(); ctx.arc(ptsStr[0].x, beamY, nodeRadius, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
 
-          // Anti-nodes
-          ctx.fillStyle = 'rgba(126,34,206,0.85)';
+          // Anti-nodes (styled like simply supported, with slight transparency)
+          ctx.fillStyle = 'rgba(126,34,206,0.75)';
+          ctx.strokeStyle = cyanStroke;
+          ctx.lineWidth = 2;
           const thresh = 0.04;
           for (let i = 1; i < ptsStr.length - 1; i++) {
             const a = Math.abs(ptsStr[i - 1].phi), b = Math.abs(ptsStr[i].phi), c = Math.abs(ptsStr[i + 1].phi);
             if (b >= a && b >= c && b > Math.max(a, c) && b > thresh) {
-              ctx.beginPath(); ctx.arc(ptsStr[i].x, ptsStr[i].y, antinodeRadius, 0, 2 * Math.PI); ctx.fill();
+              ctx.beginPath(); ctx.arc(ptsStr[i].x, ptsStr[i].y, antinodeRadius, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
             }
           }
           // free-end antinode
           const last = ptsStr.length - 1;
           if (Math.abs(ptsStr[last].phi) >= Math.abs(ptsStr[last - 1].phi)) {
-            ctx.beginPath(); ctx.arc(ptsStr[last].x, ptsStr[last].y, antinodeRadius, 0, 2 * Math.PI); ctx.fill();
+            ctx.beginPath(); ctx.arc(ptsStr[last].x, ptsStr[last].y, antinodeRadius, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
           }
         }
         ctx.restore();
