@@ -79,7 +79,7 @@ export default function SignalGenerator() {
   const [numSamples, setNumSamples] = useState<number>(1024);
 
   // Spectrum / FFT controls: allow selecting number of samples (power of two) and LOR (lines)
-  const pow2Options = [256, 512, 1024, 2048, 4096, 8192, 16384, 32768];
+  const pow2Options = [64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768];
   const lorOptions = pow2Options.map(n => Math.round(n / 2.56));
   const [lor, setLor] = useState<number>(Math.round(numSamples / 2.56));
   const [fmax, setFmax] = useState<number>(fs / 2.56);
