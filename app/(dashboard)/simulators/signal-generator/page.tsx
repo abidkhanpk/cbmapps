@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SignalControls } from './components/SignalControls';
 import { WindowingControls } from './components/WindowingControls';
 import { Collapsible, Accordion } from './components/Collapsible';
@@ -85,6 +85,8 @@ export default function SignalGenerator() {
   const [lor, setLor] = useState<number>(Math.round(numSamples / 2.56));
   const [fmax, setFmax] = useState<number>(fs / 2.56);
   const [fmaxInput, setFmaxInput] = useState<string>(String(Math.round(fs / 2.56)));
+  const fsTypingRef = useRef<boolean>(false);
+  const fmaxTypingRef = useRef<boolean>(false);
 
   const [windowType, setWindowType] = useState<WindowType>('hanning');
   const [showWindowed, setShowWindowed] = useState<boolean>(false);
@@ -576,21 +578,31 @@ export default function SignalGenerator() {
                       type="number"
                       value={fsInput}
                       onChange={e => {
-                        const nextValue = e.target.value;
-                        setFsInput(nextValue);
-                        const native = e.nativeEvent as InputEvent | undefined;
-                        const triggeredBySpinner = native?.inputType === 'insertReplacementText' && native?.data == null;
-                        if (triggeredBySpinner) {
-                          commitFsInput(nextValue);
+                        setFsInput(e.target.value);
+                        if (!fsTypingRef.current) {
+                          commitFsInput(e.target.value);
                         }
                       }}
-                      onBlur={applyFsInput}
+                      onBlur={e => {
+                        fsTypingRef.current = false;
+                        applyFsInput();
+                      }}
                       onKeyDown={e => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
+                          fsTypingRef.current = false;
                           applyFsInput();
                           (e.currentTarget as HTMLInputElement).blur();
+                          return;
                         }
+                        if (e.key === 'Tab' || e.key === 'Shift') {
+                          return;
+                        }
+                        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                          fsTypingRef.current = false;
+                          return;
+                        }
+                        fsTypingRef.current = true;
                       }}
                       className="mt-1 w-full rounded border p-2 bg-white text-gray-800"
                       min={1}
@@ -603,21 +615,31 @@ export default function SignalGenerator() {
                       type="number"
                       value={fmaxInput}
                       onChange={e => {
-                        const nextValue = e.target.value;
-                        setFmaxInput(nextValue);
-                        const native = e.nativeEvent as InputEvent | undefined;
-                        const triggeredBySpinner = native?.inputType === 'insertReplacementText' && native?.data == null;
-                        if (triggeredBySpinner) {
-                          commitFmaxInput(nextValue);
+                        setFmaxInput(e.target.value);
+                        if (!fmaxTypingRef.current) {
+                          commitFmaxInput(e.target.value);
                         }
                       }}
-                      onBlur={applyFmaxInput}
+                      onBlur={e => {
+                        fmaxTypingRef.current = false;
+                        applyFmaxInput();
+                      }}
                       onKeyDown={e => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
+                          fmaxTypingRef.current = false;
                           applyFmaxInput();
                           (e.currentTarget as HTMLInputElement).blur();
+                          return;
                         }
+                        if (e.key === 'Tab' || e.key === 'Shift') {
+                          return;
+                        }
+                        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                          fmaxTypingRef.current = false;
+                          return;
+                        }
+                        fmaxTypingRef.current = true;
                       }}
                       className="mt-1 w-full rounded border p-2 bg-white text-gray-800"
                       min={1}
