@@ -84,6 +84,7 @@ export default function SignalGenerator() {
   const lorOptions = pow2Options.map(n => Math.round(n / 2.56));
   const [lor, setLor] = useState<number>(Math.round(numSamples / 2.56));
   const [fmax, setFmax] = useState<number>(fs / 2.56);
+  const [fmaxInput, setFmaxInput] = useState<string>(String(Math.round(fs / 2.56)));
 
   const [windowType, setWindowType] = useState<WindowType>('hanning');
   const [showWindowed, setShowWindowed] = useState<boolean>(false);
@@ -141,14 +142,17 @@ export default function SignalGenerator() {
     setFmax(Math.round(f / 2.56));
   };
 
-  const applyFsInput = () => {
-    const next = Number(fsInput);
+  const commitFsInput = (rawValue?: string) => {
+    const text = rawValue ?? fsInput;
+    const next = Number(text);
     if (!Number.isFinite(next) || next <= 0) {
       setFsInput(String(fs));
       return;
     }
     handleSetFs(next);
   };
+
+  const applyFsInput = () => commitFsInput();
 
   useEffect(() => {
     setFsInput(String(fs));
@@ -165,6 +169,22 @@ export default function SignalGenerator() {
     setFmax(fmInt);
     setFs(Math.round(fmInt * 2.56));
   };
+
+  const commitFmaxInput = (rawValue?: string) => {
+    const text = rawValue ?? fmaxInput;
+    const next = Number(text);
+    if (!Number.isFinite(next) || next <= 0) {
+      setFmaxInput(String(Math.round(fmax)));
+      return;
+    }
+    handleSetFmax(next);
+  };
+
+  const applyFmaxInput = () => commitFmaxInput();
+
+  useEffect(() => {
+    setFmaxInput(String(Math.round(fmax)));
+  }, [fmax]);
 
   // when the user enables anti-aliasing, default the cutoff to current fmax if they
   // haven't manually chosen a cutoff yet
@@ -555,7 +575,15 @@ export default function SignalGenerator() {
                     <input
                       type="number"
                       value={fsInput}
-                      onChange={e => setFsInput(e.target.value)}
+                      onChange={e => {
+                        const nextValue = e.target.value;
+                        setFsInput(nextValue);
+                        const native = e.nativeEvent as InputEvent | undefined;
+                        const triggeredBySpinner = native?.inputType === 'insertReplacementText' && native?.data == null;
+                        if (triggeredBySpinner) {
+                          commitFsInput(nextValue);
+                        }
+                      }}
                       onBlur={applyFsInput}
                       onKeyDown={e => {
                         if (e.key === 'Enter') {
@@ -571,7 +599,30 @@ export default function SignalGenerator() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium">Fmax (Hz)</label>
-                    <input type="number" value={Math.round(fmax ?? (fs / 2.56))} onChange={e => handleSetFmax(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" min={1} step={1} />
+                    <input
+                      type="number"
+                      value={fmaxInput}
+                      onChange={e => {
+                        const nextValue = e.target.value;
+                        setFmaxInput(nextValue);
+                        const native = e.nativeEvent as InputEvent | undefined;
+                        const triggeredBySpinner = native?.inputType === 'insertReplacementText' && native?.data == null;
+                        if (triggeredBySpinner) {
+                          commitFmaxInput(nextValue);
+                        }
+                      }}
+                      onBlur={applyFmaxInput}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          applyFmaxInput();
+                          (e.currentTarget as HTMLInputElement).blur();
+                        }
+                      }}
+                      className="mt-1 w-full rounded border p-2 bg-white text-gray-800"
+                      min={1}
+                      step={1}
+                    />
                   </div>
                 </div>
 
