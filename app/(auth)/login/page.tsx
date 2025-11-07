@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { signIn, getSession } from 'next-auth/react';
+import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
@@ -21,16 +21,15 @@ export default function LoginPage() {
         email,
         password,
         redirect: false,
+        callbackUrl: '/home',
       });
 
       if (result?.error) {
         setError('Invalid email or password');
       } else {
-        // Get the session to check if login was successful
-        const session = await getSession();
-        if (session) {
-          router.push('/home');
-        }
+        // Redirect immediately after a successful sign-in; session cookie is already set
+        router.push(result?.url ?? '/home');
+        router.refresh();
       }
     } catch (err) {
       setError('An error occurred during login');
