@@ -75,6 +75,7 @@ export default function SignalGenerator() {
   const [showIndividuals, setShowIndividuals] = useState(false);
   // Shared parameters
   const [fs, setFs] = useState<number>(1024);
+  const [fsInput, setFsInput] = useState<string>('1024');
   const [noiseLevel, setNoiseLevel] = useState<number>(0);
   const [numSamples, setNumSamples] = useState<number>(1024);
 
@@ -139,6 +140,19 @@ export default function SignalGenerator() {
     setFs(f);
     setFmax(Math.round(f / 2.56));
   };
+
+  const applyFsInput = () => {
+    const next = Number(fsInput);
+    if (!Number.isFinite(next) || next <= 0) {
+      setFsInput(String(fs));
+      return;
+    }
+    handleSetFs(next);
+  };
+
+  useEffect(() => {
+    setFsInput(String(fs));
+  }, [fs]);
 
   // keep antiAliasCutoff in sync with fmax unless the user has manually edited it
   useEffect(() => {
@@ -538,7 +552,22 @@ export default function SignalGenerator() {
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   <div>
                     <label className="block text-sm font-medium">Sampling Rate (Hz)</label>
-                    <input type="number" value={fs} onChange={e => handleSetFs(Number(e.target.value))} className="mt-1 w-full rounded border p-2 bg-white text-gray-800" min={1} step={1} />
+                    <input
+                      type="number"
+                      value={fsInput}
+                      onChange={e => setFsInput(e.target.value)}
+                      onBlur={applyFsInput}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          applyFsInput();
+                          (e.currentTarget as HTMLInputElement).blur();
+                        }
+                      }}
+                      className="mt-1 w-full rounded border p-2 bg-white text-gray-800"
+                      min={1}
+                      step={1}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium">Fmax (Hz)</label>
