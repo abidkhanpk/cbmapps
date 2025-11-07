@@ -87,33 +87,47 @@ export const SpectrumPlot: React.FC<SpectrumPlotProps> = ({ freq, magSingle, fre
     const transColor = 'rgba(173,216,230,0.28)';
     const stopColor = 'rgba(255,200,200,0.36)';
     const nyq = Math.round(fs / 2.56);
+    const addRect = (x0: number, x1: number, color: string) => {
+      const start = Math.max(0, Math.min(nyq, x0));
+      const end = Math.max(0, Math.min(nyq, x1));
+      if (end <= start) return;
+      shapes.push({ type: 'rect', x0: start, x1: end, y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: color, line: { width: 0 }, layer: 'below' });
+    };
 
     if (filterType === 'low') {
-      const fc = filterLines[0];
-      shapes.push({ type: 'rect', x0: 0, x1: Math.max(0, fc - tw / 2), y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: passColor, line: { width: 0 }, layer: 'below' });
-      if (tw > 0) shapes.push({ type: 'rect', x0: Math.max(0, fc - tw / 2), x1: Math.min(nyq, fc + tw / 2), y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: transColor, line: { width: 0 }, layer: 'below' });
-      shapes.push({ type: 'rect', x0: Math.min(nyq, fc + tw / 2), x1: nyq, y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: stopColor, line: { width: 0 }, layer: 'below' });
+      const fc = filterLines[0] ?? 0;
+      const passEnd = Math.min(nyq, fc);
+      const transEnd = Math.min(nyq, fc + tw);
+      addRect(0, passEnd, passColor);
+      if (tw > 0) addRect(passEnd, transEnd, transColor);
+      addRect(transEnd, nyq, stopColor);
     } else if (filterType === 'high') {
-      const fc = filterLines[0];
-      shapes.push({ type: 'rect', x0: 0, x1: Math.max(0, fc - tw / 2), y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: stopColor, line: { width: 0 }, layer: 'below' });
-      if (tw > 0) shapes.push({ type: 'rect', x0: Math.max(0, fc - tw / 2), x1: Math.min(nyq, fc + tw / 2), y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: transColor, line: { width: 0 }, layer: 'below' });
-      shapes.push({ type: 'rect', x0: Math.min(nyq, fc + tw / 2), x1: nyq, y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: passColor, line: { width: 0 }, layer: 'below' });
+      const fc = filterLines[0] ?? 0;
+      const passStart = Math.max(0, fc);
+      const transStart = Math.max(0, fc - tw);
+      addRect(0, transStart, stopColor);
+      if (tw > 0) addRect(transStart, passStart, transColor);
+      addRect(passStart, nyq, passColor);
     } else if (filterType === 'bandpass') {
-      const lo = filterLines[0];
-      const hi = filterLines[1];
-      shapes.push({ type: 'rect', x0: 0, x1: Math.max(0, lo - tw / 2), y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: stopColor, line: { width: 0 }, layer: 'below' });
-      if (tw > 0) shapes.push({ type: 'rect', x0: Math.max(0, lo - tw / 2), x1: Math.min(nyq, lo + tw / 2), y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: transColor, line: { width: 0 }, layer: 'below' });
-      shapes.push({ type: 'rect', x0: Math.min(nyq, lo + tw / 2), x1: Math.max(lo + tw / 2, hi - tw / 2), y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: passColor, line: { width: 0 }, layer: 'below' });
-      if (tw > 0) shapes.push({ type: 'rect', x0: Math.max(0, hi - tw / 2), x1: Math.min(nyq, hi + tw / 2), y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: transColor, line: { width: 0 }, layer: 'below' });
-      shapes.push({ type: 'rect', x0: Math.min(nyq, hi + tw / 2), x1: nyq, y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: stopColor, line: { width: 0 }, layer: 'below' });
+      const lo = Math.min(filterLines[0] ?? 0, filterLines[1] ?? 0);
+      const hi = Math.max(filterLines[0] ?? 0, filterLines[1] ?? 0);
+      const lowerTransStart = Math.max(0, lo - tw);
+      const upperTransEnd = Math.min(nyq, hi + tw);
+      addRect(0, lowerTransStart, stopColor);
+      if (tw > 0) addRect(lowerTransStart, lo, transColor);
+      addRect(lo, hi, passColor);
+      if (tw > 0) addRect(hi, upperTransEnd, transColor);
+      addRect(upperTransEnd, nyq, stopColor);
     } else if (filterType === 'bandstop') {
-      const lo = filterLines[0];
-      const hi = filterLines[1];
-      shapes.push({ type: 'rect', x0: 0, x1: Math.max(0, lo - tw / 2), y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: passColor, line: { width: 0 }, layer: 'below' });
-      if (tw > 0) shapes.push({ type: 'rect', x0: Math.max(0, lo - tw / 2), x1: Math.min(nyq, lo + tw / 2), y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: transColor, line: { width: 0 }, layer: 'below' });
-      shapes.push({ type: 'rect', x0: Math.min(nyq, lo + tw / 2), x1: Math.max(lo + tw / 2, hi - tw / 2), y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: stopColor, line: { width: 0 }, layer: 'below' });
-      if (tw > 0) shapes.push({ type: 'rect', x0: Math.max(0, hi - tw / 2), x1: Math.min(nyq, hi + tw / 2), y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: transColor, line: { width: 0 }, layer: 'below' });
-      shapes.push({ type: 'rect', x0: Math.min(nyq, hi + tw / 2), x1: nyq, y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: passColor, line: { width: 0 }, layer: 'below' });
+      const lo = Math.min(filterLines[0] ?? 0, filterLines[1] ?? 0);
+      const hi = Math.max(filterLines[0] ?? 0, filterLines[1] ?? 0);
+      const lowerTransEnd = Math.min(hi, lo + tw);
+      const upperTransStart = Math.max(lo, hi - tw);
+      addRect(0, lo, passColor);
+      if (tw > 0) addRect(lo, lowerTransEnd, transColor);
+      addRect(lowerTransEnd, upperTransStart, stopColor);
+      if (tw > 0) addRect(upperTransStart, hi, transColor);
+      addRect(hi, nyq, passColor);
     }
 
     layout.shapes = ((layout.shapes ?? []) as NonNullable<Layout['shapes']>).concat(shapes as unknown as NonNullable<Layout['shapes']>);
@@ -130,27 +144,36 @@ export const SpectrumPlot: React.FC<SpectrumPlotProps> = ({ freq, magSingle, fre
 
     // Add shaded stop-band areas (darker) to highlight removed frequencies (use data y coords)
     const nyq = Math.round(fs / 2.56); // use same Fmax mapping as layout
+    const tw = Math.max(0, transitionWidth || 0);
     const shaded: Array<Record<string, unknown>> = [];
     if (filterType === 'low') {
-      const fc = filterLines[0];
-      shaded.push({ type: 'rect', x0: fc, x1: nyq, y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: 'rgba(220,38,38,0.32)', line: { width: 0 }, layer: 'below' });
-      areaTraces.push({ x: [fc, fc, nyq, nyq], y: [0, yTop, yTop, 0], type: 'scatter', fill: 'toself', fillcolor: 'rgba(220,38,38,0.18)', line: { width: 0 }, hoverinfo: 'skip', showlegend: false, opacity: 0.6 } as unknown as Data);
+      const fc = filterLines[0] ?? 0;
+      const stopStart = Math.min(nyq, fc + tw);
+      shaded.push({ type: 'rect', x0: stopStart, x1: nyq, y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: 'rgba(220,38,38,0.32)', line: { width: 0 }, layer: 'below' });
+      areaTraces.push({ x: [stopStart, stopStart, nyq, nyq], y: [0, yTop, yTop, 0], type: 'scatter', fill: 'toself', fillcolor: 'rgba(220,38,38,0.18)', line: { width: 0 }, hoverinfo: 'skip', showlegend: false, opacity: 0.6 } as unknown as Data);
     } else if (filterType === 'high') {
-      const fc = filterLines[0];
-      shaded.push({ type: 'rect', x0: 0, x1: fc, y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: 'rgba(220,38,38,0.32)', line: { width: 0 }, layer: 'below' });
-      areaTraces.push({ x: [0, 0, fc, fc], y: [0, yTop, yTop, 0], type: 'scatter', fill: 'toself', fillcolor: 'rgba(220,38,38,0.18)', line: { width: 0 }, hoverinfo: 'skip', showlegend: false, opacity: 0.6 } as unknown as Data);
+      const fc = filterLines[0] ?? 0;
+      const stopEnd = Math.max(0, fc - tw);
+      shaded.push({ type: 'rect', x0: 0, x1: stopEnd, y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: 'rgba(220,38,38,0.32)', line: { width: 0 }, layer: 'below' });
+      areaTraces.push({ x: [0, 0, stopEnd, stopEnd], y: [0, yTop, yTop, 0], type: 'scatter', fill: 'toself', fillcolor: 'rgba(220,38,38,0.18)', line: { width: 0 }, hoverinfo: 'skip', showlegend: false, opacity: 0.6 } as unknown as Data);
     } else if (filterType === 'bandpass') {
-      const lo = filterLines[0];
-      const hi = filterLines[1];
-      shaded.push({ type: 'rect', x0: 0, x1: lo, y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: 'rgba(220,38,38,0.32)', line: { width: 0 }, layer: 'below' });
-      shaded.push({ type: 'rect', x0: hi, x1: nyq, y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: 'rgba(220,38,38,0.32)', line: { width: 0 }, layer: 'below' });
-      areaTraces.push({ x: [0, 0, lo, lo], y: [0, yTop, yTop, 0], type: 'scatter', fill: 'toself', fillcolor: 'rgba(220,38,38,0.18)', line: { width: 0 }, hoverinfo: 'skip', showlegend: false, opacity: 0.6 } as unknown as Data);
-      areaTraces.push({ x: [hi, hi, nyq, nyq], y: [0, yTop, yTop, 0], type: 'scatter', fill: 'toself', fillcolor: 'rgba(220,38,38,0.18)', line: { width: 0 }, hoverinfo: 'skip', showlegend: false, opacity: 0.6 } as unknown as Data);
+      const lo = Math.min(filterLines[0] ?? 0, filterLines[1] ?? 0);
+      const hi = Math.max(filterLines[0] ?? 0, filterLines[1] ?? 0);
+      const lowStopEnd = Math.max(0, lo - tw);
+      const highStopStart = Math.min(nyq, hi + tw);
+      shaded.push({ type: 'rect', x0: 0, x1: lowStopEnd, y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: 'rgba(220,38,38,0.32)', line: { width: 0 }, layer: 'below' });
+      shaded.push({ type: 'rect', x0: highStopStart, x1: nyq, y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: 'rgba(220,38,38,0.32)', line: { width: 0 }, layer: 'below' });
+      areaTraces.push({ x: [0, 0, lowStopEnd, lowStopEnd], y: [0, yTop, yTop, 0], type: 'scatter', fill: 'toself', fillcolor: 'rgba(220,38,38,0.18)', line: { width: 0 }, hoverinfo: 'skip', showlegend: false, opacity: 0.6 } as unknown as Data);
+      areaTraces.push({ x: [highStopStart, highStopStart, nyq, nyq], y: [0, yTop, yTop, 0], type: 'scatter', fill: 'toself', fillcolor: 'rgba(220,38,38,0.18)', line: { width: 0 }, hoverinfo: 'skip', showlegend: false, opacity: 0.6 } as unknown as Data);
     } else if (filterType === 'bandstop') {
-      const lo = filterLines[0];
-      const hi = filterLines[1];
-      shaded.push({ type: 'rect', x0: lo, x1: hi, y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: 'rgba(220,38,38,0.44)', line: { width: 0 }, layer: 'below' });
-      areaTraces.push({ x: [lo, lo, hi, hi], y: [0, yTop, yTop, 0], type: 'scatter', fill: 'toself', fillcolor: 'rgba(220,38,38,0.18)', line: { width: 0 }, hoverinfo: 'skip', showlegend: false, opacity: 0.6 } as unknown as Data);
+      const lo = Math.min(filterLines[0] ?? 0, filterLines[1] ?? 0);
+      const hi = Math.max(filterLines[0] ?? 0, filterLines[1] ?? 0);
+      const coreStart = Math.min(hi, lo + tw);
+      const coreEnd = Math.max(lo, hi - tw);
+      const shadedStart = Math.min(coreStart, coreEnd);
+      const shadedEnd = Math.max(coreStart, coreEnd);
+      shaded.push({ type: 'rect', x0: shadedStart, x1: shadedEnd, y0: 0, y1: yTop, xref: 'x', yref: 'y', fillcolor: 'rgba(220,38,38,0.44)', line: { width: 0 }, layer: 'below' });
+      areaTraces.push({ x: [shadedStart, shadedStart, shadedEnd, shadedEnd], y: [0, yTop, yTop, 0], type: 'scatter', fill: 'toself', fillcolor: 'rgba(220,38,38,0.18)', line: { width: 0 }, hoverinfo: 'skip', showlegend: false, opacity: 0.6 } as unknown as Data);
     }
     if (shaded.length > 0) layout.shapes = ((layout.shapes ?? []) as NonNullable<Layout['shapes']>).concat(shaded as unknown as NonNullable<Layout['shapes']>);
     // Prepend areaTraces so they draw below the FFT traces

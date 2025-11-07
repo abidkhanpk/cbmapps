@@ -345,15 +345,51 @@ export default function SignalGenerator() {
       fft.transform(out, data);
 
       // construct mask over frequencies (bins 0..N-1) using signed frequency
+      const tw = Math.max(0, transitionWidth || 0);
+      const lowCut = Math.min(cutoffLow, cutoffHigh);
+      const highCut = Math.max(cutoffLow, cutoffHigh);
+      const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
+      const raisedCosineDown = (frac: number) => 0.5 * (1 + Math.cos(Math.PI * clamp01(frac)));
+      const raisedCosineUp = (frac: number) => 0.5 * (1 - Math.cos(Math.PI * clamp01(frac)));
+      const gainForFreq = (af: number): number => {
+        if (filterType === 'low') {
+          if (tw <= 0) return af <= cutoffLow ? 1 : 0;
+          if (af <= cutoffLow) return 1;
+          if (af >= cutoffLow + tw) return 0;
+          return raisedCosineDown((af - cutoffLow) / Math.max(tw, 1e-12));
+        }
+        if (filterType === 'high') {
+          if (tw <= 0) return af >= cutoffLow ? 1 : 0;
+          if (af >= cutoffLow) return 1;
+          const start = Math.max(0, cutoffLow - tw);
+          if (af <= start) return 0;
+          return raisedCosineUp((af - start) / Math.max(tw, 1e-12));
+        }
+        if (filterType === 'bandpass') {
+          if (tw <= 0) return af >= lowCut && af <= highCut ? 1 : 0;
+          if (af >= lowCut && af <= highCut) return 1;
+          if (af < lowCut - tw || af > highCut + tw) return 0;
+          if (af >= lowCut - tw && af < lowCut) {
+            return raisedCosineUp((af - (lowCut - tw)) / Math.max(tw, 1e-12));
+          }
+          if (af > highCut && af <= highCut + tw) {
+            return raisedCosineDown((af - highCut) / Math.max(tw, 1e-12));
+          }
+          return 0;
+        }
+        if (filterType === 'bandstop') {
+          if (tw <= 0) return af < lowCut || af > highCut ? 1 : 0;
+          if (af <= lowCut || af >= highCut) return 1;
+          const distanceToEdge = Math.max(0, Math.min(af - lowCut, highCut - af));
+          if (distanceToEdge >= tw) return 0;
+          return raisedCosineDown(distanceToEdge / Math.max(tw, 1e-12));
+        }
+        return 1;
+      };
       for (let k = 0; k < N; k++) {
         const freq = (k <= N / 2) ? (k * fs) / N : ((k - N) * fs) / N; // signed freq
-        let pass = false;
         const af = Math.abs(freq);
-        if (filterType === 'low') pass = af <= cutoffLow;
-        else if (filterType === 'high') pass = af >= cutoffLow;
-        else if (filterType === 'bandpass') pass = af >= cutoffLow && af <= cutoffHigh;
-        else if (filterType === 'bandstop') pass = !(af >= cutoffLow && af <= cutoffHigh);
-        const m = pass ? 1 : 0;
+        const m = gainForFreq(af);
         out[2 * k] *= m;
         out[2 * k + 1] *= m;
       }
