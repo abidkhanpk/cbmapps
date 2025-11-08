@@ -18,6 +18,7 @@ import type {
   WorkerSynthesisRequest,
   WorkerSynthesisResponse,
 } from '../types'
+import { runSynthesisJob } from '../lib/simulator'
 
 const palette = ['#0ea5e9', '#22c55e', '#f97316', '#6366f1']
 
@@ -44,13 +45,31 @@ export default function RotatingMachineApp() {
   const postedFftRef = useRef<string | null>(null)
   const [synthesisWorker, setSynthesisWorker] = useState<Worker | null>(null)
   const [fftWorker, setFftWorker] = useState<Worker | null>(null)
+  const [fallbackMode, setFallbackMode] = useState(false)
 
   const playhead = playback.playhead ?? 0
 
   useEffect(() => {
-    const worker = new Worker(new URL('../workers/synthesisWorker.ts', import.meta.url), { type: 'module' })
-    setSynthesisWorker(worker)
-    return () => worker.terminate()
+    if (typeof window === 'undefined' || typeof window.Worker === 'undefined') {
+      setFallbackMode(true)
+      return
+    }
+    try {
+      const worker = new Worker(new URL('../workers/synthesisWorker.ts', import.meta.url), { type: 'module' })
+      const handleError = (error: ErrorEvent) => {
+        console.error('[SYNTH-worker] runtime error', error)
+        setFallbackMode(true)
+      }
+      worker.addEventListener('error', handleError)
+      setSynthesisWorker(worker)
+      return () => {
+        worker.removeEventListener('error', handleError)
+        worker.terminate()
+      }
+    } catch (error) {
+      console.error('[SYNTH-worker] init failed', error)
+      setFallbackMode(true)
+    }
   }, [])
 
   useEffect(() => {
@@ -60,33 +79,72 @@ export default function RotatingMachineApp() {
   }, [])
 
   useEffect(() => {
-    if (!synthesisWorker) return
     const requestId = uniqueId()
-    const message: WorkerSynthesisRequest = {
-      type: 'synthesize',
-      requestId,
-      payload: {
-        machine,
-        sensors,
-        fault,
-        synthesis,
-        analysis,
-        amplitudeScale: playback.linkToAmplitude ? Math.max(0.1, playback.exaggeration) : 1,
-      },
+    const payload: WorkerSynthesisRequest['payload'] = {
+      machine,
+      sensors,
+      fault,
+      synthesis,
+      analysis,
+      amplitudeScale: playback.linkToAmplitude ? Math.max(0.1, playback.exaggeration) : 1,
     }
+    postedFftRef.current = null
     setBusy(true)
+
+    if (fallbackMode || !synthesisWorker) {
+      try {
+        const result = runSynthesisJob(requestId, payload)
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug('[SYNTH-inline] completed', { requestId, sensors: Object.keys(result.time) })
+        }
+        setResults(result)
+      } catch (error) {
+        console.error('[SYNTH-inline] failed', error)
+      } finally {
+        setBusy(false)
+      }
+      return
+    }
+
+    const message: WorkerSynthesisRequest = { type: 'synthesize', requestId, payload }
     const handler = (event: MessageEvent<WorkerSynthesisResponse>) => {
       if (event.data.type === 'synthesisResult' && event.data.requestId === requestId) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug('[SYNTH-worker] completed', {
+            requestId,
+            sensors: Object.keys(event.data.payload.time),
+          })
+        }
         setResults(event.data.payload)
         setBusy(false)
       }
     }
+    const handleError = (error: ErrorEvent) => {
+      console.error('[SYNTH-worker] error', error)
+      setFallbackMode(true)
+      setBusy(false)
+    }
+
     synthesisWorker.addEventListener('message', handler)
+    synthesisWorker.addEventListener('error', handleError)
     synthesisWorker.postMessage(message)
     return () => {
       synthesisWorker.removeEventListener('message', handler)
+      synthesisWorker.removeEventListener('error', handleError)
     }
-  }, [synthesisWorker, machine, sensors, fault, synthesis, analysis, playback.exaggeration, playback.linkToAmplitude, setBusy, setResults])
+  }, [
+    fallbackMode,
+    synthesisWorker,
+    machine,
+    sensors,
+    fault,
+    synthesis,
+    analysis,
+    playback.exaggeration,
+    playback.linkToAmplitude,
+    setBusy,
+    setResults,
+  ])
 
   useEffect(() => {
     keyboardStateRef.current = playback
@@ -127,8 +185,14 @@ export default function RotatingMachineApp() {
     const handler = (event: MessageEvent<WorkerFFTResponse>) => {
       if (event.data.type === 'fftResult' && event.data.requestId === requestId) {
         postedFftRef.current = requestKey
-        // Merge spectrum into existing results only (keep previous behavior)
-        if (results) setResults({ ...results, spectrum: event.data.payload })
+        useSimulatorStore.setState(state => ({
+          results: state.results
+            ? {
+                ...state.results,
+                spectrum: event.data.payload,
+              }
+            : state.results,
+        }))
       }
     }
     fftWorker.addEventListener('message', handler)
@@ -223,9 +287,11 @@ export default function RotatingMachineApp() {
         </div>
       </header>
 
-      <div className="simulator-grid">
-        <ControlsPanel />
-        <MachineScene motion={results?.motion} sensors={sensors} exaggeration={playback.exaggeration} slowmo={playback.slowmo} />
+      <div className="simulator-layout">
+        <div className="simulator-top-grid">
+          <ControlsPanel />
+          <MachineScene motion={results?.motion} sensors={sensors} exaggeration={playback.exaggeration} slowmo={playback.slowmo} />
+        </div>
         <div ref={chartRef} className="glass-panel flex flex-col gap-4 p-5">
           <div className="panel-header">
             <h2>Analytics</h2>
@@ -257,11 +323,12 @@ export default function RotatingMachineApp() {
               spectrum={results?.spectrum}
               markers={results?.markers}
               sensorOrder={sensors.map(sensor => sensor.id)}
+              fmax={analysis.fmax}
             />
           )}
 
           {activeTab === 'phase' && (
-            <PhaseChart spectrum={results?.spectrum} primarySensor={primarySensor} referenceSensor={secondarySensor} />
+            <PhaseChart spectrum={results?.spectrum} primarySensor={primarySensor} referenceSensor={secondarySensor} fmax={analysis.fmax} />
           )}
 
           {activeTab === 'polar' && <PolarPlot motion={results?.motion} />}

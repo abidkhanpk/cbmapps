@@ -21,15 +21,16 @@ export function MachineScene({ motion, sensors, exaggeration, slowmo }: MachineS
         <h2>Machine Model</h2>
         <p className="text-xs uppercase tracking-widest text-slate-500">3D preview</p>
       </div>
-      <Canvas shadows camera={{ position: [6, 4, 8], fov: 40 }}>
-        <color attach="background" args={['#f8fafc']} />
-        <ambientLight intensity={0.7} />
-        <directionalLight position={[5, 8, 5]} intensity={1.1} castShadow />
+      <Canvas shadows camera={{ position: [9, 5, 10], fov: 40 }}>
+        <color attach="background" args={['#eef2ff']} />
+        <ambientLight intensity={0.6} />
+        <spotLight position={[6, 10, 6]} intensity={1.4} castShadow angle={0.4} penumbra={0.6} />
+        <directionalLight position={[-6, 4, -3]} intensity={0.4} />
         <gridHelper args={[20, 20, '#cbd5f5', '#e2e8f0']} />
         <Suspense fallback={null}>
           <MachineAssembly motion={motion} sensors={sensors} exaggeration={exaggeration} slowmo={slowmo} />
         </Suspense>
-        <OrbitControls enablePan={false} maxPolarAngle={Math.PI / 2.1} minDistance={6} maxDistance={12} />
+        <OrbitControls enablePan={false} maxPolarAngle={Math.PI / 2.1} minDistance={6} maxDistance={14} />
       </Canvas>
     </div>
   )
@@ -47,30 +48,36 @@ function MachineAssembly({
   slowmo: number
 }) {
   const shaftRef = useRef<THREE.Mesh>(null)
+  const motorGroupRef = useRef<THREE.Group>(null)
+  const pumpGroupRef = useRef<THREE.Group>(null)
   const couplingRef = useRef<THREE.Mesh>(null)
-  const rotorRef = useRef<THREE.Mesh>(null)
 
   const orbitAmplitude = (motion?.orbitMajor ?? 0.4) * exaggeration * 0.002
   const axialAmplitude = (motion?.axial ?? 0.1) * exaggeration * 0.001
 
-  useFrame((state, delta) => {
-    const t = state.clock.elapsedTime * slowmo * 4
-    const radialX = Math.sin(t) * orbitAmplitude
-    const radialY = Math.cos(t + (motion?.phaseLag ?? 0)) * orbitAmplitude * 0.8
+  useFrame(state => {
+    const t = state.clock.elapsedTime * slowmo * 3
+    const radial = Math.sin(t) * orbitAmplitude
+    const axial = Math.cos(t + (motion?.phaseLag ?? 0)) * axialAmplitude
 
     if (shaftRef.current) {
-      shaftRef.current.position.x = radialX
-      shaftRef.current.position.y = 0.5 + radialY
-      shaftRef.current.rotation.z = Math.sin(t * 0.5) * 0.02 * exaggeration
+      shaftRef.current.rotation.z = Math.sin(t * 0.5) * 0.03 * exaggeration
     }
-    if (rotorRef.current) {
-      rotorRef.current.position.x = radialX * 1.2
-      rotorRef.current.position.y = 0.9 + radialY
-      rotorRef.current.rotation.x = Math.sin(t) * 0.1 * exaggeration
+
+    if (motorGroupRef.current) {
+      motorGroupRef.current.position.y = 0.85 + radial
+      motorGroupRef.current.position.z = axial * 0.3
+      motorGroupRef.current.rotation.x = Math.sin(t * 0.3) * 0.01 * exaggeration
     }
+
+    if (pumpGroupRef.current) {
+      pumpGroupRef.current.position.y = 0.92 + radial * 0.8
+      pumpGroupRef.current.rotation.z = Math.cos(t * 0.4) * 0.015 * exaggeration
+    }
+
     if (couplingRef.current) {
-      couplingRef.current.rotation.z = Math.sin(t * 0.5) * 0.08 * exaggeration
-      couplingRef.current.position.z = axialAmplitude * Math.sin(t * 0.7)
+      couplingRef.current.position.z = axial
+      couplingRef.current.rotation.y = t * 0.5
     }
   })
 
@@ -78,37 +85,24 @@ function MachineAssembly({
 
   return (
     <group>
-      <mesh position={[0, 0.1, 0]} receiveShadow>
-        <boxGeometry args={[6, 0.2, 2]} />
-        <meshStandardMaterial color="#cbd5f5" metalness={0.1} roughness={0.8} />
+      <BasePlate />
+      <FoundationBolts />
+      <group ref={motorGroupRef} position={[-2.6, 0.85, 0]}>
+        <Motor />
+      </group>
+      <group ref={pumpGroupRef} position={[2.4, 0.95, 0]}>
+        <Pump />
+      </group>
+      <mesh ref={shaftRef} position={[0, 0.9, 0]} castShadow rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.15, 0.15, 6.2, 32]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.7} roughness={0.25} />
       </mesh>
-
-      <mesh position={[-1.8, 0.8, 0]} castShadow>
-        <boxGeometry args={[1.6, 1.2, 1.4]} />
-        <meshStandardMaterial color="#475569" metalness={0.4} roughness={0.4} />
+      <mesh ref={couplingRef} castShadow position={[0, 0.95, 0]}>
+        <cylinderGeometry args={[0.45, 0.45, 0.8, 32]} />
+        <meshStandardMaterial color="#f87171" metalness={0.8} roughness={0.2} />
       </mesh>
-
-      <mesh position={[1.4, 0.6, 0]} castShadow>
-        <boxGeometry args={[2, 1, 1.2]} />
-        <meshStandardMaterial color="#0f172a" metalness={0.5} roughness={0.4} />
-      </mesh>
-
-      <mesh ref={shaftRef} position={[0, 0.6, 0]} castShadow>
-        <cylinderGeometry args={[0.12, 0.12, 4]} />
-        <meshStandardMaterial color="#747c92" metalness={0.8} roughness={0.2} />
-      </mesh>
-
-      <mesh ref={couplingRef} position={[-0.5, 0.7, 0]} castShadow>
-        <cylinderGeometry args={[0.3, 0.3, 0.6, 32]} />
-        <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.3} />
-      </mesh>
-
-      <mesh ref={rotorRef} position={[1.2, 0.9, 0]} castShadow>
-        <cylinderGeometry args={[0.6, 0.6, 1.4, 32]} />
-        <meshStandardMaterial color="#475569" />
-      </mesh>
-
-      <Bearings />
+      <BearingBlocks />
+      <Pipework />
 
       {sensorMeshes.map(mesh => (
         <group key={mesh.key} position={mesh.position}>
@@ -117,7 +111,7 @@ function MachineAssembly({
             <meshStandardMaterial color={mesh.color} />
           </mesh>
           <Html center>
-            <span className="rounded bg-white/80 px-2 py-0.5 text-xs text-slate-700 shadow">{mesh.label}</span>
+            <span className="rounded bg-white/90 px-2 py-0.5 text-xs text-slate-700 shadow">{mesh.label}</span>
           </Html>
         </group>
       ))}
@@ -126,10 +120,10 @@ function MachineAssembly({
 }
 
 const sensorPositions: Record<Sensor['location'], THREE.Vector3> = {
-  DE: new THREE.Vector3(1.6, 1.1, 0.8),
-  NDE: new THREE.Vector3(-1.6, 1, -0.8),
-  AX: new THREE.Vector3(0.2, 1.2, -1),
-  BASE: new THREE.Vector3(0, 0.4, 1),
+  DE: new THREE.Vector3(-0.3, 1.2, 0.9),
+  NDE: new THREE.Vector3(-4.2, 1.2, -0.9),
+  AX: new THREE.Vector3(0, 1.8, 0),
+  BASE: new THREE.Vector3(1.8, 0.5, -1.2),
 }
 
 function sensorToMesh(sensor: Sensor) {
@@ -143,17 +137,140 @@ function sensorToMesh(sensor: Sensor) {
   }
 }
 
-function Bearings() {
+function BearingBlocks() {
   return (
     <>
-      <mesh position={[0.8, 0.4, -0.8]}>
-        <boxGeometry args={[0.8, 0.6, 0.6]} />
+      <mesh position={[-0.6, 0.65, -0.9]} castShadow>
+        <boxGeometry args={[0.8, 0.5, 0.6]} />
         <meshStandardMaterial color="#94a3b8" />
       </mesh>
-      <mesh position={[-0.8, 0.4, 0.8]}>
-        <boxGeometry args={[0.8, 0.6, 0.6]} />
+      <mesh position={[1.0, 0.65, 0.9]} castShadow>
+        <boxGeometry args={[0.8, 0.5, 0.6]} />
         <meshStandardMaterial color="#94a3b8" />
       </mesh>
     </>
+  )
+}
+
+function BasePlate() {
+  return (
+    <mesh position={[0, 0.1, 0]} receiveShadow>
+      <boxGeometry args={[11, 0.2, 3.4]} />
+      <meshStandardMaterial color="#cbd5f5" metalness={0.15} roughness={0.7} />
+    </mesh>
+  )
+}
+
+function FoundationBolts() {
+  const bolts = [
+    [-4.5, 0.3, -1.4],
+    [-4.5, 0.3, 1.4],
+    [4.5, 0.3, -1.4],
+    [4.5, 0.3, 1.4],
+  ]
+  return (
+    <group>
+      {bolts.map(([x, y, z]) => (
+        <mesh key={`${x}-${z}`} position={[x, y, z]}>
+          <cylinderGeometry args={[0.08, 0.08, 0.6]} />
+          <meshStandardMaterial color="#475569" />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+const Motor = () => (
+  <group>
+    <mesh position={[0, -0.45, 0]} castShadow>
+      <boxGeometry args={[3.2, 0.4, 1.6]} />
+      <meshStandardMaterial color="#1e293b" metalness={0.4} roughness={0.4} />
+    </mesh>
+    <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
+      <cylinderGeometry args={[0.9, 0.9, 2.8, 40, 1, true]} />
+      <meshStandardMaterial color="#0ea5e9" metalness={0.5} roughness={0.35} />
+    </mesh>
+    <mesh rotation={[0, 0, Math.PI / 2]} position={[0, 0, 0]} castShadow>
+      <cylinderGeometry args={[0.95, 0.95, 0.4, 40]} />
+      <meshStandardMaterial color="#0f172a" metalness={0.6} roughness={0.3} />
+    </mesh>
+    <mesh rotation={[0, 0, Math.PI / 2]} position={[-1.4, 0, 0]} castShadow>
+      <cylinderGeometry args={[0.95, 0.95, 0.5, 40]} />
+      <meshStandardMaterial color="#0f172a" metalness={0.6} roughness={0.3} />
+    </mesh>
+    <mesh rotation={[0, 0, Math.PI / 2]} position={[-1.6, 0, 0]} castShadow>
+      <torusGeometry args={[0.6, 0.08, 16, 40]} />
+      <meshStandardMaterial color="#f8fafc" metalness={0.3} roughness={0.2} />
+    </mesh>
+    <mesh position={[0.6, 0.4, -0.7]} castShadow>
+      <boxGeometry args={[0.6, 0.4, 0.8]} />
+      <meshStandardMaterial color="#0f172a" />
+    </mesh>
+    {[ -1.2, 1.2 ].map(z => (
+      <mesh key={`foot-${z}`} position={[0.4, -0.65, z / 2]} castShadow>
+        <boxGeometry args={[0.8, 0.2, 0.4]} />
+        <meshStandardMaterial color="#0b1220" metalness={0.3} roughness={0.5} />
+      </mesh>
+    ))}
+    <mesh rotation={[0, 0, Math.PI / 2]} position={[-1.9, 0, 0]} castShadow>
+      <cylinderGeometry args={[0.6, 0.6, 0.25, 40]} />
+      <meshStandardMaterial color="#1f2937" metalness={0.4} roughness={0.4} />
+    </mesh>
+    <mesh rotation={[Math.PI / 2, 0, 0]} position={[-1.9, 0.15, 0]} castShadow>
+      <torusGeometry args={[0.55, 0.05, 12, 40]} />
+      <meshStandardMaterial color="#f87171" metalness={0.8} roughness={0.2} />
+    </mesh>
+    <mesh position={[0.9, 0.2, 0.65]} castShadow>
+      <boxGeometry args={[0.35, 0.25, 0.1]} />
+      <meshStandardMaterial color="#facc15" />
+    </mesh>
+  </group>
+)
+
+const Pump = () => (
+  <group>
+    <mesh position={[0, -0.5, 0]} castShadow>
+      <boxGeometry args={[2.4, 0.4, 1.6]} />
+      <meshStandardMaterial color="#0f172a" metalness={0.4} roughness={0.4} />
+    </mesh>
+    <mesh rotation={[0, 0, Math.PI / 2]} position={[-0.6, 0, 0]} castShadow>
+      <cylinderGeometry args={[0.4, 0.4, 1.2, 32]} />
+      <meshStandardMaterial color="#f97316" metalness={0.5} roughness={0.3} />
+    </mesh>
+    <mesh rotation={[Math.PI / 2, 0, 0]} position={[0.6, 0.05, 0]} castShadow>
+      <torusGeometry args={[0.85, 0.25, 20, 60, Math.PI * 1.25]} />
+      <meshStandardMaterial color="#fb923c" metalness={0.4} roughness={0.4} />
+    </mesh>
+    <mesh position={[1.5, 0.3, 0.5]} castShadow rotation={[0, 0, Math.PI / 2]}>
+      <cylinderGeometry args={[0.25, 0.25, 1.4, 24]} />
+      <meshStandardMaterial color="#f97316" />
+    </mesh>
+    <mesh position={[0.5, 0.3, -0.9]} castShadow rotation={[0, Math.PI / 2, 0]}>
+      <cylinderGeometry args={[0.15, 0.15, 1.8, 24]} />
+      <meshStandardMaterial color="#fb923c" />
+    </mesh>
+    <mesh position={[0.9, 0.15, -0.2]} castShadow rotation={[0, Math.PI / 2, 0]}>
+      <torusGeometry args={[0.55, 0.06, 14, 30, Math.PI / 1.2]} />
+      <meshStandardMaterial color="#f97316" metalness={0.4} roughness={0.4} />
+    </mesh>
+    <mesh position={[1.4, 0.3, -0.2]} castShadow rotation={[0, Math.PI / 2, 0]}>
+      <cylinderGeometry args={[0.12, 0.12, 1.8, 32]} />
+      <meshStandardMaterial color="#f97316" />
+    </mesh>
+  </group>
+)
+
+function Pipework() {
+  return (
+    <group>
+      <mesh position={[2.2, 0.4, 1.5]} castShadow rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[1.4, 0.08, 16, 30]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.3} />
+      </mesh>
+      <mesh position={[-5, 0.9, 0]} castShadow rotation={[0, Math.PI / 2, 0]}>
+        <cylinderGeometry args={[0.12, 0.12, 2.4, 24]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.4} roughness={0.4} />
+      </mesh>
+    </group>
   )
 }

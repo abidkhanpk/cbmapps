@@ -1,64 +1,96 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { memo, useMemo } from 'react'
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import type { Data, Layout, Config } from 'plotly.js'
+import type { PlotParams } from 'react-plotly.js'
 
 import type { SpectrumResult } from '../types'
 import { relativePhase } from '../lib/phase'
+
+const Plot = dynamic<PlotParams>(() => import('react-plotly.js'), { ssr: false })
 
 interface PhaseChartProps {
   spectrum?: SpectrumResult
   primarySensor: string
   referenceSensor?: string
+  fmax?: number
 }
 
 export const PhaseChart = memo(function PhaseChart({
   spectrum,
   primarySensor,
   referenceSensor,
+  fmax,
 }: PhaseChartProps) {
-  const data = useMemo(() => buildPhaseData(spectrum, primarySensor, referenceSensor), [spectrum, primarySensor, referenceSensor])
-  if (!data.length) {
+  const traces = useMemo(() => buildPhaseTraces(spectrum, primarySensor, referenceSensor, fmax), [spectrum, primarySensor, referenceSensor, fmax])
+  if (!traces.length) {
     return <EmptyState message="Phase data pending…" />
   }
 
-  return (
-    <ResponsiveContainer width="100%" height={260}>
-      <LineChart data={data} margin={{ top: 10, left: 20, right: 20, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-        <XAxis type="number" dataKey="freq" tickFormatter={value => `${value.toFixed(0)} Hz`} />
-        <YAxis tickFormatter={value => `${value.toFixed(0)}°`} domain={[-180, 180]} />
-        <Tooltip formatter={(value: number) => `${value.toFixed(1)}°`} labelFormatter={value => `${value.toFixed(1)} Hz`} />
-        <Line type="monotone" dataKey="phase" stroke="#0ea5e9" dot={false} isAnimationActive={false} name="Phase" />
-        {referenceSensor && <Line type="monotone" dataKey="cross" stroke="#f97316" dot={false} isAnimationActive={false} name="Cross Phase" />}
-      </LineChart>
-    </ResponsiveContainer>
-  )
+  const layout: Partial<Layout> = {
+    title: 'Phase vs Frequency',
+    margin: { l: 60, r: 20, t: 40, b: 40 },
+    xaxis: { title: 'Frequency (Hz)', gridcolor: '#e2e8f0', zeroline: false },
+    yaxis: { title: 'Phase (deg)', gridcolor: '#e2e8f0', range: [-190, 190] },
+    legend: { orientation: 'h', y: 1.12, yanchor: 'bottom', x: 0.5, xanchor: 'center' },
+    paper_bgcolor: 'transparent',
+    plot_bgcolor: 'transparent',
+  }
+  const config: Partial<Config> = {
+    displaylogo: false,
+    responsive: true,
+  }
+
+  return <Plot data={traces} layout={layout} config={config} style={{ width: '100%', height: 260 }} />
 })
 
-function buildPhaseData(
+function buildPhaseTraces(
   spectrum: SpectrumResult | undefined,
   primarySensor: string,
   referenceSensor?: string,
-) {
+  fmax?: number,
+): Data[] {
   if (!spectrum) return []
   const primary = spectrum.phase[primarySensor]
   if (!primary) return []
   const reference = referenceSensor ? spectrum.phase[referenceSensor] : undefined
-  const rows: Array<Record<string, number>> = []
-  const maxPoints = 1000
-  const stride = Math.max(1, Math.floor(primary.length / maxPoints))
+  const stride = Math.max(1, Math.floor(primary.length / 3000))
+  const freq: number[] = []
+  const phase: number[] = []
+  const cross: number[] = []
 
   for (let i = 0; i < primary.length; i += stride) {
-    const deg = (primary[i] * 180) / Math.PI
-    const row: Record<string, number> = { freq: spectrum.f[i], phase: deg }
+    const freqVal = spectrum.f[i]
+    if (fmax && freqVal > fmax) break
+    freq.push(freqVal)
+    phase.push((primary[i] * 180) / Math.PI)
     if (reference && reference[i] !== undefined) {
-      row.cross = (relativePhase(primary[i], reference[i]) * 180) / Math.PI
+      cross.push((relativePhase(primary[i], reference[i]) * 180) / Math.PI)
     }
-    rows.push(row)
   }
 
-  return rows
+  const traces: Data[] = [
+    {
+      x: freq,
+      y: phase,
+      type: 'scatter',
+      mode: 'lines',
+      name: `${primarySensor} phase`,
+      line: { color: '#0ea5e9', width: 2 },
+    },
+  ]
+  if (cross.length) {
+    traces.push({
+      x: freq,
+      y: cross,
+      type: 'scatter',
+      mode: 'lines',
+      name: `${primarySensor}/${referenceSensor} cross-phase`,
+      line: { color: '#f97316', width: 2 },
+    })
+  }
+  return traces
 }
 
 const EmptyState = ({ message }: { message: string }) => (

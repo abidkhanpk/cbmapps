@@ -1,18 +1,12 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { memo, useMemo } from 'react'
-import {
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import type { Data, Layout, Config } from 'plotly.js'
+import type { PlotParams } from 'react-plotly.js'
 import type { SignalStats } from '../types'
+
+const Plot = dynamic<PlotParams>(() => import('react-plotly.js'), { ssr: false })
 
 interface WaveformSeries {
   id: string
@@ -30,59 +24,66 @@ interface WaveformChartProps {
 }
 
 export const WaveformChart = memo(function WaveformChart({ series, fs, playhead, duration }: WaveformChartProps) {
-  const chartData = useMemo(() => buildWaveformPoints(series, fs), [series, fs])
+  const traces = useMemo(() => buildTraces(series, fs), [series, fs])
   const playheadTime = playhead * duration
 
-  if (!chartData.length) {
+  if (!traces.length) {
     return <EmptyState message="Synthesizing waveform…" />
   }
 
-  return (
-    <ResponsiveContainer width="100%" height={340}>
-      <LineChart data={chartData} margin={{ top: 20, left: 20, right: 20, bottom: 10 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-        <XAxis type="number" dataKey="time" tickFormatter={value => `${value.toFixed(2)}s`} />
-        <YAxis />
-        <Tooltip formatter={(value: number) => value.toFixed(3)} labelFormatter={value => `${value.toFixed(3)}s`} />
-        <Legend />
-        {series.map(item => (
-          <Line
-            key={item.id}
-            type="natural"
-            dataKey={item.id}
-            name={item.label}
-            stroke={item.color}
-            dot={false}
-            strokeWidth={2}
-            isAnimationActive={false}
-          />
-        ))}
-        <ReferenceLine x={playheadTime} stroke="#0ea5e9" strokeDasharray="4 4" />
-      </LineChart>
-    </ResponsiveContainer>
-  )
-})
-
-function buildWaveformPoints(series: WaveformSeries[], fs: number) {
-  if (!series.length || !fs) return []
-  const base = series.find(item => item.data)?.data
-  if (!base) return []
-  const sampleLength = base.length
-  const maxPoints = 1000
-  const stride = Math.max(1, Math.floor(sampleLength / maxPoints))
-  const rows: Array<Record<string, number>> = []
-
-  for (let i = 0; i < sampleLength; i += stride) {
-    const row: Record<string, number> = { time: i / fs }
-    series.forEach(item => {
-      if (item.data) {
-        row[item.id] = item.data[i] ?? 0
-      }
-    })
-    rows.push(row)
+  const layout: Partial<Layout> = {
+    title: 'Time Waveform',
+    uirevision: 'twf',
+    margin: { l: 60, r: 20, t: 50, b: 40 },
+    xaxis: { title: 'Time (s)', gridcolor: '#e2e8f0', zeroline: false },
+    yaxis: { title: 'Amplitude', gridcolor: '#e2e8f0' },
+    paper_bgcolor: 'transparent',
+    plot_bgcolor: 'transparent',
+    legend: { orientation: 'h', y: 1.12, yanchor: 'bottom', x: 0.5, xanchor: 'center' },
+    shapes: [
+      {
+        type: 'line',
+        x0: playheadTime,
+        x1: playheadTime,
+        y0: 0,
+        y1: 1,
+        xref: 'x',
+        yref: 'paper',
+        line: { color: '#0ea5e9', dash: 'dash', width: 2 },
+      },
+    ],
   }
 
-  return rows
+  const config: Partial<Config> = {
+    displaylogo: false,
+    responsive: true,
+  }
+
+  return <Plot data={traces} layout={layout} config={config} style={{ width: '100%', height: 360 }} />
+})
+
+function buildTraces(series: WaveformSeries[], fs: number): Data[] {
+  if (!series.length || !fs) return []
+  const traces: Data[] = []
+  series.forEach(item => {
+    if (!item.data || item.data.length === 0) return
+    const stride = Math.max(1, Math.floor(item.data.length / 4000))
+    const x: number[] = []
+    const y: number[] = []
+    for (let i = 0; i < item.data.length; i += stride) {
+      x.push(i / fs)
+      y.push(item.data[i])
+    }
+    traces.push({
+      x,
+      y,
+      type: 'scatter',
+      mode: 'lines',
+      name: item.label,
+      line: { color: item.color, width: 2 },
+    })
+  })
+  return traces
 }
 
 const EmptyState = ({ message }: { message: string }) => (

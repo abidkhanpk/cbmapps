@@ -29,9 +29,9 @@ const shallowEqual = <T extends object>(a: T, b: T) => {
 }
 
 const defaultSensors: Sensor[] = [
-  { id: 'sensor-de-x', location: 'DE', axis: 'X', label: 'DE Radial' },
-  { id: 'sensor-nde-x', location: 'NDE', axis: 'X', label: 'NDE Radial' },
-  { id: 'sensor-ax-z', location: 'AX', axis: 'Z', label: 'Axial' },
+  { id: 'sensor-de-x', location: 'DE', axis: 'X', label: 'DE Horizontal' },
+  { id: 'sensor-nde-x', location: 'NDE', axis: 'X', label: 'NDE Horizontal' },
+  { id: 'sensor-base-z', location: 'BASE', axis: 'Z', label: 'Base Axial' },
 ]
 
 interface SimulatorState {
@@ -92,9 +92,10 @@ const defaultAnalysis: AnalysisSettings = {
   window: 'hanning',
   averages: 4,
   lines: 800,
+  fmax: 12000,
   envelope: true,
   orderTracking: false,
-  velocity: false,
+  velocity: true,
 }
 
 export const useSimulatorStore = create<SimulatorState>((set, get) => ({

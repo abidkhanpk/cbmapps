@@ -76,6 +76,7 @@ export interface AnalysisSettings {
   window: 'hanning' | 'hamming' | 'blackman'
   averages: number
   lines: number
+  fmax: number
   envelope: boolean
   orderTracking: boolean
   velocity: boolean
