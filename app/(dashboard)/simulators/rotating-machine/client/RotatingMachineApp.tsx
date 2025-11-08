@@ -11,7 +11,6 @@ import { PolarPlot } from '../components/PolarPlot'
 import { ExportButtons } from '../components/ExportButtons'
 import { PlaybackBar } from '../components/PlaybackBar'
 import { useSimulatorStore } from '../hooks/useSimulatorStore'
-import { useAnimationClock } from '../hooks/useAnimationClock'
 import type {
   SimulationResults,
   WorkerFFTRequest,
@@ -54,14 +53,7 @@ export default function RotatingMachineApp() {
   const [synthesisWorker, setSynthesisWorker] = useState<Worker | null>(null)
   const [fftWorker, setFftWorker] = useState<Worker | null>(null)
 
-  const animationTime = useAnimationClock({
-    playing: playback.playing,
-    slowmo: playback.slowmo,
-    duration: synthesis.seconds,
-    startProgress: playback.playhead ?? 0,
-  })
-  const derivedPlayhead =
-    playback.playing && synthesis.seconds > 0 ? Math.min(1, Math.max(0, animationTime / synthesis.seconds)) : playback.playhead ?? 0
+  const playhead = playback.playhead ?? 0
 
   useEffect(() => {
     const worker = new Worker(new URL('../workers/synthesisWorker.ts', import.meta.url), { type: 'module' })
@@ -253,12 +245,7 @@ export default function RotatingMachineApp() {
           </div>
 
           {activeTab === 'twf' && (
-            <WaveformChart
-              series={waveformSeries}
-              fs={synthesis.fs}
-              playhead={derivedPlayhead ?? 0}
-              duration={synthesis.seconds}
-            />
+            <WaveformChart series={waveformSeries} fs={synthesis.fs} playhead={playhead} duration={synthesis.seconds} />
           )}
 
           {activeTab === 'spectrum' && (
@@ -292,7 +279,7 @@ export default function RotatingMachineApp() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-[minmax(320px,400px)_1fr]">
-        <PlaybackBar duration={synthesis.seconds} playhead={derivedPlayhead ?? 0} onSeek={handleSeek} />
+        <PlaybackBar duration={synthesis.seconds} playhead={playhead} onSeek={handleSeek} />
         <ExportButtons data={exportPayload} chartRef={chartRef} />
       </div>
     </div>
