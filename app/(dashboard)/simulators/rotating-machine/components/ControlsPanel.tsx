@@ -102,7 +102,7 @@ export function ControlsPanel() {
       />
 
       <Accordion defaultOpenId={null}>
-        <Collapsible id="machine" title="Machine & Fault" defaultOpen={false}>
+        <Collapsible id="machine" title="Machine Setup" defaultOpen={false}>
           <div className="grid gap-4 text-xs font-semibold text-slate-600">
             <div className="space-y-3">
               <label className="block">

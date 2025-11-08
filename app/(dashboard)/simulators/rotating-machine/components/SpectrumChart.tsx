@@ -13,6 +13,7 @@ interface SpectrumChartProps {
   spectrum?: SpectrumResult
   markers?: FaultMarker[]
   sensorOrder: string[]
+  sensorLabels?: Record<string, string>
   fmax?: number
 }
 
@@ -20,9 +21,10 @@ export const SpectrumChart = memo(function SpectrumChart({
   spectrum,
   markers = [],
   sensorOrder,
+  sensorLabels,
   fmax,
 }: SpectrumChartProps) {
-  const traces = useMemo(() => buildSpectrumTraces(spectrum, sensorOrder, fmax), [spectrum, sensorOrder, fmax])
+  const traces = useMemo(() => buildSpectrumTraces(spectrum, sensorOrder, sensorLabels, fmax), [spectrum, sensorOrder, sensorLabels, fmax])
 
   if (!spectrum || !traces.length) {
     return <EmptyState message="FFT results pending…" />
@@ -72,7 +74,12 @@ export const SpectrumChart = memo(function SpectrumChart({
   return <Plot data={traces} layout={layout} config={config} style={{ width: '100%', height: 360 }} />
 })
 
-function buildSpectrumTraces(spectrum: SpectrumResult | undefined, sensorOrder: string[], fmax?: number): Data[] {
+function buildSpectrumTraces(
+  spectrum: SpectrumResult | undefined,
+  sensorOrder: string[],
+  sensorLabels: Record<string, string> | undefined,
+  fmax?: number,
+): Data[] {
   if (!spectrum) return []
   const colors = ['#0284c7', '#16a34a', '#f97316', '#8b5cf6', '#14b8a6']
   const traces: Data[] = []
@@ -93,7 +100,7 @@ function buildSpectrumTraces(spectrum: SpectrumResult | undefined, sensorOrder: 
       y,
       type: 'scatter',
       mode: 'lines',
-      name: sensorId,
+      name: sensorLabels?.[sensorId] ?? sensorId,
       line: { color: colors[index % colors.length], width: 2 },
     })
   })

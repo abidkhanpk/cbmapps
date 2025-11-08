@@ -59,6 +59,8 @@ function averageSpectrum(buffer: Float32Array, opts: AverageOptions): Float32Arr
   const tmp = fft.createComplexArray()
   const result = new Float32Array(Math.floor(blockSize / 2))
   const segment = new Float32Array(blockSize)
+  const coherentGain = getCoherentGain(window)
+  const windowCorrection = coherentGain > 0 ? 1 / coherentGain : 1
 
   for (let avg = 0; avg < averages; avg += 1) {
     const offset = avg * blockSize
@@ -71,7 +73,9 @@ function averageSpectrum(buffer: Float32Array, opts: AverageOptions): Float32Arr
     for (let bin = 0; bin < result.length; bin += 1) {
       const re = tmp[bin * 2]
       const im = tmp[bin * 2 + 1]
-      let mag = Math.sqrt(re * re + im * im) / blockSize
+      let mag = Math.sqrt(re * re + im * im)
+      const scale = bin === 0 ? 1 / blockSize : 2 / blockSize
+      mag *= scale * windowCorrection
       if (velocity && bin > 0) {
         const freq = (bin * fs) / blockSize
         const omega = 2 * Math.PI * freq
@@ -88,6 +92,18 @@ function averageSpectrum(buffer: Float32Array, opts: AverageOptions): Float32Arr
   }
 
   return result
+}
+
+function getCoherentGain(window: AverageOptions['window']): number {
+  switch (window) {
+    case 'hamming':
+      return 0.54
+    case 'blackman':
+      return 0.42
+    case 'hanning':
+    default:
+      return 0.5
+  }
 }
 
 function averagePhase(buffer: Float32Array, opts: AverageOptions): Float32Array {
