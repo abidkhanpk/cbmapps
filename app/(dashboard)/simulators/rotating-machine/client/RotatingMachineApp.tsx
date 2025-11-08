@@ -22,34 +22,26 @@ import type {
 const palette = ['#0ea5e9', '#22c55e', '#f97316', '#6366f1']
 
 export default function RotatingMachineApp() {
-  const {
-    machine,
-    sensors,
-    fault,
-    synthesis,
-    analysis,
-    playback,
-    results,
-    setResults,
-    setPlayback,
-    busy,
-    setBusy,
-  } = useSimulatorStore(state => ({
-    machine: state.machine,
-    sensors: state.sensors,
-    fault: state.fault,
-    synthesis: state.synthesis,
-    analysis: state.analysis,
-    playback: state.playback,
-    results: state.results,
-    setResults: state.setResults,
-    setPlayback: state.setPlayback,
-    busy: state.busy,
-    setBusy: state.setBusy,
-  }))
+  // Select store slices individually to avoid unnecessary re-renders and
+  // reduce risk of cascading updates when the store changes.
+  const machine = useSimulatorStore(state => state.machine)
+  const sensors = useSimulatorStore(state => state.sensors)
+  const fault = useSimulatorStore(state => state.fault)
+  const synthesis = useSimulatorStore(state => state.synthesis)
+  const analysis = useSimulatorStore(state => state.analysis)
+  const playback = useSimulatorStore(state => state.playback)
+  const results = useSimulatorStore(state => state.results)
+  const busy = useSimulatorStore(state => state.busy)
+
+  // Stable setter functions
+  const setResults = useSimulatorStore(state => state.setResults)
+  const setPlayback = useSimulatorStore(state => state.setPlayback)
+  const setBusy = useSimulatorStore(state => state.setBusy)
 
   const [activeTab, setActiveTab] = useState<'twf' | 'spectrum' | 'phase' | 'polar'>('twf')
   const chartRef = useRef<HTMLDivElement>(null)
+  const keyboardStateRef = useRef(playback)
+  const postedFftRef = useRef<string | null>(null)
   const [synthesisWorker, setSynthesisWorker] = useState<Worker | null>(null)
   const [fftWorker, setFftWorker] = useState<Worker | null>(null)
 
@@ -96,14 +88,28 @@ export default function RotatingMachineApp() {
     }
   }, [synthesisWorker, machine, sensors, fault, synthesis, analysis, playback.exaggeration, playback.linkToAmplitude, setBusy, setResults])
 
+  useEffect(() => {
+    keyboardStateRef.current = playback
+  }, [playback])
+
   const timeSeries = results?.time
   const tachSeries = results?.tach
   const envelopeSeries = results?.envelope
   const hasSpectrum = Boolean(results?.spectrum)
+  const resultsRequestId = results?.requestId
+  const resultsGeneratedAt = results?.generatedAt
 
   useEffect(() => {
-    if (!fftWorker || !timeSeries || !tachSeries || hasSpectrum) return
+    if (!fftWorker || !timeSeries || !tachSeries || hasSpectrum || !resultsRequestId || !resultsGeneratedAt) return
+    const requestKey = `${resultsRequestId}:${resultsGeneratedAt}`
+    if (postedFftRef.current === requestKey) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[FFT] skipping duplicate request', requestKey)
+      }
+      return
+    }
     const requestId = uniqueId()
+    postedFftRef.current = requestKey
     const message: WorkerFFTRequest = {
       type: 'fft',
       requestId,
@@ -120,14 +126,9 @@ export default function RotatingMachineApp() {
     }
     const handler = (event: MessageEvent<WorkerFFTResponse>) => {
       if (event.data.type === 'fftResult' && event.data.requestId === requestId) {
-        useSimulatorStore.setState(state => ({
-          results: state.results
-            ? {
-                ...state.results,
-                spectrum: event.data.payload,
-              }
-            : state.results,
-        }))
+        postedFftRef.current = requestKey
+        // Merge spectrum into existing results only (keep previous behavior)
+        if (results) setResults({ ...results, spectrum: event.data.payload })
       }
     }
     fftWorker.addEventListener('message', handler)
@@ -135,6 +136,8 @@ export default function RotatingMachineApp() {
     return () => fftWorker.removeEventListener('message', handler)
   }, [
     fftWorker,
+    resultsRequestId,
+    resultsGeneratedAt,
     timeSeries,
     tachSeries,
     envelopeSeries,
@@ -151,24 +154,25 @@ export default function RotatingMachineApp() {
     const handler = (event: KeyboardEvent) => {
       const tag = (event.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (event.target as HTMLElement)?.isContentEditable) return
+      const current = keyboardStateRef.current
       if (event.key === ' ') {
         event.preventDefault()
-        setPlayback({ playing: !playback.playing })
+        setPlayback({ playing: !current.playing })
       } else if (event.key === '[') {
         event.preventDefault()
-        setPlayback({ slowmo: Math.max(0.1, playback.slowmo - 0.05) })
+        setPlayback({ slowmo: Math.max(0.1, current.slowmo - 0.05) })
       } else if (event.key === ']') {
         event.preventDefault()
-        setPlayback({ slowmo: Math.min(1, playback.slowmo + 0.05) })
+        setPlayback({ slowmo: Math.min(1, current.slowmo + 0.05) })
       } else if (event.key === '-') {
-        setPlayback({ exaggeration: Math.max(0, playback.exaggeration - 0.5) })
+        setPlayback({ exaggeration: Math.max(0, current.exaggeration - 0.5) })
       } else if (event.key === '=') {
-        setPlayback({ exaggeration: Math.min(10, playback.exaggeration + 0.5) })
+        setPlayback({ exaggeration: Math.min(10, current.exaggeration + 0.5) })
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [playback.playing, playback.slowmo, playback.exaggeration, setPlayback])
+  }, [setPlayback])
 
   const waveformSeries = useMemo(
     () =>

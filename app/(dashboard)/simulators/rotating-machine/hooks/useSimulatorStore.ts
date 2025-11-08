@@ -156,7 +156,18 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => ({
       }
       return { analysis: next }
     }),
-  setResults: results => set({ results }),
+  setResults: results =>
+    set(state => {
+      if (
+        state.results &&
+        results &&
+        state.results.requestId === results.requestId &&
+        state.results.generatedAt === results.generatedAt
+      ) {
+        return state
+      }
+      return { results }
+    }),
   setBusy: busy => set({ busy }),
   reset: () =>
     set({
