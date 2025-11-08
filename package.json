@@ -15,9 +15,12 @@
     "generate": "prisma generate",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:rotating-machine": "vitest --run --config \"app/(dashboard)/simulators/rotating-machine/vitest.config.ts\""
   },
   "dependencies": {
+    "@react-three/drei": "^9.103.0",
+    "@react-three/fiber": "^8.15.17",
     "@next-auth/prisma-adapter": "^1.0.7",
     "@next/font": "^14.0.4",
     "@prisma/client": "^5.7.1",
@@ -28,6 +31,8 @@
     "fft.js": "^4.0.4",
     "formidable": "^3.5.1",
     "framer-motion": "^12.23.22",
+    "html-to-image": "^1.11.11",
+    "lucide-react": "^0.365.0",
     "next": "^14.0.4",
     "next-auth": "^4.24.5",
     "next-safe": "^3.4.0",
@@ -38,14 +43,20 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-plotly.js": "^2.6.0",
+    "recharts": "^2.10.3",
+    "three": "^0.160.0",
     "uuid": "^9.0.1",
     "zod": "^3.22.4",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.4.2",
+    "@testing-library/react": "^14.2.1",
+    "@testing-library/user-event": "^14.5.2",
     "@playwright/test": "^1.40.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/formidable": "^3.4.5",
+    "@types/three": "^0.160.0",
     "@types/jest": "^29.5.11",
     "@types/node": "^20.10.6",
     "@types/nodemailer": "^6.4.14",
@@ -60,8 +71,10 @@
     "prettier": "^3.1.1",
     "prisma": "^5.7.1",
     "ts-jest": "^29.1.1",
+    "jsdom": "^23.0.1",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^1.1.3"
   },
   "engines": {
     "node": ">=20.0.0"

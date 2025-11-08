@@ -1,0 +1,62 @@
+.rotating-machine-page {
+  min-height: calc(100vh - 4rem);
+  width: 100%;
+  background: radial-gradient(circle at top, rgba(15, 118, 148, 0.08), transparent 65%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.04), rgba(15, 23, 42, 0));
+  padding: 1.5rem clamp(1rem, 3vw, 2.5rem);
+}
+
+.simulator-shell {
+  margin: 0 auto;
+  max-width: 1440px;
+  background: rgba(15, 23, 42, 0.04);
+  border-radius: 1.25rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 24px 120px rgba(15, 23, 42, 0.12);
+  padding: clamp(1rem, 2vw, 1.5rem);
+}
+
+.simulator-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: minmax(280px, 320px) minmax(320px, 1fr) minmax(320px, 1fr);
+}
+
+@media (max-width: 1280px) {
+  .simulator-grid {
+    grid-template-columns: minmax(280px, 320px) minmax(320px, 1fr);
+  }
+}
+
+@media (max-width: 960px) {
+  .simulator-shell {
+    padding: 1rem;
+  }
+
+  .simulator-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.82);
+  border-radius: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 15px 45px rgba(15, 23, 42, 0.08);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.3);
+  padding-bottom: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.panel-header h2 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #0f172a;
+}

@@ -1,20 +1,30 @@
-import ClientImage from '@/app/components/ClientImage'
+import dynamic from 'next/dynamic'
+import type { Metadata } from 'next'
 
-export const metadata = { title: 'Rotating Machine | Simulators' }
+import './styles/simulator.css'
 
-export default function RotatingMachineComingSoon() {
-  return (
-    <div className="container-fluid">
-      <div className="row mb-4">
-        <div className="col">
-          <h1 className="h3 mb-0">Rotating Machine</h1>
-          <p className="text-muted">This simulator is under progress.</p>
-        </div>
-      </div>
-      <div className="text-center p-5 bg-light rounded border">
-        <ClientImage src="/coming-soon.png" alt="Coming soon" style={{ maxWidth: 280 }} width={280} height={200} />
-        <div className="mt-3">Coming soon</div>
+const RotatingMachineApp = dynamic(() => import('./client/RotatingMachineApp'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full items-center justify-center py-16">
+      <div className="rounded-lg bg-slate-900/5 px-8 py-6 text-center">
+        <p className="text-sm font-semibold tracking-wide text-slate-500">Preparing rotating-machine simulator…</p>
       </div>
     </div>
+  ),
+})
+
+export const metadata: Metadata = {
+  title: 'Rotating Machine Fault Simulator',
+  description: 'Interactive vibration diagnostics lab for rotating machinery faults.',
+}
+
+export default function RotatingMachineSimulatorPage() {
+  return (
+    <section className="rotating-machine-page">
+      <div className="simulator-shell">
+        <RotatingMachineApp />
+      </div>
+    </section>
   )
 }
