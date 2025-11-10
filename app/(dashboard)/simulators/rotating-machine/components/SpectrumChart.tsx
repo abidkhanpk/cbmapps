@@ -5,7 +5,7 @@ import { memo, useMemo } from 'react'
 import type { Data, Layout, Config } from 'plotly.js'
 import type { PlotParams } from 'react-plotly.js'
 
-import type { FaultMarker, SpectrumResult } from '../types'
+import type { FaultMarker, SignalStats, SpectrumResult } from '../types'
 
 const Plot = dynamic<PlotParams>(() => import('react-plotly.js'), { ssr: false })
 
@@ -14,6 +14,7 @@ interface SpectrumChartProps {
   markers?: FaultMarker[]
   sensorOrder: string[]
   sensorLabels?: Record<string, string>
+  sensorStats?: Record<string, SignalStats>
   fmax?: number
 }
 
@@ -22,9 +23,13 @@ export const SpectrumChart = memo(function SpectrumChart({
   markers = [],
   sensorOrder,
   sensorLabels,
+  sensorStats,
   fmax,
 }: SpectrumChartProps) {
-  const traces = useMemo(() => buildSpectrumTraces(spectrum, sensorOrder, sensorLabels, fmax), [spectrum, sensorOrder, sensorLabels, fmax])
+  const traces = useMemo(
+    () => buildSpectrumTraces(spectrum, sensorOrder, sensorLabels, sensorStats, fmax),
+    [spectrum, sensorOrder, sensorLabels, sensorStats, fmax],
+  )
 
   if (!spectrum || !traces.length) {
     return <EmptyState message="FFT results pending…" />
@@ -78,6 +83,7 @@ function buildSpectrumTraces(
   spectrum: SpectrumResult | undefined,
   sensorOrder: string[],
   sensorLabels: Record<string, string> | undefined,
+  sensorStats: Record<string, SignalStats> | undefined,
   fmax?: number,
 ): Data[] {
   if (!spectrum) return []
@@ -88,12 +94,21 @@ function buildSpectrumTraces(
     if (!channel) return
     const stride = Math.max(1, Math.floor(channel.length / 4000))
     const x: number[] = []
-    const y: number[] = []
+    const yRaw: number[] = []
     for (let i = 0; i < channel.length; i += stride) {
       const freqVal = spectrum.f[i]
       if (fmax && freqVal > fmax) break
       x.push(freqVal)
-      y.push(channel[i])
+      yRaw.push(channel[i])
+    }
+    let y = yRaw
+    const stats = sensorStats?.[sensorId]
+    if (stats) {
+      const currentPeak = yRaw.reduce((max, v) => Math.max(max, Math.abs(v)), 0)
+      if (currentPeak > 0 && stats.peak > 0) {
+        const scale = stats.peak / currentPeak
+        y = yRaw.map(value => value * scale)
+      }
     }
     traces.push({
       x,

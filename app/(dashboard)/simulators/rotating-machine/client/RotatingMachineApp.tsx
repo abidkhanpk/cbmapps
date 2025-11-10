@@ -324,6 +324,7 @@ export default function RotatingMachineApp() {
               markers={results?.markers}
               sensorOrder={sensors.map(sensor => sensor.id)}
               sensorLabels={Object.fromEntries(sensors.map(sensor => [sensor.id, sensor.label ?? sensor.id]))}
+              sensorStats={results?.stats}
               fmax={analysis.fmax}
             />
           )}
